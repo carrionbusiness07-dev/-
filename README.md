@@ -12,6 +12,8 @@
 Локальный веб-кабинет «Хроника»: `python -m minsk_realty.web` → http://localhost:8080 (в docker compose — сервис `web`).
 Посмотреть на вымышленных данных: `python scripts/demo_db.py demo.db`, затем `DATABASE_URL=sqlite:///demo.db python -m minsk_realty.web`.
 
+Telegram-бот: `TELEGRAM_BOT_TOKEN=… python -m minsk_realty.bot` (в docker compose — сервис `bot`; настройка — [docs/setup-home-computer.md](docs/setup-home-computer.md), шаг 9).
+
 ## Разработка
 
 ```bash

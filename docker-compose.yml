@@ -62,5 +62,15 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Telegram-бот «Хроники»: /check по ссылке, «Мои квартиры», уведомления, сводка в канал.
+  # Long polling — порты наружу не нужны. Нужен TELEGRAM_BOT_TOKEN в .env.
+  bot:
+    <<: *app
+    restart: unless-stopped
+    command: ["python", "-m", "minsk_realty.bot"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:

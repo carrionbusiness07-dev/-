@@ -33,6 +33,7 @@ CONFIDENCE = ("high", "medium", "low")
 LISTING_STATUSES = ("active", "inactive")
 EVENT_TYPES = ("new", "price_drop", "price_up", "relisted", "cross_listed", "removed", "returned")
 RUN_STATUSES = ("running", "ok", "failed", "blocked")
+DELIVERY_STATUSES = ("pending", "sent", "failed")
 
 
 def utcnow() -> datetime:
@@ -268,6 +269,49 @@ class Check(Base):
         ForeignKey("listings.id", ondelete="SET NULL"), index=True
     )
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class Notification(Base):
+    """Событие, отправленное (или зарезервированное к отправке) пользователю ботом.
+
+    Строка пишется и коммитится ДО отправки (status="pending"), после — "sent" или "failed".
+    Уникальность (user_id, event_id) гарантирует, что одно событие не уйдёт дважды даже после
+    перезапуска; "pending", оставшийся от упавшего процесса, повторно не отправляется
+    (лучше потерять уведомление, чем прислать его дважды). По `created_at` бот соблюдает
+    «не чаще раза в час по одному объекту».
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("user_id", "event_id"),
+        Index("ix_notifications_user_object_created", "user_id", "object_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    object_id: Mapped[int] = mapped_column(ForeignKey("objects.id", ondelete="CASCADE"))
+    event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(
+        _enum(DELIVERY_STATUSES, "delivery_status"), default="pending"
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+
+
+class ChannelPost(Base):
+    """Публикация в канал (недельная сводка): одна на период, без повторов после перезапуска."""
+
+    __tablename__ = "channel_posts"
+    __table_args__ = (UniqueConstraint("kind", "period"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32))  # "weekly"
+    period: Mapped[str] = mapped_column(String(16))  # "2026-W43"
+    status: Mapped[str] = mapped_column(
+        _enum(DELIVERY_STATUSES, "delivery_status"), default="pending"
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    sent_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class SourceRun(Base):

@@ -1,0 +1,197 @@
+"""Хендлеры aiogram: достать telegram_id и текст, позвать BotService, отправить ответ.
+
+Логики здесь нет: всё, что можно проверить без Telegram, живёт в service/texts/keyboards.
+Пользовательские команды работают только в личных чатах; /weekly — только для ADMIN_CHAT_ID.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from contextlib import suppress
+
+from aiogram import Bot, F, Router
+from aiogram.enums import ChatAction, ChatType
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.types import CallbackQuery, Message, MessageEntity
+
+from minsk_realty.bot import keyboards, texts
+from minsk_realty.bot.config import BotConfig
+from minsk_realty.bot.publish import publish_weekly
+from minsk_realty.bot.service import BotService
+
+log = logging.getLogger(__name__)
+
+
+def message_text(message: Message) -> str:
+    """Текст сообщения плюс адреса из «спрятанных» ссылок (текст со ссылкой внутри)."""
+    text = message.text or message.caption or ""
+    entities: list[MessageEntity] = list(message.entities or message.caption_entities or [])
+    hidden = [e.url for e in entities if e.type == "text_link" and e.url]
+    return " ".join([text, *hidden]).strip()
+
+
+def is_admin(message: Message, cfg: BotConfig) -> bool:
+    admin = cfg.admin_chat_id
+    if admin is None:
+        return False
+    ids = {str(message.chat.id)}
+    if message.from_user:
+        ids.add(str(message.from_user.id))
+    return str(admin) in ids
+
+
+async def _typing(bot: Bot, chat_id: int) -> None:
+    with suppress(Exception):
+        await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+
+def build_router(cfg: BotConfig) -> Router:
+    root = Router(name="khronika")
+    admin = Router(name="admin")
+    users = Router(name="users")
+    users.message.filter(F.chat.type == ChatType.PRIVATE)
+    root.include_routers(admin, users)
+
+    # --- Админ ---------------------------------------------------------------------------
+
+    @admin.message(Command("weekly"), lambda m: is_admin(m, cfg))
+    async def weekly_cmd(
+        message: Message, command: CommandObject, bot: Bot, service: BotService
+    ) -> None:
+        args = (command.args or "").split()
+        if not args:
+            await message.answer(await asyncio.to_thread(service.weekly_preview))
+            return
+        if args[0] != "publish":
+            await message.answer("Команды: /weekly — предпросмотр, /weekly publish — в канал")
+            return
+        result = await publish_weekly(bot, service, cfg, force="force" in args[1:])
+        await message.answer(texts.esc(result.text))
+
+    # --- Пользователь ----------------------------------------------------------------------
+
+    @users.message(CommandStart())
+    async def start(message: Message) -> None:
+        await message.answer(texts.start_text())
+
+    @users.message(Command("help"))
+    async def help_(message: Message) -> None:
+        await message.answer(texts.help_text(cfg.watch_limit))
+
+    @users.message(Command("check"))
+    async def check(
+        message: Message, command: CommandObject, bot: Bot, service: BotService
+    ) -> None:
+        if not command.args:
+            await message.answer(texts.check_usage_text())
+            return
+        await _typing(bot, message.chat.id)
+        reply = await asyncio.to_thread(service.check_text, message.chat.id, command.args)
+        await message.answer(reply.text, reply_markup=reply.keyboard)
+
+    @users.message(Command("watch"))
+    async def watch(message: Message, command: CommandObject, service: BotService) -> None:
+        if not command.args:
+            await message.answer(texts.watch_usage_text())
+            return
+        reply = await asyncio.to_thread(service.watch_text, message.chat.id, command.args)
+        await message.answer(reply.text, reply_markup=reply.keyboard)
+
+    @users.message(Command("unwatch"))
+    async def unwatch(message: Message, command: CommandObject, service: BotService) -> None:
+        reply = await asyncio.to_thread(service.unwatch_text, message.chat.id, command.args)
+        await message.answer(reply.text, reply_markup=reply.keyboard)
+
+    @users.message(Command("list"))
+    async def watchlist(message: Message, service: BotService) -> None:
+        reply = await asyncio.to_thread(service.watchlist, message.chat.id)
+        await message.answer(reply.text, reply_markup=reply.keyboard)
+
+    @users.message(Command("forget"))
+    async def forget(message: Message) -> None:
+        await message.answer(texts.forget_confirm_text(), reply_markup=keyboards.forget_keyboard())
+
+    @users.message(F.text | F.caption)
+    async def any_text(message: Message, bot: Bot, service: BotService) -> None:
+        text = message_text(message)
+        if text.startswith("/"):
+            await message.answer(texts.help_text(cfg.watch_limit))
+            return
+        await _typing(bot, message.chat.id)
+        reply = await asyncio.to_thread(service.check_text, message.chat.id, text)
+        await message.answer(reply.text, reply_markup=reply.keyboard)
+
+    @users.message()
+    async def other(message: Message) -> None:
+        await message.answer(texts.no_link_text())
+
+    # --- Кнопки ----------------------------------------------------------------------------
+
+    @users.callback_query()
+    async def on_button(query: CallbackQuery, bot: Bot, service: BotService) -> None:
+        cb = keyboards.parse_callback(query.data)
+        user_id = query.from_user.id
+        message = query.message if isinstance(query.message, Message) else None
+        if cb is None:
+            await query.answer("Кнопка устарела")
+            return
+
+        if cb.action == "watch":
+            reply, result = await asyncio.to_thread(service.watch_listing, user_id, cb.listing_id)
+            await query.answer()
+            if message is not None:
+                if result.status in ("added", "already"):
+                    markup = await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
+                    await _edit_markup(message, markup)
+                await message.answer(reply.text)
+            return
+
+        if cb.action == "unwatch":
+            ok = await asyncio.to_thread(service.unwatch, user_id, cb.object_id)
+            await query.answer("Больше не слежу" if ok else "Этой квартиры уже нет в списке")
+            if message is None:
+                return
+            if cb.context == "l":
+                reply = await asyncio.to_thread(service.watchlist, user_id)
+                with suppress(TelegramBadRequest):
+                    await message.edit_text(reply.text, reply_markup=reply.keyboard)
+            elif cb.context == "r" and cb.listing_id is not None:
+                markup = await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
+                await _edit_markup(message, markup)
+            else:
+                await _edit_markup(
+                    message, keyboards.without_unwatch(message.reply_markup, cb.object_id)
+                )
+            return
+
+        if cb.action == "report":
+            await query.answer()
+            await _typing(bot, user_id)
+            reply = await asyncio.to_thread(service.report_for_object, user_id, cb.object_id)
+            if message is not None:
+                await message.answer(reply.text, reply_markup=reply.keyboard)
+            else:
+                await bot.send_message(user_id, reply.text, reply_markup=reply.keyboard)
+            return
+
+        if cb.action == "forget":
+            await query.answer()
+            if cb.context == "yes":
+                reply = await asyncio.to_thread(service.forget, user_id)
+            else:
+                reply = None
+            if message is not None:
+                with suppress(TelegramBadRequest):
+                    await message.edit_text(
+                        reply.text if reply else texts.esc("Хорошо, ничего не удаляю.")
+                    )
+
+    return root
+
+
+async def _edit_markup(message: Message, markup) -> None:
+    # «message is not modified» и устаревшие сообщения — не ошибка для пользователя.
+    with suppress(TelegramBadRequest):
+        await message.edit_reply_markup(reply_markup=markup)
