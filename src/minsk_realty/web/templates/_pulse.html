@@ -1,0 +1,56 @@
+<section class="pulse-block">
+  <h2 class="pulse-title">Пульс рынка</h2>
+  {% set city = overview.city %}
+  <p class="pulse-label">Медиана цены по Минску</p>
+  <p class="pulse-figure">{% if city and city.enough %}${{ city.median | thousands }}<span class="unit">/м²</span>{% else %}мало данных{% endif %}</p>
+  {% set first = (series | selectattr("value") | list | first) %}
+  {% set last = (series | selectattr("value") | list | last) %}
+  {% if first and last and first.value %}
+  <p class="pulse-change">{{ ((last.value / first.value - 1) * 100) | pct }} за {{ series | length }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
+  {% endif %}
+  {% set values = series | selectattr("value") | map(attribute="value") | list %}
+  {% if values %}
+  {% set lo = values | min %}{% set hi = values | max %}
+  <ol class="bars" aria-label="Медиана по неделям">
+    {% for p in series %}
+    <li title="{{ p.label }}: {% if p.value %}${{ p.value | thousands }}/м²{% else %}мало данных{% endif %}">
+      <span class="bar" style="--h: {% if p.value %}{{ (0.6 + 0.4 * ((p.value - lo) / ((hi - lo) or 1))) | round(3) }}{% else %}0{% endif %}"></span>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="bars-axis"><span>{{ series[0].label }}</span><span>шкала ${{ lo | thousands }}–{{ hi | thousands }}</span><span>{{ series[-1].label }}</span></p>
+  {% endif %}
+</section>
+
+<section class="pulse-block pulse-week">
+  <h2 class="pulse-title">За неделю</h2>
+  {% set w = overview.last_7d %}
+  <dl class="facts">
+    <div><dt>Новых квартир</dt><dd>{{ w.new_objects }}</dd></div>
+    <div><dt>Подешевели</dt><dd>{{ w.dropped_objects }}{% if w.drop_step_median_pct %} <small>шаг {{ w.drop_step_median_pct | pct }}</small>{% endif %}</dd></div>
+    <div><dt>Сняты с продажи</dt><dd>{{ w.removed_objects }}</dd></div>
+    <div><dt>Перевыложены «как новые»</dt><dd>{% if w.relisted_share is not none %}{{ (w.relisted_share * 100) | round | int }}%{% else %}—{% endif %} <small>{{ w.relisted_listings }} из {{ w.new_listings }}</small></dd></div>
+  </dl>
+</section>
+
+<section class="pulse-block pulse-districts">
+  <h2 class="pulse-title">Районы, $/м²</h2>
+  {% set cells = overview.by_district | selectattr("enough") | sort(attribute="median", reverse=True) | list %}
+  {% if cells %}
+  {% set top = cells[0].median %}{% set bottom = cells[-1].median %}
+  <table class="districts">
+    <thead><tr><th scope="col">Район</th><th scope="col" class="num">Медиана</th><th scope="col" class="num">Квартир</th></tr></thead>
+    <tbody>
+    {% for c in cells %}
+      <tr>
+        <th scope="row">{{ c.district }}</th>
+        <td class="num"><span class="meter" style="--w: {{ (0.12 + 0.88 * (c.median - bottom) / ((top - bottom) or 1)) | round(3) }}"></span>{{ c.median | thousands }}</td>
+        <td class="num muted">{{ c.n }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Мало данных: медиана показывается от 10 квартир в районе.</p>
+  {% endif %}
+</section>

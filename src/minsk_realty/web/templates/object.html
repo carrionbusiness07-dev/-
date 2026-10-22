@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set r = report %}
+{% block title %}{{ fmt.rooms_label(r.flat.rooms) }} {{ r.flat.street or "" }}{% endblock %}
+{% block content %}
+<main class="object">
+  <a class="back" href="/"><svg aria-hidden="true" width="14" height="14"><use href="#i-arrow-left"/></svg>Сводка</a>
+  <header class="object-head">
+    <div>
+      <h1>{{ fmt.rooms_label(r.flat.rooms) }}{% if r.flat.area %}, {{ ("%.1f" % r.flat.area).replace(".0", "").replace(".", ",") }} м²{% endif %}{% if r.flat.floor and r.flat.floors_total %}, {{ r.flat.floor }}/{{ r.flat.floors_total }} эт.{% endif %}</h1>
+      <p class="page-dek">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+    </div>
+    <div class="object-price">
+      {% set p = r.listing.price %}
+      <p class="object-price-now{% if r.exposure and r.exposure.state == 'removed' %} price-gone{% endif %}">{{ p.amount | money(p.currency) if p else "цена не указана" }}</p>
+      <p class="price-meta">{% if p and p.usd_per_m2 %}{{ p.usd_per_m2 | ppm }}{% endif %}{% if r.moves and r.moves.total_change_pct %} · <span class="delta delta-{{ 'down' if r.moves.total_change_pct < 0 else 'up' }}">{{ r.moves.total_change_pct | pct }} от первой цены</span>{% endif %}</p>
+      <a class="source-link" href="{{ r.listing.url }}" rel="noopener" target="_blank">Открыть на {{ sources.get(r.listing.source, r.listing.source) }}<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
+    </div>
+  </header>
+
+  {% if r.bargaining %}
+  <section class="verdict verdict-{{ r.bargaining.level }}" aria-labelledby="verdict-title">
+    <h2 id="verdict-title">Торг: {{ {"high": "реален", "medium": "возможен", "low": "вряд ли", "unknown": "мало данных"}.get(r.bargaining.level, r.bargaining.level) }}</h2>
+    <p class="verdict-text">{{ r.bargaining.recommendation }}</p>
+    {% if r.bargaining.reasons %}
+    <ul class="verdict-reasons">{% for reason in r.bargaining.reasons %}<li>{{ reason.text }}</li>{% endfor %}</ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <p class="object-facts">
+    {% if r.exposure %}
+    <span>На рынке <b>{% if r.exposure.at_least %}≥ {% endif %}{{ r.exposure.days }}</b> {{ fmt.plural(r.exposure.days, "день", "дня", "дней") }}</span>
+    {% if r.exposure.site_days is not none %}<span>на сайте <b>{{ r.exposure.site_days }}</b> дн.</span>{% endif %}
+    <span>перевыкладывалась <b>{{ r.exposure.relist_count }}</b> {{ fmt.plural(r.exposure.relist_count, "раз", "раза", "раз") }}</span>
+    {% endif %}
+    {% if r.moves %}<span>снижений <b>{{ r.moves.drops }}</b></span>{% endif %}
+    {% if r.median and r.median.diff_pct is not none %}<span>к медиане района <b>{{ r.median.diff_pct | pct }}</b></span>{% endif %}
+  </p>
+
+  {% if timeline %}
+  <section class="chronicle" aria-labelledby="chronicle-title">
+    <h2 id="chronicle-title" class="section-title">Хроника цены</h2>
+    <figure class="chart">
+      <svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Цена квартиры по времени">
+        {% for y, label in timeline.y_labels %}<line class="grid" x1="0" x2="1000" y1="{{ y }}" y2="{{ y }}"/>{% endfor %}
+        {% for x, label in timeline.x_labels %}<line class="grid grid-v" x1="{{ x }}" x2="{{ x }}" y1="0" y2="200"/>{% endfor %}
+        <path class="price-line" d="{{ timeline.path }}"/>
+      </svg>
+      <div class="chart-points">{% for x, y, kind, label in timeline.dots %}<span class="pt pt-{{ kind }}" style="left: {{ x / 10 }}%; top: {{ y / 2 }}%" title="{{ label }}"></span>{% endfor %}</div>
+      <div class="chart-y">{% for y, label in timeline.y_labels %}<span style="top: {{ y / 2 }}%">{{ label }}</span>{% endfor %}</div>
+      <div class="chart-x">{% for x, label in timeline.x_labels %}<span style="left: {{ x / 10 }}%">{{ label }}</span>{% endfor %}</div>
+      {% if timeline.marks %}
+      <ol class="chart-marks">{% for m in timeline.marks %}<li class="mark-{{ m.kind }}{% if m.x < 12 %} edge-start{% elif m.x > 88 %} edge-end{% endif %}" style="left: {{ m.x }}%"><span>{{ m.label }} {{ m.date }}</span></li>{% endfor %}</ol>
+      {% endif %}
+    </figure>
+
+    <table class="history">
+      <caption class="visually-hidden">История цены</caption>
+      <thead><tr><th scope="col">Дата</th><th scope="col" class="num">Цена</th><th scope="col" class="num">Изменение</th><th scope="col" class="folded">Площадка</th><th scope="col" class="folded">Продавец</th></tr></thead>
+      <tbody>
+      {% for h in history %}
+        <tr>
+          <td>{{ h.at | dshort }}<span class="sub fold">{{ h.sources }} · {{ h.seller }}</span></td>
+          <td class="num strong">{{ h.amount | money(h.currency) }}</td>
+          <td class="num">{% if h.change_pct %}<span class="delta delta-{{ 'down' if h.change_pct < 0 else 'up' }}">{{ h.change_pct | pct }}</span>{% elif h.kind == "first" %}<span class="muted">первая цена</span>{% elif h.kind != "change" %}<span class="muted">новое объявление</span>{% endif %}</td>
+          <td class="folded">{{ h.sources }}</td>
+          <td class="folded">{{ h.seller }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% if r.others %}
+  <section aria-labelledby="others-title">
+    <h2 id="others-title" class="section-title">Эта квартира на других площадках</h2>
+    <table class="history">
+      <thead><tr><th scope="col">Площадка</th><th scope="col" class="folded">Продавец</th><th scope="col" class="num">Цена</th><th scope="col" class="folded">Склейка</th><th scope="col"><span class="visually-hidden">Ссылка</span></th></tr></thead>
+      <tbody>
+      {% for o in r.others %}
+        <tr>
+          <td>{{ sources.get(o.source, o.source) }}<span class="sub fold">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% endif %}</span></td>
+          <td class="folded">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% else %}—{% endif %}</td>
+          <td class="num strong">{{ o.amount | money(o.currency) if o.amount else "—" }}{% if o.cheaper_by and o.cheaper_by > 0 %} <span class="delta delta-down">дешевле на {{ o.cheaper_by | money(o.cheaper_currency) }}</span>{% endif %}</td>
+          <td class="folded">{{ {"high": "надёжная", "medium": "вероятная", "low": "возможно"}.get(o.confidence, "—") }}</td>
+          <td><a href="{{ o.url }}" rel="noopener" target="_blank">открыть</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  <p class="provenance">
+    Склейка: {{ {"high": "высокая уверенность", "medium": "средняя уверенность", "low": "низкая уверенность"}.get(r.match.level, "—") if r.match else "—" }}{% if r.match and r.match.basis %} ({{ r.match.basis }}){% endif %}.
+    Наблюдаем рынок с {{ r.observation_start | dshort if r.observation_start else "—" }}. Цены объявлений, не сделок.
+  </p>
+</main>
+{% endblock %}

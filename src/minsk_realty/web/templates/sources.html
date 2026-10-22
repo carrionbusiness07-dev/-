@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Источники{% endblock %}
+{% block content %}
+<main class="sources-page">
+  <header class="page-head">
+    <div>
+      <h1>Источники</h1>
+      <p class="page-dek">Обход площадок раз в 30–60 минут. После трёх отказов подряд площадка останавливается до ручной проверки.</p>
+    </div>
+  </header>
+  <ul class="source-cards">
+    {% for h in health %}
+    <li class="source source-{{ h.state }}">
+      <h2><span class="dot dot-{{ h.state }}" aria-hidden="true"></span>{{ sources.get(h.source, h.source) }}</h2>
+      <p class="source-state">{{ {"ok": "Работает", "warning": "Нужно внимание", "failing": "Сбой", "blocked": "Остановлен после 403/429", "never_run": "Ещё не запускался"}[h.state] }}</p>
+      {% if h.last_run_at %}
+      <dl class="facts">
+        <div><dt>Последний проход</dt><dd>{{ h.last_run_at | dshort }} {{ fmt.local(h.last_run_at).strftime("%H:%M") }}</dd></div>
+        <div><dt>Объявлений в проходе</dt><dd>{{ h.last_run_listings or 0 }}{% if h.last_run_parse_errors %} <small class="warn">ошибок разбора {{ h.last_run_parse_errors }}</small>{% endif %}</dd></div>
+        <div><dt>Активных объявлений</dt><dd>{{ h.active_listings }}</dd></div>
+        <div><dt>Проходов за сутки</dt><dd>{{ h.runs_24h }}{% if h.failed_24h %} <small class="warn">неудачных {{ h.failed_24h }}</small>{% endif %}</dd></div>
+      </dl>
+      {% endif %}
+      {% for a in h.alerts %}<p class="alert">{{ a }}</p>{% endfor %}
+    </li>
+    {% endfor %}
+  </ul>
+  <section aria-labelledby="runs-title">
+    <h2 id="runs-title" class="section-title">Последние проходы</h2>
+    <div class="table-wrap">
+    <table class="history">
+      <thead><tr><th scope="col">Начало</th><th scope="col">Площадка</th><th scope="col">Итог</th><th scope="col" class="num">Объявлений</th><th scope="col" class="num">Ошибок</th><th scope="col">Полный</th></tr></thead>
+      <tbody>
+      {% for run in runs %}
+        <tr>
+          <td>{{ run.started_at | dshort }} {{ fmt.local(run.started_at).strftime("%H:%M") }}</td>
+          <td>{{ sources.get(run.source, run.source) }}</td>
+          <td><span class="dot dot-{{ {'ok': 'ok', 'running': 'warning', 'failed': 'failing', 'blocked': 'blocked'}[run.status] }}" aria-hidden="true"></span>{{ {"ok": "успешно", "running": "идёт", "failed": "ошибка", "blocked": "отказ площадки"}[run.status] }}</td>
+          <td class="num">{{ run.listings_seen }}</td>
+          <td class="num">{% if run.parse_errors %}<span class="warn">{{ run.parse_errors }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+          <td>{{ "да" if run.complete else "нет" }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="empty-cell">За неделю проходов не было. Запустите сборщик: <code>docker compose up -d</code></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+</main>
+{% endblock %}

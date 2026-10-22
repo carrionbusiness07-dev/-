@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Объекты{% endblock %}
+{% block content %}
+<main class="objects">
+  <header class="page-head">
+    <div>
+      <h1>Объекты</h1>
+      {% set active = rows | selectattr("state", "equalto", "active") | list | length %}{% set hidden = (rows | length) - active %}
+      <p class="page-dek">{{ active }} {{ fmt.plural(active, "квартира", "квартиры", "квартир") }} в продаже{% if hidden %} и {{ hidden }} недавно {{ fmt.plural(hidden, "скрыта", "скрыты", "скрыты") }} — пропали из выдачи меньше 3 суток назад{% endif %}{% if district %} · {{ district }} р-н{% endif %}</p>
+    </div>
+    <form class="filters" method="get">
+      <label for="district">Район</label>
+      <select id="district" name="district" onchange="this.form.submit()">
+        <option value="">Весь Минск</option>
+        {% for d in districts %}<option value="{{ d }}" {% if d == district %}selected{% endif %}>{{ d }}</option>{% endfor %}
+      </select>
+      <input type="hidden" name="sort" value="{{ sort }}">
+      <noscript><button type="submit">Показать</button></noscript>
+    </form>
+  </header>
+  {% if missing %}
+  <p class="notice" role="status">{% if missing == "unsupported" %}Такие ссылки пока не поддерживаются: только Kufar и Realt.{% else %}Этой квартиры пока нет в базе. Сборщик добавит её при следующем обходе, если она в продаже в Минске.{% endif %}</p>
+  {% endif %}
+  <div class="table-wrap">
+  <table class="list">
+    <thead>
+      <tr>
+        <th scope="col">Квартира</th>
+        <th scope="col">Район</th>
+        {% for key, label in [("price", "Цена"), ("ppm", "$/м²"), ("days", "На рынке"), ("drops", "Снижений"), ("relists", "Перевыкл.")] %}
+        <th scope="col" class="num" {% if sort == key %}aria-sort="{{ 'ascending' if key in ('price', 'ppm') else 'descending' }}"{% endif %}><a href="?sort={{ key }}&district={{ district }}">{{ label }}{% if sort == key %}<svg aria-hidden="true" width="12" height="12"><use href="#i-arrow-{{ 'up' if key in ('price', 'ppm') else 'down' }}"/></svg>{% endif %}</a></th>
+        {% endfor %}
+        <th scope="col">Площадки</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <th scope="row"><a href="/objects/{{ row.object_id }}">{{ row.title }}</a><span class="sub">{{ row.address }}</span></th>
+        <td>{{ row.district }}</td>
+        <td class="num strong">{{ row.price }}</td>
+        <td class="num">{{ row.ppm }}</td>
+        <td class="num">{% if row.at_least %}≥ {% endif %}{{ row.days }} дн.</td>
+        <td class="num">{% if row.drops %}<b>{{ row.drops }}</b>{% else %}<span class="muted">0</span>{% endif %}</td>
+        <td class="num">{{ row.relists or "" }}</td>
+        <td class="muted">{{ row.sources }}{% if row.state == "hidden" %} · скрыта{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="empty-cell">В этом районе сейчас нет квартир в продаже.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</main>
+{% endblock %}

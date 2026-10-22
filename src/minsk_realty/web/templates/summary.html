@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_entry.html" import entry %}
+{% block title %}Что изменилось{% endblock %}
+{% block content %}
+<div class="summary">
+  <main class="feed-col">
+    <header class="page-head">
+      <div>
+        <h1>Что изменилось</h1>
+        <p class="page-dek">{{ snap.now | dwords }} · {{ counts.all }} {{ fmt.plural(counts.all, "квартира", "квартиры", "квартир") }} за {{ days }} {{ fmt.plural(days, "день", "дня", "дней") }}</p>
+      </div>
+      <form class="check-form" action="/check" method="get" role="search">
+        <label class="visually-hidden" for="check-url">Ссылка на объявление</label>
+        <input id="check-url" name="url" type="url" placeholder="Ссылка Kufar или Realt" required>
+        <button type="submit">Проверить</button>
+      </form>
+    </header>
+
+    <div class="feed-controls">
+      <nav class="tabs" aria-label="Тип изменений">
+        {% for key, label in filters %}
+        <a href="?kind={{ key }}&days={{ days }}" {% if kind == key %}aria-current="true"{% endif %}>{{ label }} <span class="count">{{ counts[key] }}</span></a>
+        {% endfor %}
+      </nav>
+      <nav class="period" aria-label="Период">
+        {% for d, label in [(1, "Сутки"), (3, "3 дня"), (7, "Неделя"), (30, "Месяц")] %}
+        <a href="?kind={{ kind }}&days={{ d }}" {% if days == d %}aria-current="true"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+
+    {% if feed %}
+      {% for day in feed %}
+      {% if loop.first %}
+      <section class="day" aria-labelledby="day-{{ loop.index }}">
+        <h2 class="dateline" id="day-{{ loop.index }}">{{ day.label }} <span class="dateline-count">{{ day.entries | length }}</span></h2>
+        <ol class="entries">
+          {% for e in day.entries %}{{ entry(e) }}{% endfor %}
+        </ol>
+      </section>
+      {% else %}
+      <details class="day day-past">
+        <summary class="dateline"><h2>{{ day.label }}</h2> <span class="dateline-count"><span class="toggle-show">показать </span><span class="toggle-hide">скрыть </span>{{ day.entries | length }}</span></summary>
+        <ol class="entries">
+          {% for e in day.entries %}{{ entry(e) }}{% endfor %}
+        </ol>
+      </details>
+      {% endif %}
+      {% endfor %}
+    {% else %}
+      <div class="empty">
+        <p class="empty-title">За этот период таких изменений нет</p>
+        <p>Попробуйте период длиннее или вкладку «Все». Сборщик обходит площадки раз в 30–60 минут.</p>
+      </div>
+    {% endif %}
+  </main>
+
+  <aside class="pulse pulse-summary" aria-label="Пульс рынка">
+    {% include "_pulse.html" %}
+  </aside>
+</div>
+{% endblock %}

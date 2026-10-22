@@ -139,11 +139,15 @@ def money_k(amount: Decimal | float, currency: str | None) -> str:
 
 
 def offer_range(low: Decimal, high: Decimal, currency: str | None) -> str:
-    """$88 000 и $89 000 → «$88–89k»."""
-    lo, hi = money_k(low, currency), money_k(high, currency)
+    """$78 500 и $80 000 → «$78 500–80 000» (тот же формат денег, что везде)."""
+    lo, hi = money(low, currency), money(high, currency)
+    if lo == hi:
+        return lo
     if currency == "USD":
-        return f"{lo[:-1]}–{hi[1:]}" if lo != hi else lo
-    return f"{lo.split()[0]}–{hi}" if lo != hi else hi
+        return f"{lo}–{hi[1:]}"
+    if currency == "EUR":
+        return f"{lo}–{hi[1:]}"
+    return f"{lo.rsplit(' ', 1)[0]}–{hi}"
 
 
 def ppm(value: float | None) -> str:

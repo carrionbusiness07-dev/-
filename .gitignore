@@ -10,3 +10,6 @@ tests/fixtures/**/*.raw.*
 # Локальные БД (SQLite для разработки) — в них собранные объявления
 *.db
 *.db-journal
+
+# Скриншоты проверки дизайна
+.impeccable/review/

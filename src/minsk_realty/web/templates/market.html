@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Рынок{% endblock %}
+{% block content %}
+<div class="summary">
+  <main class="feed-col">
+    <header class="page-head">
+      <div>
+        <h1>Рынок</h1>
+        <p class="page-dek">{{ overview.active_objects }} {{ fmt.plural(overview.active_objects, "квартира", "квартиры", "квартир") }} в продаже · цены объявлений, не сделок</p>
+      </div>
+    </header>
+    <section aria-labelledby="rooms-title">
+      <h2 id="rooms-title" class="section-title">По числу комнат, Минск</h2>
+      <table class="history">
+        <thead><tr><th scope="col">Комнат</th><th scope="col" class="num">Медиана $/м²</th><th scope="col" class="num">Квартир</th></tr></thead>
+        <tbody>{% for c in overview.by_rooms %}<tr><th scope="row">{{ fmt.rooms_label(c.rooms) }}</th><td class="num strong">{{ c.median | thousands if c.enough else "мало данных" }}</td><td class="num muted">{{ c.n }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </section>
+    <section aria-labelledby="drops-title">
+      <h2 id="drops-title" class="section-title">Самые большие снижения за неделю</h2>
+      {% if overview.top_drops %}
+      <table class="history">
+        <thead><tr><th scope="col">Квартира</th><th scope="col" class="num">Было</th><th scope="col" class="num">Стало</th><th scope="col" class="num">Изменение</th><th scope="col">Дата</th></tr></thead>
+        <tbody>
+        {% for d in overview.top_drops %}
+          <tr>
+            <th scope="row"><a href="/objects/{{ d.object_id }}">{{ fmt.rooms_label(d.rooms) }}, {{ d.street or "адрес не указан" }}</a><span class="sub">{{ fmt.district_label(d.district) }}</span></th>
+            <td class="num"><s class="price-old">{{ d.old_amount | money(d.currency) }}</s></td>
+            <td class="num strong">{{ d.new_amount | money(d.currency) }}</td>
+            <td class="num"><span class="delta delta-down">{{ d.pct | pct }}</span></td>
+            <td>{{ d.at | dshort }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}<p class="muted">За неделю снижений не было.</p>{% endif %}
+    </section>
+    {% if overview.exposure_median and overview.exposure_median.enough %}
+    <p class="provenance">Медианный срок продажи по Минску — {{ overview.exposure_median.median | round | int }} дн.{% if overview.exposure_truncated_share %} Для {{ (overview.exposure_truncated_share * 100) | round | int }}% квартир срок известен «как минимум»: они продавались ещё до начала наблюдений.{% endif %}</p>
+    {% endif %}
+  </main>
+  <aside class="pulse" aria-label="Пульс рынка">{% include "_pulse.html" %}</aside>
+</div>
+{% endblock %}

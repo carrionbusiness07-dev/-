@@ -121,8 +121,8 @@ class PriceMoves:
 def price_moves(
     events: Sequence[EventRow], listing_ids: set[int], history: Sequence[PricePoint]
 ) -> PriceMoves:
-    drops = [e for e in events if e.type == "price_drop" and e.listing_id in listing_ids]
-    ups = [e for e in events if e.type == "price_up" and e.listing_id in listing_ids]
+    drops = _distinct_changes(events, "price_drop", listing_ids)
+    ups = _distinct_changes(events, "price_up", listing_ids)
     total = None
     if history:
         first, last = history[0], _current_point(history)
@@ -134,6 +134,23 @@ def price_moves(
         last_drop_at=max((e.at for e in drops), default=None),
         total_change_pct=total,
     )
+
+
+def _distinct_changes(
+    events: Sequence[EventRow], kind: str, listing_ids: set[int]
+) -> list[EventRow]:
+    """Одно и то же изменение цены на нескольких площадках (тот же день, та же новая цена)
+    считается один раз: продавец снизил цену один раз, а не по разу на каждом сайте."""
+    seen: set[tuple] = set()
+    out = []
+    for e in events:
+        if e.type != kind or e.listing_id not in listing_ids:
+            continue
+        key = (e.at.date(), e.payload.get("new"), e.payload.get("currency"))
+        if key not in seen:
+            seen.add(key)
+            out.append(e)
+    return out
 
 
 def _current_point(history: Sequence[PricePoint]) -> PricePoint:

@@ -99,8 +99,9 @@ def test_formatting_helpers():
         "21 день",
         "94 дня",
     ]
-    assert offer_range(Decimal(88000), Decimal(89000), "USD") == "$88–89k"
-    assert offer_range(Decimal(86500), Decimal(88500), "USD") == "$86.5–88.5k"
+    assert offer_range(Decimal(88000), Decimal(89000), "USD") == "$88 000–89 000"
+    assert offer_range(Decimal(86500), Decimal(88500), "USD") == "$86 500–88 500"
+    assert offer_range(Decimal(300000), Decimal(310000), "BYN") == "300 000–310 000 BYN"
     assert pct(-2.94) == "−2.9%" and pct(0.4) == "+0.4%" and pct(12.3, signed=False) == "12%"
     for raw in ("фрунзенский", "Фрунзенский р-н", "Фрунзенский район"):
         assert normalize_district(raw) == "Фрунзенский"
@@ -289,7 +290,7 @@ def test_bargaining_high_explains_every_point():
     # Ориентир — от самой низкой цены квартиры ($91 000): 3–5% ниже, шаг $500.
     assert (b.offer_low, b.offer_high) == (Decimal(86500), Decimal(88500))
     assert b.recommendation.startswith("Торг, скорее всего, реален")
-    assert "$86.5–88.5k" in b.recommendation and "Onliner" in b.recommendation
+    assert "$86 500–88 500" in b.recommendation and "Onliner" in b.recommendation
     assert "не гарантия" in b.disclaimer
 
 
