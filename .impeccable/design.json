@@ -1,0 +1,484 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-22T15:12:41+00:00",
+  "title": "Design System: Хроника",
+  "extensions": {
+    "colorMeta": {
+      "spot": {
+        "role": "primary",
+        "displayName": "Печатный синий",
+        "canonical": "#1c3dbf",
+        "tonalRamp": [
+          "#040045",
+          "#050b70",
+          "#132e9d",
+          "#284dcd",
+          "#4873ec",
+          "#6d98ff",
+          "#98c1ff",
+          "#c8edff"
+        ]
+      },
+      "spot-deep": {
+        "role": "primary",
+        "displayName": "Глубокий синий",
+        "canonical": "#132d94",
+        "tonalRamp": [
+          "#02003b",
+          "#071763",
+          "#1a358e",
+          "#3154ba",
+          "#5177d9",
+          "#759bf5",
+          "#9fc2ff",
+          "#cfeeff"
+        ]
+      },
+      "spot-hover": {
+        "role": "primary",
+        "displayName": "Синий наведения",
+        "canonical": "#2a4bd1",
+        "tonalRamp": [
+          "#050046",
+          "#080871",
+          "#162c9f",
+          "#2b4ccf",
+          "#4a72ee",
+          "#6e97ff",
+          "#99c0ff",
+          "#c9ecff"
+        ]
+      },
+      "spot-tint": {
+        "role": "primary",
+        "displayName": "Синяя калька",
+        "canonical": "#d6ddf6",
+        "tonalRamp": [
+          "#080a15",
+          "#202332",
+          "#3a3f50",
+          "#575d72",
+          "#777c91",
+          "#989eb1",
+          "#bec3d5",
+          "#eaeefd"
+        ]
+      },
+      "on-spot": {
+        "role": "primary",
+        "displayName": "Белый на споте",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#404040",
+          "#5d5d5d",
+          "#7d7d7d",
+          "#9e9e9e",
+          "#c4c4c4",
+          "#eeeeee"
+        ]
+      },
+      "on-spot-2": {
+        "role": "primary",
+        "displayName": "Бледно-синий на споте",
+        "canonical": "#c9d3fb",
+        "tonalRamp": [
+          "#07091b",
+          "#1d2239",
+          "#373e5a",
+          "#545b7d",
+          "#737b9d",
+          "#959dbc",
+          "#bcc3df",
+          "#e7edff"
+        ]
+      },
+      "red": {
+        "role": "secondary",
+        "displayName": "Красная корректура",
+        "canonical": "#c0221b",
+        "tonalRamp": [
+          "#300000",
+          "#590000",
+          "#830000",
+          "#b00e0c",
+          "#d2463a",
+          "#f17263",
+          "#ffa090",
+          "#ffd1c2"
+        ]
+      },
+      "red-tint": {
+        "role": "secondary",
+        "displayName": "Корректорская калька",
+        "canonical": "#f6dcd8",
+        "tonalRamp": [
+          "#160605",
+          "#311f1c",
+          "#4e3a37",
+          "#6d5854",
+          "#8e7774",
+          "#b09894",
+          "#d7bdba",
+          "#ffe8e4"
+        ]
+      },
+      "amber": {
+        "role": "tertiary",
+        "displayName": "Охра",
+        "canonical": "#8f5600",
+        "tonalRamp": [
+          "#1e0100",
+          "#3f1700",
+          "#613200",
+          "#864f00",
+          "#a67033",
+          "#c5935e",
+          "#e8bb8d",
+          "#ffe7c0"
+        ]
+      },
+      "amber-tint": {
+        "role": "tertiary",
+        "displayName": "Охряная плашка",
+        "canonical": "#f7e6c4",
+        "tonalRamp": [
+          "#120a00",
+          "#2d220d",
+          "#4a3e25",
+          "#6a5c3e",
+          "#8a7c5f",
+          "#aa9d83",
+          "#cfc3ab",
+          "#f8edd9"
+        ]
+      },
+      "green": {
+        "role": "tertiary",
+        "displayName": "Зелёный «работает»",
+        "canonical": "#23744a",
+        "tonalRamp": [
+          "#001301",
+          "#002f12",
+          "#004d2b",
+          "#1e6e45",
+          "#498e66",
+          "#71ae89",
+          "#9dd3b1",
+          "#cefcde"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Холодная газетная бумага",
+        "canonical": "#eceef0",
+        "tonalRamp": [
+          "#0a0b0d",
+          "#232426",
+          "#3e4041",
+          "#5c5e5f",
+          "#7c7d7f",
+          "#9d9fa0",
+          "#c2c4c6",
+          "#edeff1"
+        ]
+      },
+      "paper-2": {
+        "role": "neutral",
+        "displayName": "Бумага второго оттиска",
+        "canonical": "#e1e4e8",
+        "tonalRamp": [
+          "#090b0e",
+          "#222427",
+          "#3e4043",
+          "#5b5e61",
+          "#7b7d81",
+          "#9c9fa2",
+          "#c1c4c8",
+          "#eceff3"
+        ]
+      },
+      "paper-3": {
+        "role": "neutral",
+        "displayName": "Бумага третьего оттиска",
+        "canonical": "#d3d7dd",
+        "tonalRamp": [
+          "#090b0f",
+          "#212429",
+          "#3d4045",
+          "#5a5e63",
+          "#7a7d83",
+          "#9b9fa4",
+          "#c0c4ca",
+          "#ebeff5"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Чёрная краска",
+        "canonical": "#15171b",
+        "tonalRamp": [
+          "#090b0f",
+          "#222428",
+          "#3d4044",
+          "#5b5e63",
+          "#7b7d82",
+          "#9c9ea4",
+          "#c1c4ca",
+          "#eceef4"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Серая краска",
+        "canonical": "#4c5159",
+        "tonalRamp": [
+          "#080b11",
+          "#20242b",
+          "#3b4048",
+          "#595e66",
+          "#787e86",
+          "#999fa8",
+          "#bfc4ce",
+          "#e9eff9"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Бледная краска",
+        "canonical": "#636871",
+        "tonalRamp": [
+          "#080b12",
+          "#20242c",
+          "#3b4048",
+          "#595e67",
+          "#787d87",
+          "#999fa8",
+          "#bfc4ce",
+          "#e9eff9"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Линейка",
+        "canonical": "#c2c7cf",
+        "tonalRamp": [
+          "#080b10",
+          "#20242a",
+          "#3c4046",
+          "#5a5e65",
+          "#797e85",
+          "#9a9fa6",
+          "#bfc4cc",
+          "#eaeff7"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Главная цифра: медиана $/м² в пульсе, цена объекта."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Заголовок страницы и объекта; название издания в рейке (40px/0.95)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Даты выпуска, заголовки блоков пульса и разделов (21–30px)."
+      },
+      "rubric": {
+        "displayName": "Rubric",
+        "purpose": "Рубрика события; меню 19px и кнопка 17px того же голоса."
+      },
+      "price": {
+        "displayName": "Price",
+        "purpose": "Текущая цена в строке ленты."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Текст, адреса, таблицы; табличные цифры."
+      },
+      "body-strong": {
+        "displayName": "Body Strong",
+        "purpose": "Название квартиры в записи, числа фактов."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Заголовки столбцов, теги, оси графика."
+      }
+    },
+    "shadows": [
+      {
+        "name": "point-cutout",
+        "value": "0 0 0 2px #eceef0",
+        "purpose": "Кольцо цвета бумаги вокруг точек графика цены; обводка, не тень."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Все переходы цвета и фона, 160ms."
+      },
+      {
+        "name": "strike",
+        "value": "700ms cubic-bezier(0.16, 1, 0.3, 1) 200ms",
+        "purpose": "Прочерк красного зачёркивания старой цены в свежем выпуске; единственное авторское движение, отключается при prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1240px"
+      },
+      {
+        "name": "pulse-stack",
+        "value": "900px"
+      },
+      {
+        "name": "rail-top",
+        "value": "820px"
+      },
+      {
+        "name": "table-fold",
+        "value": "560px"
+      },
+      {
+        "name": "entry-stack",
+        "value": "480px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Кнопка «Проверить»",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Единственная кнопка системы: спот-синяя печатная плашка 40px.",
+      "html": "<button class=\"ds-btn\">Проверить</button>",
+      "css": ".ds-btn{height:40px;padding:0 16px;background:#1c3dbf;color:#fff;border:0;border-radius:3px;font:700 17px/1 'PT Sans Narrow','Arial Narrow',sans-serif;letter-spacing:.02em;cursor:pointer;transition:background-color 160ms cubic-bezier(0.16, 1, 0.3, 1)}.ds-btn:hover{background:#2a4bd1}.ds-btn:active{background:#132d94}.ds-btn:focus-visible{outline:2px solid #1c3dbf;outline-offset:2px}"
+    },
+    {
+      "name": "Поле ссылки",
+      "kind": "input",
+      "refersTo": "input-url",
+      "description": "Поле для ссылки Kufar/Realt рядом с кнопкой проверки.",
+      "html": "<form class=\"ds-check\"><input class=\"ds-input\" type=\"url\" placeholder=\"Ссылка Kufar или Realt\"><button class=\"ds-btn\">Проверить</button></form>",
+      "css": ".ds-check{display:flex;gap:8px;width:420px;max-width:100%}.ds-input{flex:1;min-width:0;height:40px;padding:0 12px;background:#f7f8f9;border:1px solid #9aa1ab;border-radius:3px;font:400 15px/1.5 'Golos Text','Segoe UI',system-ui,sans-serif;color:#15171b}.ds-input::placeholder{color:#636871}.ds-input:hover{border-color:#4c5159}.ds-input:focus-visible{outline:2px solid #1c3dbf;outline-offset:0;border-color:#1c3dbf}.ds-btn{height:40px;padding:0 16px;background:#1c3dbf;color:#fff;border:0;border-radius:3px;font:700 17px/1 'PT Sans Narrow','Arial Narrow',sans-serif;letter-spacing:.02em}.ds-btn:hover{background:#2a4bd1}"
+    },
+    {
+      "name": "Синяя рейка",
+      "kind": "nav",
+      "refersTo": "rail",
+      "description": "Шапка издания и меню разделов; текущий пункт вырезан бумагой.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-mast\" href=\"#\"><span class=\"ds-mast-name\">Хроника</span><span class=\"ds-mast-sub\">рынок квартир Минска</span><span class=\"ds-folio\">Выпуск № 90 · 21 октября</span></a><ul class=\"ds-nav\"><li><a href=\"#\" aria-current=\"page\">Сводка</a></li><li><a href=\"#\">Объекты</a></li><li><a href=\"#\">Рынок</a></li><li><a href=\"#\">Источники</a></li></ul></nav>",
+      "css": ".ds-rail{width:216px;background:#1c3dbf;color:#fff;padding:24px 16px 16px}.ds-mast{display:block;text-decoration:none;color:inherit;padding:0 8px 16px;border-bottom:1px solid rgb(255 255 255/.28)}.ds-mast-name{display:block;font:700 40px/.95 'PT Sans Narrow','Arial Narrow',sans-serif;letter-spacing:-.01em}.ds-mast-sub{display:block;margin-top:8px;font:400 13px/1.4 'Golos Text',system-ui,sans-serif;color:#c9d3fb}.ds-folio{display:block;margin-top:12px;padding-top:8px;border-top:1px solid rgb(255 255 255/.28);font:400 15px/1.2 'PT Sans Narrow','Arial Narrow',sans-serif}.ds-nav{list-style:none;margin:24px 0 0;padding:0;display:grid;gap:4px}.ds-nav a{display:block;padding:7px 8px;border-radius:3px;font:700 19px/1.2 'PT Sans Narrow','Arial Narrow',sans-serif;letter-spacing:.01em;text-decoration:none;color:#c9d3fb;transition:background-color 160ms cubic-bezier(0.16, 1, 0.3, 1),color 160ms cubic-bezier(0.16, 1, 0.3, 1)}.ds-nav a:hover{color:#fff;background:rgb(255 255 255/.1)}.ds-nav a[aria-current=page]{color:#132d94;background:#eceef0}.ds-nav a:focus-visible{outline:2px solid #fff;outline-offset:2px}"
+    },
+    {
+      "name": "Табы ленты",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Фильтры событий со счётчиками; текущий подчёркнут линейкой 2px.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"true\">Все <span>89</span></a><a href=\"#\">Подешевели <span>47</span></a><a href=\"#\">Перевыложены <span>12</span></a><a href=\"#\">Сняты <span>12</span></a></nav>",
+      "css": ".ds-tabs{display:flex;flex-wrap:wrap;gap:2px 16px;background:#eceef0;padding:12px 0;border-bottom:1px solid #c2c7cf}.ds-tabs a{padding:6px 0;font:500 14px/1.5 'Golos Text',system-ui,sans-serif;color:#4c5159;text-decoration:none;border-bottom:2px solid transparent;transition:color 160ms cubic-bezier(0.16, 1, 0.3, 1),border-color 160ms cubic-bezier(0.16, 1, 0.3, 1)}.ds-tabs a span{color:#636871;font-weight:400}.ds-tabs a:hover{color:#15171b;border-bottom-color:#c2c7cf}.ds-tabs a[aria-current=true]{color:#15171b;font-weight:650;border-bottom-color:#15171b}.ds-tabs a:focus-visible{outline:2px solid #1c3dbf;outline-offset:2px}"
+    },
+    {
+      "name": "Тег записи",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Статичная пометка под объявлением.",
+      "html": "<span class=\"ds-tag\">подешевела</span> <span class=\"ds-tag\">на двух площадках</span>",
+      "css": ".ds-tag{padding:1px 6px;border:1px solid #c2c7cf;border-radius:2px;font:400 12px/1.5 'Golos Text',system-ui,sans-serif;color:#4c5159}"
+    },
+    {
+      "name": "Запись ленты",
+      "kind": "custom",
+      "refersTo": "entry",
+      "description": "Сигнатура: событие как объявление с историей цены в строку и красным зачёркиванием.",
+      "html": "<a class=\"ds-entry\" href=\"#\"><div class=\"ds-rub\"><span class=\"ds-rubric\">Подешевела</span><time>13:36</time></div><div><p class=\"ds-title\">1-комн., 35,3 м², 4/12 эт.</p><p class=\"ds-addr\">ул. Чкалова, 20 · Ленинский р-н</p><p class=\"ds-meta\">Kufar, агентство «Столичный Ключ»</p></div><div class=\"ds-price\"><p><s>$65&nbsp;500</s> <s>$63&nbsp;500</s> <b>$62&nbsp;000</b></p><p class=\"ds-pm\"><span class=\"ds-delta\">−2,4%</span> $1&nbsp;756/м²</p></div></a>",
+      "css": ".ds-entry{display:grid;grid-template-columns:128px minmax(0,1fr) auto;gap:16px 24px;padding:16px 8px;background:#eceef0;color:#15171b;text-decoration:none;border-top:1px solid #c2c7cf;font:400 15px/1.5 'Golos Text',system-ui,sans-serif;font-variant-numeric:tabular-nums;transition:background-color 160ms cubic-bezier(0.16, 1, 0.3, 1)}.ds-entry:hover{background:#e1e4e8}.ds-entry:hover .ds-title{text-decoration:underline;text-underline-offset:3px}.ds-entry:focus-visible{outline:2px solid #1c3dbf;outline-offset:2px}.ds-entry p{margin:0}.ds-rub{display:flex;flex-direction:column;gap:2px}.ds-rubric{font:700 18px/1.1 'PT Sans Narrow','Arial Narrow',sans-serif;color:#c0221b}.ds-rub time{font-size:12px;color:#636871}.ds-title{font-weight:650}.ds-addr{font-size:14px;color:#4c5159}.ds-meta{font-size:13px;color:#636871}.ds-price{text-align:right}.ds-price s{color:#636871;font-size:14px;text-decoration-color:#c0221b;text-decoration-thickness:1.5px;margin-right:6px}.ds-price b{font:700 24px/1.1 'PT Sans Narrow','Arial Narrow',sans-serif}.ds-pm{font-size:13px;color:#636871}.ds-delta{color:#c0221b;font-weight:650;margin-right:8px}"
+    },
+    {
+      "name": "Вердикт",
+      "kind": "card",
+      "refersTo": "verdict",
+      "description": "Единственная залитая плашка: вывод о торге с причинами.",
+      "html": "<section class=\"ds-verdict\"><h2>Торг: возможен</h2><p class=\"ds-vt\">Торг возможен, но небольшой. Ориентир для первого предложения — $78&nbsp;500–80&nbsp;000.</p><ul><li>на рынке как минимум 89 дней, дольше обычного</li><li>цену снижали 2 раза</li></ul></section>",
+      "css": ".ds-verdict{display:grid;grid-template-columns:220px minmax(0,1fr);gap:8px 24px;padding:16px 24px;background:#1c3dbf;color:#fff;border-radius:3px;font:400 15px/1.5 'Golos Text',system-ui,sans-serif}.ds-verdict h2{margin:0;font:700 30px/1.05 'PT Sans Narrow','Arial Narrow',sans-serif;grid-row:span 2}.ds-vt{margin:0;font-size:16px;font-weight:500;max-width:68ch}.ds-verdict ul{margin:0;padding-left:1.1em;color:#c9d3fb;font-size:14px}"
+    },
+    {
+      "name": "Пульс рынка",
+      "kind": "custom",
+      "refersTo": "pulse",
+      "description": "Медиана $/м² со столбиками за 8 недель; текущая неделя синяя.",
+      "html": "<section class=\"ds-pulse\"><h2>Пульс рынка</h2><p class=\"ds-pl\">Медиана цены по Минску</p><p class=\"ds-fig\">$2&nbsp;149<span>/м²</span></p><p class=\"ds-pl\">−2,8% за 8 нед.: $2&nbsp;211 → $2&nbsp;149</p><ol class=\"ds-bars\"><li style=\"--h:.95\"></li><li style=\"--h:1\"></li><li style=\"--h:.9\"></li><li style=\"--h:.8\"></li><li style=\"--h:.78\"></li><li style=\"--h:.83\"></li><li style=\"--h:.8\"></li><li style=\"--h:.6\"></li></ol></section>",
+      "css": ".ds-pulse{width:290px;padding:24px;background:#eceef0;color:#15171b;border-left:1px solid #15171b;font:400 15px/1.5 'Golos Text',system-ui,sans-serif}.ds-pulse h2{margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #15171b;font:700 21px/1.1 'PT Sans Narrow','Arial Narrow',sans-serif}.ds-pl{margin:0;font-size:13px;color:#4c5159}.ds-fig{margin:2px 0 4px;font:700 46px/1 'PT Sans Narrow','Arial Narrow',sans-serif;letter-spacing:-.01em}.ds-fig span{font-size:22px;color:#4c5159;margin-left:2px}.ds-bars{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;height:56px;align-items:end}.ds-bars li{height:calc(var(--h)*100%);background:#15171b;border-radius:1px 1px 0 0}.ds-bars li:last-child{background:#1c3dbf}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Еженедельник частных объявлений",
+    "overview": "Кабинет — свежий номер газеты частных объявлений о рынке квартир Минска. Холодная газетная бумага (серо-белая, не кремовая), чёрная краска, один насыщенный спот-цвет «печатный синий» и красная корректорская краска, которой правят только снижения цены. Иерархию строят наборные средства: линейки (тонкие, жирные 3px, двойные), узкий плотный гротеск для заголовков и цифр, нейтральный гротеск с табличными цифрами для текста. Плотность высокая, как на полосе: много строк, мало воздуха вокруг карточек, потому что карточек нет.\n\nКаждое событие — компактное «объявление» с историей цены в строку: старые цены зачёркнуты, новая набрана жирно, дельта — красной корректурой. Мир сознательно отказывается от категорийного «тёмная боковая панель + KPI-плитки + линейные графики» и от «криптобиржи» (тёмный неон, мигающие цифры). Синяя рейка слева — шапка издания, а не тёмный сайдбар.",
+    "keyCharacteristics": [
+      "Холодная бумага `paper` как единственный фон страницы; глубина — тоном бумаги (`paper-2`), а не тенями.",
+      "Один спот-цвет: рейка, основная кнопка, вердикт, рубрики перевыкладывания, последний столбик пульса.",
+      "Красный — только снижение цены (рубрика «Подешевела», дельта вниз, зачёркивание, точка снижения на графике).",
+      "Линейки вместо рамок: 1px `rule` между строками, 3px `ink` под шапкой страницы, `3px double` над датой выпуска и разделом.",
+      "Заголовки и цены — PT Sans Narrow 700; текст и таблицы — Golos Text с `tabular-nums`."
+    ],
+    "rules": [
+      {
+        "name": "The Red Pencil Rule",
+        "body": "Красный — это корректор, правящий цену вниз. Ни одного красного элемента, который не означает снижения цены или поломки источника.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Spot Rule",
+        "body": "На полосе одна краска кроме чёрной. Новый акцентный цвет не вводится; новое выделение — это синий, жирность или линейка.",
+        "section": "colors"
+      },
+      {
+        "name": "The Not-Only-Colour Rule",
+        "body": "Направление цены всегда продублировано знаком (`−4,1%`, `+1,9%`) и словом рубрики; цвет лишь подтверждает.",
+        "section": "colors"
+      },
+      {
+        "name": "The Narrow Voice Rule",
+        "body": "PT Sans Narrow набирает только то, что в газете было бы набрано шапочным шрифтом: название, заголовки, рубрики, цены и крупные цифры. Абзацы, подписи и таблицы — только Golos.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Figures Rule",
+        "body": "Цифры всегда табличные и выровнены вправо в колонках цен; денежный формат `$92 500` с неразрывным пробелом.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ink-Not-Shadow Rule",
+        "body": "Слой отделяется линейкой или тоном бумаги, никогда тенью. Если элементу нужна «приподнятость», ему нужна линейка.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Rule Weight Rule",
+        "body": "Три веса линеек и три смысла: 1px `rule` — между строками; 3px `ink` — конец шапки страницы/объекта и начало карточки источника; `3px double ink` — начало выпуска (дата) или раздела.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** держать фон страницы холодной бумагой `paper`; наведение и служебные плашки — `paper-2`.",
+      "**Do** отделять строки линейкой 1px `rule`, шапку страницы — 3px `ink`, начало выпуска или раздела — `3px double ink`.",
+      "**Do** показывать историю цены в строку: старые цены зачёркнуты красным, текущая — PT Sans Narrow 700, дельта со знаком.",
+      "**Do** набирать цифры табличными, цены выравнивать вправо, деньги писать как `$92 500`, даты — `20.07`.",
+      "**Do** помечать демо-данные плашкой «Демо-данные.» и всегда показывать «Наблюдаем с …» и уверенность склейки.",
+      "**Do** использовать для иконок только инлайновые SVG-символы со штрихом 1.6px и `currentColor` (стрелки, внешняя ссылка)."
+    ],
+    "donts": [
+      "**Don't** использовать красный ни для чего, кроме снижения цены и поломки источника.",
+      "**Don't** вводить вторую акцентную краску, тёмную тему, неон или мигающие цифры.",
+      "**Don't** собирать экраны из KPI-плиток и карточек с тенями: цифры живут в колонках между линейками.",
+      "**Don't** использовать тени для глубины; только тон бумаги, спот-заливку и линейки.",
+      "**Don't** набирать абзацы и таблицы узким PT Sans Narrow или заголовки Golos.",
+      "**Don't** добавлять анимации помимо прочерка зачёркивания в свежем выпуске и 160ms переходов цвета."
+    ]
+  }
+}

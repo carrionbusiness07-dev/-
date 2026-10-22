@@ -178,8 +178,8 @@ input, select, button { font: inherit; color: inherit; }
 input[type="url"], select {
   flex: 1; min-width: 0;
   height: 40px; padding: 0 var(--s3);
-  background: #fbfbf8;
-  border: 1px solid #9ea39a;
+  background: #f7f8f9;
+  border: 1px solid #9aa1ab;
   border-radius: var(--radius);
 }
 input::placeholder { color: var(--ink-3); }
