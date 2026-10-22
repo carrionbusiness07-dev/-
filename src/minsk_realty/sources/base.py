@@ -13,7 +13,7 @@ import httpx
 from minsk_realty.models import ListingSnapshot, RawListing
 
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; KvartirnayaIstoriya/0.1)",
+    "User-Agent": "Mozilla/5.0 (compatible; Khronika/0.1)",
     "Accept-Language": "ru-RU,ru;q=0.9",
 }
 
