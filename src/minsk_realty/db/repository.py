@@ -120,7 +120,7 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
 def touch_listing(session: Session, source: str, external_id: str, seen_at) -> None:
     """Отметить, что объявление есть в выдаче, даже если его не удалось разобрать.
 
-    Иначе нечитаемое объявление погасло бы как снятое, а через 3 дня Вера поставила бы
+    Иначе нечитаемое объявление погасло бы как снятое, а через 3 дня Emma поставила бы
     ложный `removed`.
     """
     session.execute(
@@ -139,7 +139,7 @@ def mark_unseen_inactive(session: Session, run: SourceRun) -> int:
 
     Работает только для успешного и полного прохода: если сборщик упёрся в лимит страниц
     или его остановил 403/429, непросмотренные объявления не гасятся — иначе через 3 суток
-    появились бы ложные `removed` (их ставит Вера по неактивности всех объявлений объекта).
+    появились бы ложные `removed` (их ставит Emma по неактивности всех объявлений объекта).
     """
     if run.status != "ok" or not run.complete:
         return 0

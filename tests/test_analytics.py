@@ -488,7 +488,7 @@ def test_short_history_right_after_start(session):
 
 
 def test_listing_waiting_for_matching_is_shown_alone(session):
-    # Агентство выложило вторую такую же квартиру, старое объявление ещё висит: Вера ждёт сутки.
+    # Агентство выложило вторую такую же квартиру, старое объявление ещё висит: Emma ждёт сутки.
     start_observation(session)
     observe(session, "realt", NOW - 2 * HOUR, realt("101"))
     observe(session, "realt", NOW - HOUR, realt("101"), realt("102"))

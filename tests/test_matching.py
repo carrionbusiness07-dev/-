@@ -520,7 +520,7 @@ def test_explain_by_url_and_object(session):
     assert "не найдено" in explain(session, "https://realt.by/sale-flats/object/999/")
 
 
-# --- Ревью Глеба: ложные склейки по фото (п. 1) ----------------------------------------
+# --- Ревью Grant: ложные склейки по фото (п. 1) ----------------------------------------
 
 
 def test_neighbours_sharing_facade_and_layout_photos_are_not_glued(session):

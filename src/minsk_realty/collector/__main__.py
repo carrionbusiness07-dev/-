@@ -89,7 +89,7 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                 adapter.close()
         except Exception:
             log.exception("%s: сбой цикла сборщика", source)
-        try:  # склейка и события (Вера): сбой не должен останавливать сбор
+        try:  # склейка и события (Emma): сбой не должен останавливать сбор
             with factory() as session:
                 process_after_run(session, source)
                 session.commit()

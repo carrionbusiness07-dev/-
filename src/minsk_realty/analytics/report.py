@@ -482,7 +482,7 @@ def _sellers(included: list[ListingRow]) -> SellersInfo:
 
 
 def _basis(session: Session, cache: FeatureCache, listing: Listing, now: datetime) -> str | None:
-    """Почему объявление в этом объекте — пересчёт правил Веры по текущим данным."""
+    """Почему объявление в этом объекте — пересчёт правил Emma по текущим данным."""
     if listing.object_id is None:
         return None
     f = cache.get(listing)

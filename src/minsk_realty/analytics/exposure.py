@@ -83,7 +83,7 @@ def compute_exposure(
     if not active:
         last_state = [e for e in events if e.type in ("removed", "returned")]
         removed = bool(last_state) and last_state[-1].type == "removed"
-        # То же правило, что у Веры (3 суток неактивности), — на случай, если событие ещё
+        # То же правило, что у Emma (3 суток неактивности), — на случай, если событие ещё
         # не записано: события пересчитываются только для недавно виденных объектов.
         removed = removed or now - end >= DEFAULT_CONFIG.removed_after
         state = "removed" if removed else "hidden"

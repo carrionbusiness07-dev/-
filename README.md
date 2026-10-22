@@ -5,7 +5,7 @@
 - [Идея и обоснование](docs/01-idea.md)
 - [Как это будет выглядеть: продукт, архитектура, команда](docs/02-product-and-architecture.md)
 - Правила проекта для Claude: [.claude/skills/minsk-realty/SKILL.md](.claude/skills/minsk-realty/SKILL.md)
-- Агенты: [.claude/agents/](.claude/agents/) — Стас (сбор), Вера (склейка), Лев (аналитика), Мила (бот), Глеб (контроль)
+- Агенты: [.claude/agents/](.claude/agents/) — Sam (сбор), Emma (склейка), Leo (аналитика), Mia (бот), Grant (контроль)
 
 ## Кабинет
 
