@@ -212,6 +212,8 @@ def watch_result_text(result: WatchResult, name: FlatName | None = None) -> str:
         )
     elif result.status == "not_matched":
         text = CANT_WATCH_NOTE
+    elif result.status == "denied":
+        return stale_button_text()
     else:
         text = (
             "Этого объявления пока нет в нашей базе, следить пока не за чем. Сборщик обходит "
@@ -232,6 +234,13 @@ def unwatch_usage_text() -> str:
         "Пришлите ссылку: /unwatch https://re.kufar.by/vi/123456789\n"
         "Или откройте /list и нажмите «Не следить»."
     )
+
+
+def stale_button_text() -> str:
+    return esc("Эта кнопка устарела. Пришлите ссылку на объявление ещё раз.")
+
+
+TOO_OFTEN = "Слишком часто. Подождите немного и попробуйте снова."
 
 
 def unwatched_text(ok: bool) -> str:
@@ -424,3 +433,10 @@ def weekly_preview_text(summary: WeeklySummary, *, published_at: datetime | None
         else "Опубликовать в канал: /weekly publish"
     )
     return fit(weekly_text(summary) + "\n\n" + esc(f"— Предпросмотр. {state}"))
+
+
+def weekly_interrupted_text(period: str) -> str:
+    return esc(
+        f"⚠️ Сводка {period}: бот остановился во время публикации, и я не знаю, вышел ли пост. "
+        "Проверьте канал. Если поста нет — /weekly publish"
+    )

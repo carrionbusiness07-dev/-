@@ -33,13 +33,13 @@ def message_text(message: Message) -> str:
 
 
 def is_admin(message: Message, cfg: BotConfig) -> bool:
-    admin = cfg.admin_chat_id
-    if admin is None:
+    """Только сам админ (from_user.id) и только в личном чате с ботом: если ADMIN_CHAT_ID —
+    группа, её участники не должны публиковать сводку."""
+    if cfg.admin_chat_id is None or message.from_user is None:
         return False
-    ids = {str(message.chat.id)}
-    if message.from_user:
-        ids.add(str(message.from_user.id))
-    return str(admin) in ids
+    return message.chat.type == ChatType.PRIVATE and str(message.from_user.id) == str(
+        cfg.admin_chat_id
+    )
 
 
 async def _typing(bot: Bot, chat_id: int) -> None:
@@ -52,6 +52,7 @@ def build_router(cfg: BotConfig) -> Router:
     admin = Router(name="admin")
     users = Router(name="users")
     users.message.filter(F.chat.type == ChatType.PRIVATE)
+    admin.message.filter(F.chat.type == ChatType.PRIVATE)
     root.include_routers(admin, users)
 
     # --- Админ ---------------------------------------------------------------------------
@@ -131,6 +132,15 @@ def build_router(cfg: BotConfig) -> Router:
 
     @users.callback_query()
     async def on_button(query: CallbackQuery, bot: Bot, service: BotService) -> None:
+        """Любая кнопка получает ответ: иначе у пользователя крутится индикатор."""
+        try:
+            await handle_button(query, bot, service)
+        except Exception as exc:  # noqa: BLE001 — сбой одной кнопки не роняет бота
+            log.error("кнопка %s: сбой %s", (query.data or "")[:2], type(exc).__name__)
+            with suppress(Exception):
+                await query.answer("Не получилось, попробуйте ещё раз")
+
+    async def handle_button(query: CallbackQuery, bot: Bot, service: BotService) -> None:
         cb = keyboards.parse_callback(query.data)
         user_id = query.from_user.id
         message = query.message if isinstance(query.message, Message) else None

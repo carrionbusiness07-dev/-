@@ -34,6 +34,8 @@ from minsk_realty.bot.watchlist import (
     flat_name,
     forget_user,
     get_or_create_user,
+    has_checked_listing,
+    has_seen_object,
     is_watching,
     remove_watch,
     watch_items,
@@ -112,6 +114,8 @@ class BotService:
         """Свежий отчёт по квартире из списка или уведомления."""
         with self.factory() as session:
             now = self.clock()
+            if not has_seen_object(session, telegram_id, object_id):
+                return Reply(texts.stale_button_text())
             current = current_listing(load_market(session, object_ids=[object_id]), object_id)
             if current is None:
                 return Reply(texts.esc("Этой квартиры больше нет в базе."))
@@ -172,6 +176,9 @@ class BotService:
     def watch_listing(self, telegram_id: int, listing_id: int) -> tuple[Reply, WatchResult]:
         """Кнопка «Следить» под отчётом."""
         with self.factory() as session:
+            if not has_checked_listing(session, telegram_id, listing_id):
+                result = WatchResult("denied", limit=self.cfg.watch_limit)
+                return Reply(texts.watch_result_text(result)), result
             listing = session.get(Listing, listing_id)
             result = add_watch(session, telegram_id, listing, self.clock(), self.cfg.watch_limit)
             name = self._name(session, result.object_id)
@@ -185,9 +192,15 @@ class BotService:
             found = links.find_links(text)
             return Reply(texts.unsupported_text(found) if found else texts.watch_usage_text())
         with self.factory() as session:
+            now = self.clock()
             listing = self._listing(session, link)
-            result = add_watch(session, telegram_id, listing, self.clock(), self.cfg.watch_limit)
+            result = add_watch(session, telegram_id, listing, now, self.cfg.watch_limit)
             name = self._name(session, result.object_id)
+            if listing is not None:  # ссылку прислал сам пользователь — как /check
+                user = get_or_create_user(session, telegram_id, now)
+                session.add(
+                    Check(user_id=user.id, url=link.clean, listing_id=listing.id, created_at=now)
+                )
             session.commit()
             markup = None
             if result.status in ("added", "already") and listing is not None:
@@ -299,25 +312,30 @@ class BotService:
         summary, published = self.weekly_summary()
         return texts.weekly_preview_text(summary, published_at=published)
 
-    def reserve_weekly(
-        self, *, force: bool = False, scheduled: bool = False
-    ) -> tuple[str, str] | None:
-        """→ (период, текст), если сводку надо публиковать сейчас; запись сделана до отправки.
+    def reserve_weekly(self, *, force: bool = False, scheduled: bool = False) -> weekly.Reservation:
+        """Занять публикацию сводки за прошлую неделю (запись — до отправки).
 
         По расписанию — только в окне публикации и только если за этот период ещё не было
         ни одной попытки (неудачную повторяет админ командой, а не бот каждые 10 минут)."""
         with self.factory() as session:
             now = self.clock()
             if scheduled and weekly.publish_window(now, self.cfg) is None:
-                return None
+                return weekly.Reservation("skipped", "")
             summary = weekly.last_week_summary(session, now)
             period = weekly.period_key(summary)
             if scheduled and weekly.find_post(session, period) is not None:
-                return None
-            if not weekly.reserve_post(session, period, now, force=force):
-                return None
+                return weekly.Reservation("skipped", period)
+            result = weekly.reserve_post(session, period, now, force=force)
             session.commit()
-            return period, texts.weekly_text(summary)
+            if result.status != "reserved":
+                return result
+            return weekly.Reservation("reserved", period, text=texts.weekly_text(summary))
+
+    def recover_weekly(self) -> list[str]:
+        with self.factory() as session:
+            periods = weekly.recover_posts(session)
+            session.commit()
+            return periods
 
     def finish_weekly(self, period: str, ok: bool) -> None:
         with self.factory() as session:

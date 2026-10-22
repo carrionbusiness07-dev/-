@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sys
+import signal
 
 from aiogram.exceptions import TelegramNetworkError, TelegramUnauthorizedError
 from aiogram.utils.token import TokenValidationError, validate_token
@@ -21,15 +21,38 @@ from minsk_realty.bot.config import BotConfig, ConfigError
 from minsk_realty.bot.logsafe import setup_logging
 
 
+def wait_for_stop() -> None:
+    """Ждать SIGTERM/SIGINT (docker stop, Ctrl+C), не тратя ресурсы."""
+    stop = {signal.SIGINT, signal.SIGTERM}
+    if hasattr(signal, "pthread_sigmask"):
+        signal.pthread_sigmask(signal.SIG_BLOCK, stop)
+        signal.sigwait(stop)
+    else:  # Windows без docker: просто выходим, перезапускать некому
+        return
+
+
+def idle(reason: str) -> int:
+    """Настройки не позволяют работать: одно понятное сообщение и ожидание остановки.
+
+    Выход с ошибкой при `restart: unless-stopped` превратился бы в перезапуск раз в минуту
+    с тем же сообщением в логе. Ожидание — сервис bot «спит», пока токен не вписан;
+    после правки .env: `docker compose up -d --force-recreate bot`."""
+    logging.getLogger("minsk_realty.bot").error("%s Бот не работает и ждёт остановки.", reason)
+    wait_for_stop()
+    return 0
+
+
 def main() -> int:
+    setup_logging(os.environ.get("LOG_LEVEL", "INFO"), os.environ.get("TELEGRAM_BOT_TOKEN"))
     try:
         cfg = BotConfig.from_env()
         validate_token(cfg.token)
     except ConfigError as exc:
-        sys.exit(str(exc))
+        return idle(str(exc))
     except TokenValidationError:
-        sys.exit("TELEGRAM_BOT_TOKEN выглядит неправильно: нужен токен от @BotFather вида 123:ABC…")
-    setup_logging(os.environ.get("LOG_LEVEL", "INFO"), cfg.token)
+        return idle(
+            "TELEGRAM_BOT_TOKEN выглядит неправильно: нужен токен от @BotFather вида 123:ABC…."
+        )
 
     from minsk_realty.bot.app import run
 
@@ -40,8 +63,8 @@ def main() -> int:
     except KeyboardInterrupt:
         pass
     except TelegramUnauthorizedError:
-        log.error("Telegram не принял TELEGRAM_BOT_TOKEN: проверьте токен у @BotFather")
-        return 1
+        # Токен отозван или с опечаткой: перезапуск не поможет — ждём, пока человек поправит.
+        return idle("Telegram не принял TELEGRAM_BOT_TOKEN: проверьте токен у @BotFather.")
     except TelegramNetworkError as exc:
         log.error("нет связи с api.telegram.org (%s), перезапуск через Docker", exc.message)
         return 1

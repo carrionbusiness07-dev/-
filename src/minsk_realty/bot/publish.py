@@ -20,6 +20,7 @@ from typing import Any, Literal
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 
+from minsk_realty.analytics.fmt import date_full
 from minsk_realty.bot import keyboards, texts
 from minsk_realty.bot.config import BotConfig
 from minsk_realty.bot.notify import Outcome, Outgoing
@@ -51,8 +52,14 @@ async def notify_once(send: Send, service: BotService) -> int:
             except TelegramRetryAfter as exc:
                 log.warning("Telegram просит подождать %s с, рассылка отложена", exc.retry_after)
                 break
+            except asyncio.CancelledError:
+                # Остановка бота посреди запроса: сообщение могло уйти. Не повторяем.
+                results.append((o, "failed"))
+                done.add(i)
+                raise
             except TelegramForbiddenError:
-                results.append((o, "failed"))  # пользователь заблокировал бота
+                # Пользователь заблокировал бота: убрать его список, чтобы не биться в 403.
+                results.append((o, "blocked"))
             except Exception as exc:  # noqa: BLE001 — исход неизвестен: не повторяем
                 log.error("уведомление не отправлено: %s", type(exc).__name__)
                 results.append((o, "failed"))
@@ -62,9 +69,10 @@ async def notify_once(send: Send, service: BotService) -> int:
             done.add(i)
             await asyncio.sleep(SEND_PAUSE)
     finally:
-        # Неотправленное (RetryAfter, остановка бота) — снять резерв, уйдёт в следующий раз.
+        # Точно не отправленное (RetryAfter, остановка до запроса) — снять резерв.
         results += [(o, "release") for i, o in enumerate(outgoing) if i not in done]
-        await asyncio.to_thread(service.finish_notifications, results)
+        # shield: запись итогов должна дойти до БД и при повторной отмене задачи.
+        await asyncio.shield(asyncio.to_thread(service.finish_notifications, results))
     return sent
 
 
@@ -86,12 +94,20 @@ async def publish_weekly(
     if cfg.channel_id is None:
         return Published("skipped", "CHANNEL_ID не задан — публиковать некуда.")
     send = bot_sender(bot_or_send) if isinstance(bot_or_send, Bot) else bot_or_send
-    reserved = await asyncio.to_thread(service.reserve_weekly, force=force, scheduled=scheduled)
-    if reserved is None:
+    r = await asyncio.to_thread(service.reserve_weekly, force=force, scheduled=scheduled)
+    if r.status == "skipped":
+        return Published("skipped", "Сводку по расписанию сейчас публиковать не нужно.")
+    if r.status == "in_progress":
         return Published(
-            "skipped", "Сводка за прошлую неделю уже опубликована. Ещё раз: /weekly publish force"
+            "skipped", f"Сводка {r.period} публикуется прямо сейчас — подождите пару минут."
         )
-    period, text = reserved
+    if r.status == "sent":
+        when = f" {date_full(r.sent_at)}" if r.sent_at else ""
+        return Published(
+            "skipped",
+            f"Сводка {r.period} уже опубликована{when}. Ещё раз: /weekly publish force",
+        )
+    period, text = r.period, r.text or ""
     try:
         await send(cfg.channel_id, text, None)
     except Exception as exc:  # noqa: BLE001 — любая ошибка: сводка failed, админ повторит

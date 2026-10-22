@@ -13,9 +13,11 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
+from minsk_realty.bot import texts
 from minsk_realty.bot.config import BotConfig
 from minsk_realty.bot.handlers import build_router
 from minsk_realty.bot.publish import bot_sender, notify_once, scheduled_weekly
+from minsk_realty.bot.ratelimit import RateLimitMiddleware, TokenBucket
 from minsk_realty.bot.service import BotService
 from minsk_realty.db.session import make_engine, make_session_factory
 
@@ -42,6 +44,9 @@ def make_bot(cfg: BotConfig) -> Bot:
 def build_dispatcher(service: BotService, cfg: BotConfig) -> Dispatcher:
     dp = Dispatcher()
     dp["service"] = service
+    limiter = RateLimitMiddleware(TokenBucket(cfg.rate_burst, cfg.rate_per_minute))
+    dp.message.outer_middleware(limiter)
+    dp.callback_query.outer_middleware(limiter)
     dp.include_router(build_router(cfg))
     return dp
 
@@ -73,6 +78,11 @@ async def run(cfg: BotConfig) -> None:
         await bot.set_my_commands(COMMANDS)
 
     send = bot_sender(bot)
+    for period in await asyncio.to_thread(service.recover_weekly):
+        log.warning("сводка %s: бот остановился во время публикации", period)
+        if cfg.admin_chat_id is not None:
+            with suppress(Exception):
+                await send(cfg.admin_chat_id, texts.weekly_interrupted_text(period), None)
     tasks = [
         asyncio.create_task(asyncio.to_thread(service.warm_up)),
         asyncio.create_task(

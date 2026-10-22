@@ -35,6 +35,9 @@ class BotConfig:
     notify_max_age: timedelta = timedelta(days=3)
     # Сообщений за один проход рассылки (остальные — в следующий проход).
     notify_batch: int = 200
+    # Частота запросов одного пользователя: столько подряд, дальше — столько в минуту.
+    rate_burst: int = 8
+    rate_per_minute: float = 15
     # Медианы рынка для /check пересчитываются не чаще раза в этот срок.
     baseline_ttl: timedelta = timedelta(hours=1)
     # Недельная сводка: понедельник, это время по Минску. Догоняем пропущенную не дольше

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -32,7 +33,9 @@ from minsk_realty.bot.texts import NOTIFY_TYPES, EventNews, ObjectNews, news_tex
 from minsk_realty.bot.watchlist import current_listing, flat_name
 from minsk_realty.db.models import Event, Notification, User, Watch
 
-Outcome = Literal["sent", "failed", "release"]
+log = logging.getLogger(__name__)
+
+Outcome = Literal["sent", "failed", "blocked", "release"]
 
 
 @dataclass(frozen=True)
@@ -94,7 +97,10 @@ def recently_notified(
 
 
 def due_notifications(session: Session, now: datetime, cfg: BotConfig) -> list[Outgoing]:
-    """Сообщения, которые пора отправить: по одному на (пользователь, квартира)."""
+    """Сообщения, которые пора отправить: по одному на (пользователь, квартира).
+
+    Группа, текст которой не собрался (битый payload события), записывается как failed
+    прямо в сессию — вызывающий коммитит её вместе с резервом."""
     pending = pending_events(session, now, cfg)
     busy = recently_notified(session, {u for u, _, _ in pending}, now, cfg)
     groups = [(key, events) for key, events in pending.items() if (key[0], key[2]) not in busy]
@@ -104,14 +110,36 @@ def due_notifications(session: Session, now: datetime, cfg: BotConfig) -> list[O
     data = load_market(session, object_ids={key[2] for key, _ in groups})
     out = []
     for (user_id, telegram_id, object_id), events in groups:
-        news, url = object_news(data, object_id, events, now)
+        try:
+            news, url = object_news(data, object_id, events, now)
+            text = news_text(news)
+        except Exception as exc:  # noqa: BLE001 — одно битое событие не должно стопорить рассылку
+            # Помечаем группу failed, чтобы не спотыкаться о неё каждые 10 минут.
+            ids = [e.id for e in events]
+            log.error(
+                "уведомление по объекту %s не собрано (%s), события %s пропущены",
+                object_id,
+                type(exc).__name__,
+                ids,
+            )
+            for event_id in ids:
+                session.add(
+                    Notification(
+                        user_id=user_id,
+                        object_id=object_id,
+                        event_id=event_id,
+                        status="failed",
+                        created_at=now,
+                    )
+                )
+            continue
         out.append(
             Outgoing(
                 user_id=user_id,
                 telegram_id=telegram_id,
                 object_id=object_id,
                 event_ids=tuple(e.id for e in events),
-                text=news_text(news),
+                text=text,
                 url=url,
             )
         )
@@ -182,18 +210,23 @@ def reserve(session: Session, outgoing: Iterable[Outgoing], now: datetime) -> No
 
 
 def finish(session: Session, results: Iterable[tuple[Outgoing, Outcome]], now: datetime) -> None:
-    """sent / failed — оставить запись (больше не отправлять); release — Telegram попросил
-    подождать (сообщение точно не ушло): удалить запись, событие уйдёт в следующий проход."""
+    """sent / failed — оставить запись (больше не отправлять); blocked — как failed, плюс
+    пользователь заблокировал бота: его список удаляется, чтобы не получать 403 на каждое
+    событие; release — сообщение точно не ушло (Telegram попросил подождать или бот
+    остановился до запроса): удалить запись, событие уйдёт в следующий проход."""
     for o, outcome in results:
         where = (Notification.user_id == o.user_id, Notification.event_id.in_(o.event_ids))
         if outcome == "release":
             session.execute(delete(Notification).where(*where))
-        else:
-            session.execute(
-                update(Notification)
-                .where(*where)
-                .values(status=outcome, sent_at=now if outcome == "sent" else None)
-            )
+            continue
+        status = "sent" if outcome == "sent" else "failed"
+        session.execute(
+            update(Notification)
+            .where(*where)
+            .values(status=status, sent_at=now if status == "sent" else None)
+        )
+        if outcome == "blocked":
+            session.execute(delete(Watch).where(Watch.user_id == o.user_id))
     session.flush()
 
 

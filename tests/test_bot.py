@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
+import time
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -17,7 +19,7 @@ import sqlalchemy as sa
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import SendMessage
+from aiogram.methods import AnswerCallbackQuery, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TgUser
 from alembic import command
@@ -43,6 +45,7 @@ from minsk_realty.bot.config import BotConfig, ConfigError, chat_ref
 from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
+from minsk_realty.bot.ratelimit import TokenBucket
 from minsk_realty.bot.service import BotService
 from minsk_realty.db.models import (
     Base,
@@ -97,6 +100,19 @@ def make_service(factory, now: datetime = NOW, cfg: BotConfig = CFG):
 def listing_id(factory, external_id: str) -> int:
     with factory() as session:
         return session.scalar(select(Listing.id).where(Listing.external_id == external_id))
+
+
+def seen(factory, *listing_ids: int, tg: int = TG) -> None:
+    """Пользователь уже проверял эти объявления (кнопки «Следить»/«Отчёт» доступны)."""
+    with factory() as session:
+        user = session.scalar(select(User).where(User.telegram_id == tg))
+        if user is None:
+            user = User(telegram_id=tg, created_at=NOW)
+            session.add(user)
+            session.flush()
+        for lid in listing_ids:
+            session.add(Check(user_id=user.id, url="https://x", listing_id=lid, created_at=NOW))
+        session.commit()
 
 
 def count(factory, model, *where) -> int:
@@ -261,6 +277,7 @@ def test_callback_data_roundtrip():
 def test_watch_list_unwatch(docs):
     service, _ = make_service(docs)
     lid = listing_id(docs, "1000201")
+    service.check_text(TG, KUFAR_URL)
     reply, result = service.watch_listing(TG, lid)
     assert result.status == "added" and "слежу: квартира на Притыцкого" in reply.text
     assert service.watch_listing(TG, lid)[1].status == "already"
@@ -288,6 +305,7 @@ def test_watch_limit(factory):
         session.commit()
         ids = session.scalars(select(Listing.id).order_by(Listing.id)).all()
     service, _ = make_service(factory, cfg=BotConfig(token="1:x", watch_limit=2))
+    seen(factory, *ids)
     assert [service.watch_listing(TG, i)[1].status for i in ids] == ["added", "added", "limit"]
     assert "это максимум" in service.watch_listing(TG, ids[2])[0].text
     assert count(factory, Watch) == 2
@@ -301,6 +319,7 @@ def test_cannot_watch_low_confidence_listing(factory):
         session.commit()
         lid = row.id
     service, _ = make_service(factory)
+    seen(factory, lid)
     reply, result = service.watch_listing(TG, lid)
     assert result.status == "not_matched" and "не уверены" in reply.text
     assert count(factory, Watch) == 0
@@ -349,6 +368,7 @@ def watched(factory):
         session.commit()
         lid = session.scalar(select(Listing.id))
     service, clock = make_service(factory)
+    seen(factory, lid)
     assert service.watch_listing(TG, lid)[1].status == "added"
     return service, clock, oid, lid
 
@@ -442,6 +462,7 @@ def test_release_on_retry_after_and_failed_on_forbidden(factory, watched):
 
     assert asyncio.run(notify_once(blocked, service)) == 0
     assert count(factory, Notification, Notification.status == "failed") == 1
+    assert count(factory, Watch) == 0  # заблокировал бота — список убран, 403 больше не ловим
     clock.now += 2 * HOUR
     assert service.prepare_notifications() == []
 
@@ -466,6 +487,7 @@ def test_notify_once_sends_with_buttons(factory, watched):
 def test_docs_scenario_messages(docs):
     """Сообщения docs 1.3 на живой склейке Emma: снижение и перевыкладывание."""
     service, clock = make_service(docs)
+    service.check_text(TG, KUFAR_URL)
     service.watch_listing(TG, listing_id(docs, "1000201"))
     clock.now = NOW + 2 * HOUR
     with docs() as session:
@@ -585,7 +607,10 @@ class FakeTelegram(BaseSession):
             return Message(
                 message_id=len(self.calls),
                 date=NOW,
-                chat=Chat(id=method.chat_id, type="private"),
+                chat=Chat(
+                    id=method.chat_id if isinstance(method.chat_id, int) else -100,
+                    type="private",
+                ),
                 text=method.text,
             )
         return True
@@ -608,11 +633,11 @@ def _message(text: str, chat_id: int = TG, chat_type: str = "private") -> Messag
     )
 
 
-def _feed(service, *updates) -> list:
+def _feed(service, *updates, cfg: BotConfig = CFG) -> list:
     async def go():
         tg = FakeTelegram()
         bot = Bot("42:TEST", session=tg)
-        dp = build_dispatcher(service, CFG)
+        dp = build_dispatcher(service, cfg)
         for i, upd in enumerate(updates):
             kind = "message" if isinstance(upd, Message) else "callback_query"
             await dp.feed_update(bot, Update(update_id=i + 1, **{kind: upd}))
@@ -725,3 +750,222 @@ def test_0004_upgrade_downgrade(tmp_path, monkeypatch):
         assert conn.execute(sa.text("SELECT count(*) FROM events")).scalar() == 1
     command.upgrade(config, "head")
     engine.dispose()
+
+
+# --- Замечания Grant ----------------------------------------------------------------------
+
+
+def test_cancel_during_send_is_never_resent(factory, watched):
+    """1. Остановка бота посреди отправки: сообщение могло уйти — после перезапуска не шлём."""
+    service, clock, oid, lid = watched
+    add_event(factory, oid, "price_drop", NOW + HOUR, listing=lid, payload=drop(90000, 88000))
+    clock.now = NOW + HOUR
+
+    async def cancelled(chat_id, text, markup):
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(notify_once(cancelled, service))
+    assert count(factory, Notification, Notification.status == "failed") == 1
+    service.recover()
+    clock.now += 3 * HOUR
+    assert service.prepare_notifications() == []
+
+
+def test_broken_event_does_not_block_others(factory, caplog, monkeypatch):
+    """2. Битый payload одного события не останавливает рассылку остальным."""
+    with factory() as session:
+        good, bad = add_background(session, 2)
+        session.commit()
+        lids = session.scalars(select(Listing.id).order_by(Listing.id)).all()
+    service, clock = make_service(factory)
+    seen(factory, *lids)
+    for lid in lids:
+        service.watch_listing(TG, lid)
+    broken = {"old": "abc", "new": "88000", "currency": "USD", "pct": "abc"}
+    bad_id = add_event(factory, bad, "price_drop", NOW + HOUR, listing=lids[1], payload=broken)
+    add_event(factory, good, "price_drop", NOW + HOUR, listing=lids[0], payload=drop(90000, 88000))
+    clock.now = NOW + HOUR
+    # alembic fileConfig в тесте миграции выключает уже созданные логгеры — включаем обратно.
+    monkeypatch.setattr(logging.getLogger("minsk_realty.bot.notify"), "disabled", False)
+    with caplog.at_level(logging.ERROR):
+        out = service.prepare_notifications()
+    assert [o.object_id for o in out] == [good]
+    assert f"[{bad_id}]" in caplog.text and str(TG) not in caplog.text
+    with factory() as session:
+        status = session.scalar(select(Notification.status).where(Notification.event_id == bad_id))
+    assert status == "failed"
+    clock.now += 2 * HOUR
+    assert service.prepare_notifications() == []  # битое не пересобираем каждые 10 минут
+
+
+def test_main_without_token_waits_instead_of_exiting(monkeypatch, caplog):
+    """3. Без токена — одно сообщение и ожидание сигнала, а не выход (перезапуск Docker)."""
+    from minsk_realty.bot import __main__ as entry
+
+    waited = []
+    monkeypatch.setattr(entry, "wait_for_stop", lambda: waited.append(True))
+    monkeypatch.setattr(entry, "setup_logging", lambda *a: None)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setattr(logging.getLogger("minsk_realty.bot"), "disabled", False)
+    with caplog.at_level(logging.ERROR):
+        assert entry.main() == 0
+    assert waited == [True] and "TELEGRAM_BOT_TOKEN не задан" in caplog.text
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "not-a-token")
+    assert entry.main() == 0 and len(waited) == 2
+
+
+def test_forged_callbacks_cannot_export_reports(docs):
+    """4. «r:<id>» и «w:<id>» работают только для того, что пользователь сам видел."""
+    service, _ = make_service(docs)
+    lid = listing_id(docs, "1000201")
+    with docs() as session:
+        oid = session.get(Listing, lid).object_id
+        other = add_background(session, 1, prefix="oth")[0]
+        session.commit()
+    stale = texts.stale_button_text()
+    assert service.report_for_object(TG, oid).text == stale
+    assert service.report_for_object(TG, other).text == stale
+    reply, result = service.watch_listing(TG, lid)
+    assert result.status == "denied" and reply.text == stale
+    assert count(docs, Watch) == 0 and count(docs, Check) == 0
+
+    service.check_text(TG, KUFAR_URL)  # пользователь сам прислал ссылку
+    assert service.report_for_object(TG, oid).text.startswith("<b>🏠")
+    assert service.report_for_object(TG, other).text == stale  # чужой объект — нет
+    assert service.watch_listing(TG, lid)[1].status == "added"
+    assert service.report_for_object(TG + 1, oid).text == stale  # другой пользователь — нет
+
+
+def test_rate_limit_bucket():
+    now = [0.0]
+    bucket = TokenBucket(burst=3, per_minute=60, clock=lambda: now[0])
+    assert [bucket.hit(1) for _ in range(4)] == [True, True, True, False]
+    assert bucket.hit(2) is True  # у другого пользователя своя корзина
+    now[0] += 1.0  # 60 в минуту → один токен в секунду
+    assert bucket.hit(1) is True and bucket.hit(1) is False
+
+
+def test_rate_limit_middleware_replies_once(docs):
+    service, _ = make_service(docs)
+    cfg = replace(CFG, rate_burst=2, rate_per_minute=0.01)
+    button = CallbackQuery(
+        id="9",
+        from_user=TgUser(id=TG, is_bot=False, first_name="Имя"),
+        chat_instance="x",
+        data="r:1",
+    )
+    sent, calls = _feed(service, *[_message("/start") for _ in range(5)], button, cfg=cfg)
+    assert [m.text for m in sent].count(texts.esc(texts.TOO_OFTEN)) == 1
+    assert len(sent) == 3  # 2 ответа на /start + одно «слишком часто», дальше — тишина
+    answers = [c for c in calls if isinstance(c, AnswerCallbackQuery)]
+    assert answers and answers[0].text == texts.TOO_OFTEN
+
+
+def test_link_search_is_bounded():
+    """5. Ссылки ищем только в первых MAX_SCAN символах: мусор не держит GIL."""
+    links.find_links("прогрев")
+    far = "x " * links.MAX_SCAN + KUFAR_URL
+    assert links.find_links(far) == []
+    for junk in ("a." * 2048, "a-" * 2048 + ".", ("ab." * 1400)[:4096], "x" * 4096):
+        started = time.perf_counter()
+        links.find_links(junk)
+        assert time.perf_counter() - started < 0.1
+
+
+def _admin_msg(chat_id: int, chat_type: str, user_id: int) -> Message:
+    return Message(
+        message_id=1,
+        date=NOW,
+        chat=Chat(id=chat_id, type=chat_type),
+        from_user=TgUser(id=user_id, is_bot=False, first_name="Имя"),
+        text="/weekly publish force",
+    )
+
+
+def test_admin_commands_only_from_admin_in_private(docs):
+    """6. ADMIN_CHAT_ID — группа: участники не публикуют; админ — только в личке."""
+    service, _ = make_service(docs, now=datetime(2026, 10, 26, 7, 30, tzinfo=UTC))
+    group_cfg = replace(CFG, admin_chat_id=-100777)
+    sent, _ = _feed(service, _admin_msg(-100777, "group", 5), cfg=group_cfg)
+    assert sent == [] and count(docs, ChannelPost) == 0
+    # Сам админ, но в группе; и чужой пользователь в личке — сводку не публикуют.
+    sent, _ = _feed(service, _admin_msg(-100, "group", 777), _admin_msg(5, "private", 5))
+    assert all("Сводка" not in m.text for m in sent)
+    assert count(docs, ChannelPost) == 0
+    sent, _ = _feed(service, _admin_msg(777, "private", 777))
+    assert "Сводка 2026-W43" in sent[-1].text
+    assert count(docs, ChannelPost) == 1
+
+
+def test_user_and_watch_creation_are_idempotent(factory, monkeypatch):
+    """7. Двойное нажатие / две ссылки нового пользователя: без IntegrityError наружу."""
+    from minsk_realty.bot import watchlist
+
+    with factory() as session:
+        (oid,) = add_background(session, 1)
+        user = watchlist.get_or_create_user(session, TG, NOW)
+        session.commit()
+        user_id = user.id
+    real = watchlist.find_user
+    calls = []
+
+    def stale_find(session, telegram_id):  # параллельный запрос уже создал пользователя
+        calls.append(telegram_id)
+        return None if len(calls) == 1 else real(session, telegram_id)
+
+    monkeypatch.setattr(watchlist, "find_user", stale_find)
+    with factory() as session:
+        assert watchlist.get_or_create_user(session, TG, NOW).id == user_id
+        session.commit()
+    monkeypatch.setattr(watchlist, "find_user", real)
+    with factory() as session:
+        assert watchlist.insert_watch(session, user_id, oid, NOW) is True
+        session.commit()
+    with factory() as session:
+        monkeypatch.setattr(session, "get", lambda *a, **k: None)  # «не видим» чужую вставку
+        assert watchlist.insert_watch(session, user_id, oid, NOW) is False
+        session.commit()
+    assert count(factory, Watch) == 1 and count(factory, User) == 1
+
+
+def test_button_always_answered_on_error(docs):
+    class Broken(BotService):
+        def report_for_object(self, telegram_id, object_id):
+            raise RuntimeError("boom")
+
+    service = Broken(docs, CFG, clock=Clock(NOW))
+    button = CallbackQuery(
+        id="7",
+        from_user=TgUser(id=TG, is_bot=False, first_name="Имя"),
+        chat_instance="x",
+        data="r:1",
+        message=_message("уведомление"),
+    )
+    _, calls = _feed(service, button)
+    assert any(isinstance(c, AnswerCallbackQuery) for c in calls)  # индикатор не висит
+
+
+def test_weekly_stuck_pending(docs):
+    """8. Падение между записью и отправкой: не «уже опубликована» навсегда."""
+    service, clock = make_service(docs, now=datetime(2026, 10, 26, 7, 30, tzinfo=UTC))
+    assert service.reserve_weekly().status == "reserved"  # и тут бот упал
+    posts = []
+
+    async def send(chat_id, text, markup):
+        posts.append(text)
+
+    busy = asyncio.run(publish_weekly(send, service, CFG))
+    assert "публикуется прямо сейчас" in busy.text and posts == []
+    clock.now += weekly.STALE_PENDING + timedelta(minutes=1)
+    assert asyncio.run(publish_weekly(send, service, CFG)).status == "sent"
+    assert len(posts) == 1
+    again = asyncio.run(publish_weekly(send, service, CFG))
+    assert "уже опубликована 26.10.2026" in again.text
+
+    # После перезапуска зависшая публикация → failed и вопрос админу, а не повтор вслепую.
+    service.reserve_weekly(force=True)
+    assert service.recover_weekly() == ["2026-W43"]
+    assert asyncio.run(scheduled_weekly(send, service, CFG)).status == "skipped"
+    assert len(posts) == 1
+    assert "/weekly publish" in texts.weekly_interrupted_text("2026-W43")

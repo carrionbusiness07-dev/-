@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -56,20 +58,52 @@ def find_post(session: Session, period: str) -> ChannelPost | None:
     )
 
 
-def reserve_post(session: Session, period: str, now: datetime, *, force: bool = False) -> bool:
-    """Занять публикацию периода. False — уже публиковали (или публикуют прямо сейчас).
+# Публикация «в процессе» дольше этого — бот упал между записью и отправкой: считаем её
+# неудавшейся (повторить может админ), а не «уже опубликованной».
+STALE_PENDING = timedelta(minutes=30)
 
-    Без `force` повторно публикуется только неудавшаяся (failed) сводка."""
+
+@dataclass(frozen=True)
+class Reservation:
+    status: Literal["reserved", "sent", "in_progress", "skipped"]
+    period: str
+    sent_at: datetime | None = None
+    text: str | None = None  # текст сводки, если reserved
+
+
+def reserve_post(
+    session: Session, period: str, now: datetime, *, force: bool = False
+) -> Reservation:
+    """Занять публикацию периода.
+
+    - новой записи нет или прошлая failed (или зависла в pending дольше STALE_PENDING) →
+      reserved;
+    - уже опубликована → sent (с `force` — reserved, публикуем ещё раз);
+    - pending моложе STALE_PENDING → in_progress: публикация идёт прямо сейчас."""
     post = find_post(session, period)
     if post is None:
         session.add(ChannelPost(kind=KIND, period=period, status="pending", created_at=now))
         session.flush()
-        return True
-    if post.status == "failed" or force:
-        post.status, post.created_at, post.sent_at = "pending", now, None
-        session.flush()
-        return True
-    return False
+        return Reservation("reserved", period)
+    if post.status == "pending" and now - post.created_at < STALE_PENDING:
+        return Reservation("in_progress", period)
+    if post.status == "sent" and not force:
+        return Reservation("sent", period, sent_at=post.sent_at)
+    post.status, post.created_at, post.sent_at = "pending", now, None
+    session.flush()
+    return Reservation("reserved", period)
+
+
+def recover_posts(session: Session) -> list[str]:
+    """После перезапуска: pending — исход неизвестен (пост мог выйти). Помечаем failed и
+    возвращаем периоды, чтобы бот спросил админа, а не публиковал вслепую второй раз."""
+    posts = session.scalars(
+        select(ChannelPost).where(ChannelPost.kind == KIND, ChannelPost.status == "pending")
+    ).all()
+    for post in posts:
+        post.status = "failed"
+    session.flush()
+    return [post.period for post in posts]
 
 
 def finish_post(session: Session, period: str, ok: bool, now: datetime) -> None:

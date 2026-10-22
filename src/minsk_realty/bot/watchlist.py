@@ -11,16 +11,17 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics import compute_exposure, load_market
 from minsk_realty.analytics.data import MarketData
 from minsk_realty.analytics.fmt import street_label
-from minsk_realty.db.models import Listing, User, Watch
+from minsk_realty.db.models import Check, Listing, User, Watch
 from minsk_realty.matching.rules import TRUSTED
 
-WatchStatus = Literal["added", "already", "limit", "not_found", "not_matched"]
+WatchStatus = Literal["added", "already", "limit", "not_found", "not_matched", "denied"]
 
 
 def find_user(session: Session, telegram_id: int) -> User | None:
@@ -28,12 +29,27 @@ def find_user(session: Session, telegram_id: int) -> User | None:
 
 
 def get_or_create_user(session: Session, telegram_id: int, now: datetime) -> User:
+    """Идемпотентно: два одновременных запроса нового пользователя не роняют второй
+    (уникальный telegram_id → IntegrityError в SAVEPOINT → берём созданную строку)."""
     user = find_user(session, telegram_id)
-    if user is None:
-        user = User(telegram_id=telegram_id, created_at=now)
-        session.add(user)
-        session.flush()
+    if user is not None:
+        return user
+    try:
+        with session.begin_nested():
+            user = User(telegram_id=telegram_id, created_at=now)
+            session.add(user)
+    except IntegrityError:
+        user = find_user(session, telegram_id)
+        if user is None:  # pragma: no cover — строку удалили между вставкой и чтением
+            raise
     return user
+
+
+def lock_user(session: Session, user: User) -> None:
+    """Сериализовать изменения списка одного пользователя (PostgreSQL: SELECT … FOR UPDATE).
+    Без этого два одновременных «Следить» при count = limit − 1 превысили бы лимит.
+    SQLite FOR UPDATE не знает, но там запись и так идёт по одной транзакции."""
+    session.execute(select(User.id).where(User.id == user.id).with_for_update())
 
 
 def watch_count(session: Session, user_id: int) -> int:
@@ -72,6 +88,18 @@ class WatchResult:
     limit: int = 0
 
 
+def insert_watch(session: Session, user_id: int, object_id: int, now: datetime) -> bool:
+    """Добавить в список. False — уже был (в том числе добавлен параллельным запросом)."""
+    if session.get(Watch, (user_id, object_id)) is not None:
+        return False
+    try:
+        with session.begin_nested():
+            session.add(Watch(user_id=user_id, object_id=object_id, created_at=now))
+    except IntegrityError:
+        return False
+    return True
+
+
 def add_watch(
     session: Session, telegram_id: int, listing: Listing | None, now: datetime, limit: int
 ) -> WatchResult:
@@ -81,14 +109,51 @@ def add_watch(
     if object_id is None:
         return WatchResult("not_matched", limit=limit)
     user = get_or_create_user(session, telegram_id, now)
+    lock_user(session, user)
     count = watch_count(session, user.id)
     if session.get(Watch, (user.id, object_id)) is not None:
         return WatchResult("already", object_id, count, limit)
     if count >= limit:
         return WatchResult("limit", object_id, count, limit)
-    session.add(Watch(user_id=user.id, object_id=object_id, created_at=now))
-    session.flush()
+    if not insert_watch(session, user.id, object_id, now):
+        return WatchResult("already", object_id, watch_count(session, user.id), limit)
     return WatchResult("added", object_id, count + 1, limit)
+
+
+# --- Доступ к кнопкам ----------------------------------------------------------------------
+# callback_data можно подделать: «r:1», «r:2», … выгрузили бы отчёты по всей базе, а
+# «Продаём выводы, а не сырые данные». Поэтому кнопки отчёта и «Следить» работают только
+# для того, что пользователь сам уже видел: проверял по ссылке или держит в списке.
+
+
+def has_checked_listing(session: Session, telegram_id: int, listing_id: int) -> bool:
+    return bool(
+        session.scalar(
+            select(
+                exists()
+                .where(Check.user_id == User.id, Check.listing_id == listing_id)
+                .where(User.telegram_id == telegram_id)
+            )
+        )
+    )
+
+
+def has_seen_object(session: Session, telegram_id: int, object_id: int) -> bool:
+    if is_watching(session, telegram_id, object_id):
+        return True
+    return bool(
+        session.scalar(
+            select(
+                exists()
+                .where(
+                    Check.user_id == User.id,
+                    Check.listing_id == Listing.id,
+                    Listing.object_id == object_id,
+                )
+                .where(User.telegram_id == telegram_id)
+            )
+        )
+    )
 
 
 def remove_watch(session: Session, telegram_id: int, object_id: int) -> bool:

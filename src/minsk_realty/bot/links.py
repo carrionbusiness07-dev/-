@@ -21,6 +21,9 @@ COMING = {"onliner.by": "Onliner", "domovita.by": "Domovita"}
 # Ссылка в тексте: со схемой или без («re.kufar.by/vi/123»).
 URL_RE = re.compile(r"(?:https?://)?(?:[\w-]+\.)+[a-z]{2,}\b(?:/[^\s<>\"«»]*)?", re.IGNORECASE)
 _TRAILING = ".,;:!?)]}…"
+# Ищем ссылки только в начале текста: ссылку присылают в начале, а регулярное выражение
+# на 4096 символах мусора держит GIL ~0.3 с.
+MAX_SCAN = 1000
 
 
 @cache
@@ -73,7 +76,7 @@ def resolve(url: str) -> tuple[str, str] | None:
 def find_links(text: str | None) -> list[Link]:
     """Все ссылки из текста по порядку. Поддерживаемые помечены площадкой и id."""
     out = []
-    for match in URL_RE.finditer(text or ""):
+    for match in URL_RE.finditer((text or "")[:MAX_SCAN]):
         url = match.group(0).rstrip(_TRAILING)
         host = _host(url)
         if not host or "." not in host:
