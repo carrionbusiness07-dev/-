@@ -5,6 +5,7 @@ python -m minsk_realty.web            # http://localhost:8080
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from functools import cache
 from pathlib import Path
@@ -14,6 +15,7 @@ from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics import (
@@ -29,7 +31,19 @@ from minsk_realty.web import views
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.globals.update(fmt=fmt, sources=views.SOURCE_NAMES)
-templates.env.filters["money"] = lambda v, c="USD": fmt.money(v, c)
+NB_THOUSANDS = re.compile(r"(?<=\d) (?=\d{3}\b)")
+RANGE = re.compile(r"\$[\d\u00a0]+–[\d\u00a0]+")
+
+
+def nb(text) -> Markup:
+    """Неразрывные пробелы в числах и неразрывный диапазон «$78 500–80 000»:
+    сумма не должна переноситься посередине."""
+    safe = NB_THOUSANDS.sub("\u00a0", str(escape(text)))
+    return Markup(RANGE.sub(lambda m: f'<span class="nowrap">{m.group(0)}</span>', safe))
+
+
+templates.env.filters["nb"] = nb
+templates.env.filters["money"] = lambda v, c="USD": nb(fmt.money(v, c))
 templates.env.filters["pct"] = lambda v: views.pct(v) if v is not None else "—"
 templates.env.filters["ppm"] = fmt.ppm
 templates.env.filters["dshort"] = fmt.date_short

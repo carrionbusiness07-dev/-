@@ -20,9 +20,9 @@
   {% if r.bargaining %}
   <section class="verdict verdict-{{ r.bargaining.level }}" aria-labelledby="verdict-title">
     <h2 id="verdict-title">Торг: {{ {"high": "реален", "medium": "возможен", "low": "вряд ли", "unknown": "мало данных"}.get(r.bargaining.level, r.bargaining.level) }}</h2>
-    <p class="verdict-text">{{ r.bargaining.recommendation }}</p>
+    <p class="verdict-text">{{ r.bargaining.recommendation | nb }}</p>
     {% if r.bargaining.reasons %}
-    <ul class="verdict-reasons">{% for reason in r.bargaining.reasons %}<li>{{ reason.text }}</li>{% endfor %}</ul>
+    <ul class="verdict-reasons">{% for reason in r.bargaining.reasons %}<li>{{ reason.text | nb }}</li>{% endfor %}</ul>
     {% endif %}
   </section>
   {% endif %}

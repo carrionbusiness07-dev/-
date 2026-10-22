@@ -29,7 +29,7 @@
     <div><dt>Новых квартир</dt><dd>{{ w.new_objects }}</dd></div>
     <div><dt>Подешевели</dt><dd>{{ w.dropped_objects }}{% if w.drop_step_median_pct %} <small>шаг {{ w.drop_step_median_pct | pct }}</small>{% endif %}</dd></div>
     <div><dt>Сняты с продажи</dt><dd>{{ w.removed_objects }}</dd></div>
-    <div><dt>Перевыложены «как новые»</dt><dd>{% if w.relisted_share is not none %}{{ (w.relisted_share * 100) | round | int }}%{% else %}—{% endif %} <small>{{ w.relisted_listings }} из {{ w.new_listings }}</small></dd></div>
+    <div><dt>Новые объявления — на деле перевыложенные</dt><dd>{% if w.relisted_share is not none %}{{ (w.relisted_share * 100) | round | int }}%{% else %}—{% endif %} <small>{{ w.relisted_listings }} из {{ w.new_listings }} объявл.</small></dd></div>
   </dl>
 </section>
 

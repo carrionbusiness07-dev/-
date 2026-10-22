@@ -328,7 +328,8 @@ section.day .price-old {
 }
 .facts dt { color: var(--ink-2); font-size: 14px; }
 .facts dd { margin: 0; font-weight: 650; text-align: right; }
-.facts dd small { display: block; font-weight: 400; color: var(--ink-3); font-size: 12px; }
+.facts dd small { display: block; font-weight: 400; color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+.nowrap { white-space: nowrap; }
 
 table { width: 100%; border-collapse: collapse; }
 .districts th, .districts td { padding: 5px 0; border-bottom: 1px solid var(--rule); font-size: 14px; }
@@ -489,6 +490,17 @@ code { font-size: 0.9em; background: var(--paper-2); padding: 1px 4px; border-ra
   .nav { width: 100%; margin: 0; display: flex; justify-content: space-between; gap: 2px; }
   .nav a { font-size: 17px; padding: 6px 10px; white-space: nowrap; }
   .demo-note { padding: 8px var(--s4); }
+  /* Пульс на телефоне — компактная полоса над лентой: лента должна попасть в первый экран. */
+  .pulse { grid-template-columns: minmax(0, 1fr); gap: var(--s3); padding: var(--s4); }
+  .pulse-summary .pulse-title, .pulse-summary .pulse-label { display: none; }
+  .pulse-summary .pulse-figure { display: inline; font-size: 30px; }
+  .pulse-summary .pulse-figure .unit { font-size: 16px; }
+  .pulse-summary .pulse-change { display: inline; margin-left: var(--s2); }
+  .pulse-summary .bars { height: 28px; margin-top: var(--s2); }
+  .pulse-summary .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--s4); }
+  .pulse-summary .facts > div { padding: 4px 0; }
+  .pulse-summary .facts dt { font-size: 12px; }
+  .pulse-summary .facts dd small { display: none; }
   .feed-col, .object, .objects, .sources-page { padding: var(--s5) var(--s4) var(--s6); }
   .pulse { padding: var(--s5) var(--s4); }
   h1 { font-size: 36px; }
