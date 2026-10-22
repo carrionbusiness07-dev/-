@@ -1,28 +1,39 @@
 """Правила склейки: объявление против объекта (его надёжно привязанных объявлений).
 
 Порядок решения:
+0. У объявления никогда не было комнат или площади → данных нет (`insufficient`): новую
+   склейку не делаем, существующую не трогаем. Признаки — последние известные непустые
+   значения, поэтому разовый пустой снимок сюда не приводит.
 1. Жёсткие противоречия с любым объявлением объекта → не склеиваем.
    Комнаты, площадь > ±1 м², этаж, этажность, город, улица, дом, координаты > 500 м,
-   фото противоречат (у обоих ≥ 3 фото, совпало < 2), тот же продавец держит оба объявления
-   на одной площадке дольше льготного срока.
+   фото противоречат (у обоих ≥ 3 фото, совпало меньше нужного), тот же продавец держит
+   оба объявления на одной площадке дольше льготного срока.
 2. Тот же продавец на той же площадке, старое объявление ещё активно → ждём (defer).
-3. Улики: фото (≥ 2 совпадения), адрес (улица + дом), полный отпечаток (адрес + этаж +
-   этажность), координаты в радиусе. Все улики требуют совпадения комнат и площади ±1 м².
+3. Улики: фото, адрес (улица + дом), полный отпечаток (адрес + этаж + этажность),
+   координаты в радиусе. Все улики требуют совпадения комнат и площади ±1 м².
+   Фото — это не меньше max(2, ⌈50% × меньшего набора⌉) совпавших пар без «типовых» хешей
+   (фасад, двор, заглушка — один хеш у заведомо разных квартир). Соседи по дому делят
+   1–2 снимка из 8, одна квартира на двух площадках — почти все.
 4. Уверенность:
-   high   — фото + совпадение места (адрес или координаты);
-   medium — полный отпечаток уровня 1; или фото без данных о месте; или адрес + тот же
-            продавец перевыложил после снятия старого объявления;
+   high   — фото + совпадение места; без этажа у обеих сторон (Kufar) нужно ≥ 3 фото;
+   medium — полный отпечаток уровня 1; или фото без данных о месте (или с местом, но
+            без этажа и всего 2 фото); или адрес + тот же продавец перевыложил после снятия;
    low    — только адрес без этажа (Kufar) или только координаты;
    иначе  — не склеиваем.
-5. Слабая улика (low) при одновременной активности на одной площадке не склеивает:
-   два похожих объявления в одном доме на одном Kufar — скорее соседние квартиры.
+5. Без подтверждения фото объявление, которое одновременно висело на той же площадке с
+   объявлением объекта у другого продавца, не склеиваем — ни low, ни medium. В панельном
+   доме одинаковые квартиры есть в каждом подъезде на каждом этаже: отпечаток уровня 1 у
+   них совпадает, и без фото «одна квартира у двух агентств» и «соседи» неразличимы.
+   Ложная склейка дала бы чужие «снижения цены» и ложный cross_listed; пропущенная
+   склейка лишь откладывает факт «два агентства» до появления фото.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from minsk_realty.matching.address import streets_match
 from minsk_realty.matching.config import MatchingConfig
@@ -40,6 +51,13 @@ LOC_NAMES = {
     LOC_ADDRESS: "адрес без этажа",
     LOC_FINGERPRINT: "отпечаток уровня 1",
 }
+# Коды места для listings.match_basis (стабильные, не для показа).
+LOC_CODES = {
+    LOC_NONE: "none",
+    LOC_GEO: "geo",
+    LOC_ADDRESS: "address",
+    LOC_FINGERPRINT: "fingerprint",
+}
 
 Outcome = Literal["match", "reject", "defer"]
 
@@ -52,10 +70,22 @@ class Verdict:
     reasons: list[str] = field(default_factory=list)
     photo_matches: int = 0
     location: int = LOC_NONE
+    # Сколько совпавших фото было нужно (0 — фото нет у одной из сторон).
+    photos_needed: int = 0
+    # reject из-за жёсткого противоречия (а не из-за нехватки улик).
+    conflict: bool = False
+    # Сравнивать не по чему: у объявления нет комнат или площади. Существующую склейку
+    # из-за этого не трогаем.
+    insufficient: bool = False
+    relist: bool = False
 
     @property
     def rank(self) -> int:
         return CONFIDENCE_RANK.get(self.confidence or "", 0) if self.outcome == "match" else 0
+
+    @property
+    def photo_ok(self) -> bool:
+        return self.photos_needed > 0 and self.photo_matches >= self.photos_needed
 
     def summary(self) -> str:
         head = {
@@ -64,6 +94,16 @@ class Verdict:
             "defer": "отложено",
         }[self.outcome]
         return f"{head}: " + "; ".join(self.reasons)
+
+    def basis(self) -> dict[str, Any]:
+        """Основание склейки для listings.match_basis: место, фото, перевыкладывание."""
+        return {
+            "rule": "compare",
+            "location": LOC_CODES[self.location],
+            "photo_matches": self.photo_matches,
+            "photos_needed": self.photos_needed,
+            "relist": self.relist,
+        }
 
 
 def same_seller(a: ListingFeatures, b: ListingFeatures) -> bool:
@@ -78,7 +118,8 @@ def coexisted(a: ListingFeatures, b: ListingFeatures) -> bool:
     return max(a.first_seen, b.first_seen) <= min(a.last_seen, b.last_seen)
 
 
-def _hard_conflicts(l: ListingFeatures, p: ListingFeatures, cfg: MatchingConfig) -> list[str]:
+def hard_conflicts(l: ListingFeatures, p: ListingFeatures, cfg: MatchingConfig) -> list[str]:
+    """Признаки, при которых два объявления заведомо про разные квартиры."""
     out = []
     if l.town and p.town and l.town != p.town:
         out.append(f"город {l.town} ≠ {p.town}")
@@ -101,6 +142,9 @@ def _hard_conflicts(l: ListingFeatures, p: ListingFeatures, cfg: MatchingConfig)
     if dist is not None and dist > cfg.geo_contradiction_m:
         out.append(f"между точками {dist:.0f} м у {p.label} (> {cfg.geo_contradiction_m:g} м)")
     return out
+
+
+_hard_conflicts = hard_conflicts  # старое имя
 
 
 def _seller_check(
@@ -168,6 +212,14 @@ def _relist_by_same_seller(l: ListingFeatures, p: ListingFeatures, cfg: Matching
     return -cfg.same_seller_overlap_grace <= gap <= cfg.relisted_window
 
 
+def photos_needed(n_listing: int, n_object: int, cfg: MatchingConfig) -> int:
+    """Сколько совпавших фото нужно для улики «фото» (0 — сравнивать нечего)."""
+    if not (n_listing and n_object):
+        return 0
+    share = math.ceil(cfg.phash_min_share * min(n_listing, n_object) - 1e-9)
+    return max(cfg.phash_min_matches, share)
+
+
 def compare(
     listing: ListingFeatures,
     object_id: int,
@@ -180,25 +232,29 @@ def compare(
     """Сравнить объявление с объектом, у которого надёжно привязаны объявления `others`.
 
     `weak` — объявления объекта со склейкой low: улик они не дают, но участвуют в правиле
-    «слабая улика + одновременно на одной площадке».
+    «без фото + одновременно на одной площадке».
     """
     v = Verdict(object_id=object_id, outcome="reject")
     others = [o for o in others if o.listing_id != listing.listing_id]
     weak = [o for o in weak if o.listing_id != listing.listing_id]
     if not others:
         v.reasons.append("у объекта нет надёжно привязанных объявлений для сравнения")
+        v.insufficient = True
         return v
     if not (listing.rooms and listing.area):
         v.reasons.append("у объявления нет комнат или площади — сравнивать не по чему")
+        v.insufficient = True
         return v
 
-    conflicts = [c for o in others for c in _hard_conflicts(listing, o, cfg)]
+    conflicts = [c for o in others for c in hard_conflicts(listing, o, cfg)]
     seller = [r for o in others if (r := _seller_check(listing, o, cfg, now))]
     conflicts += [text for kind, text in seller if kind == "reject"]
 
     union: set[str] = set().union(*(o.phashes for o in others))
+    richest = max(len(o.phashes) for o in others)
     v.photo_matches = count_photo_matches(listing.phashes, union, cfg.phash_max_distance)
-    photo_ok = v.photo_matches >= cfg.phash_min_matches
+    v.photos_needed = photos_needed(len(listing.phashes), richest, cfg)
+    photo_ok = v.photo_ok
     if (
         not photo_ok
         and len(listing.phashes) >= cfg.photo_min_for_contradiction
@@ -206,10 +262,10 @@ def compare(
     ):
         conflicts.append(
             f"фото противоречат: у объявления {len(listing.phashes)}, у объекта {len(union)}, "
-            f"совпало {v.photo_matches} (нужно ≥ {cfg.phash_min_matches})"
+            f"совпало {v.photo_matches} (нужно ≥ {v.photos_needed})"
         )
     if conflicts:
-        v.reasons = conflicts
+        v.reasons, v.conflict = conflicts, True
         return v
     defer = [text for kind, text in seller if kind == "defer"]
     if defer:
@@ -217,16 +273,26 @@ def compare(
         return v
 
     v.location = max(_location(listing, o, cfg) for o in others)
-    relist = any(_relist_by_same_seller(listing, o, cfg) for o in others)
+    v.relist = relist = any(_relist_by_same_seller(listing, o, cfg) for o in others)
     v.reasons.append(f"место: {LOC_NAMES[v.location]}")
     if listing.phashes and union:
-        v.reasons.append(f"фото: совпало {v.photo_matches} (Хэмминг ≤ {cfg.phash_max_distance})")
+        v.reasons.append(
+            f"фото: совпало {v.photo_matches} из нужных {v.photos_needed} "
+            f"(Хэмминг ≤ {cfg.phash_max_distance})"
+        )
     else:
         v.reasons.append("фото: нет хешей у одной из сторон")
+    if listing.popular_phashes:
+        v.reasons.append(f"типовых фото отброшено: {listing.popular_phashes}")
     if relist:
         v.reasons.append("тот же продавец перевыложил после снятия")
 
-    if photo_ok and v.location >= LOC_GEO:
+    floor_known = v.location == LOC_FINGERPRINT
+    if (
+        photo_ok
+        and v.location >= LOC_GEO
+        and (floor_known or v.photo_matches >= cfg.phash_high_min_matches_without_floor)
+    ):
         confidence = "high"
     elif photo_ok or v.location == LOC_FINGERPRINT or (v.location == LOC_ADDRESS and relist):
         confidence = "medium"
@@ -236,13 +302,14 @@ def compare(
         v.reasons.insert(0, "нет совпадения ни по месту, ни по фото")
         return v
 
-    if confidence == "low" and any(
-        o.source == listing.source and coexisted(listing, o) for o in [*others, *weak]
+    if not photo_ok and any(
+        o.source == listing.source and not same_seller(o, listing) and coexisted(listing, o)
+        for o in [*others, *weak]
     ):
         v.reasons.insert(
             0,
-            "слабая улика, а объявления одновременно висят на одной площадке — "
-            "скорее соседние квартиры",
+            "без подтверждения фото, а объявления разных продавцов одновременно висят на "
+            "одной площадке — скорее соседние квартиры (одинаковая планировка в другом подъезде)",
         )
         return v
 

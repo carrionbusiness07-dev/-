@@ -169,7 +169,8 @@ def _row(id_, *, first, last=NOW, status="active", posted=None, source="realt", 
 
 
 def _event(id_, type_, at, listing_id=None, object_id=1, notify=True, **payload):
-    return EventRow(id_, object_id, listing_id, type_, at, at, notify, payload)
+    # Событие склейки low: и без уведомления, и не надёжное (trusted=False).
+    return EventRow(id_, object_id, listing_id, type_, at, at, notify, payload, trusted=notify)
 
 
 STARTS = {"realt": OBS_START, "kufar": OBS_START}

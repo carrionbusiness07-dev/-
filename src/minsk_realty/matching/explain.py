@@ -26,6 +26,7 @@ from minsk_realty.matching.matcher import (
     candidate_objects,
     compare_with_object,
     evaluate,
+    is_founder,
     linked_features,
 )
 from minsk_realty.sources import kufar, realt
@@ -78,7 +79,22 @@ def describe(f: ListingFeatures) -> str:
         f"    улица: {f.street or '?'}, дом: {f.house or '?'} (источник: {f.address_from}), "
         f"комнат {f.rooms or '?'}, площадь {f.area if f.area else '?'}, этаж {floor}, "
         f"координаты {coords}, фото-хешей {len(f.phashes)}"
+        + (f" (+{f.popular_phashes} типовых не учитываются)" if f.popular_phashes else "")
     )
+
+
+def describe_basis(listing: Listing) -> str:
+    basis = listing.match_basis
+    if not basis:
+        return "основание не записано (склейка до миграции 0003)"
+    if basis.get("rule") == "founder":
+        return "основное объявление объекта"
+    text = f"место: {basis.get('location')}, фото {basis.get('photo_matches')}"
+    if basis.get("photos_needed"):
+        text += f" из нужных {basis.get('photos_needed')}"
+    if basis.get("relist"):
+        text += ", перевыложено тем же продавцом"
+    return text
 
 
 def explain_listing(
@@ -92,16 +108,19 @@ def explain_listing(
     listing = session.get(Listing, listing_id)
     if listing is None:
         return f"Объявления #{listing_id} нет в БД"
-    cache = FeatureCache(session)
+    cache = FeatureCache(session, config)
     f = cache.get(listing)
     lines = ["Объявление " + describe(f)]
     if listing.object_id is None:
         result = evaluate(session, cache, f, config, now)
         lines.append(f"  Объекта нет. Решение сейчас: {result.action}. {result.note}".rstrip())
     else:
-        lines.append(f"  Объект #{listing.object_id}, уверенность {listing.match_confidence}")
+        lines.append(
+            f"  Объект #{listing.object_id}, уверенность {listing.match_confidence} "
+            f"({describe_basis(listing)})"
+        )
         trusted, _ = linked_features(session, cache, listing.object_id, exclude=listing.id)
-        if trusted:
+        if trusted and not is_founder(listing, cache.members(listing.object_id)):
             verdict = compare_with_object(session, cache, f, listing.object_id, config, now)
             lines.append(f"  Проверка против своего объекта: {verdict.summary()}")
         else:
@@ -127,7 +146,7 @@ def explain_object(
     obj = session.get(RealtyObject, object_id)
     if obj is None:
         return f"Объекта #{object_id} нет в БД"
-    cache = FeatureCache(session)
+    cache = FeatureCache(session, config)
     listings = session.scalars(
         select(Listing)
         .where(Listing.object_id == object_id)
@@ -141,8 +160,9 @@ def explain_object(
     for listing in listings:
         f = cache.get(listing)
         lines.append(f"  [{listing.match_confidence}] " + describe(f))
+        lines.append("      основание при склейке: " + describe_basis(listing))
         trusted, _ = linked_features(session, cache, object_id, exclude=listing.id)
-        if not trusted:
+        if is_founder(listing, listings) or not trusted:
             lines.append("      основное объявление: с ним сравниваются остальные")
         else:
             verdict = compare_with_object(session, cache, f, object_id, config, now)
@@ -152,7 +172,12 @@ def explain_object(
     ).all()
     lines.append(f"  событий: {len(events)}")
     for event in events:
-        mute = "" if event.notify else " (без уведомления)"
+        if event.retracted_at is not None:
+            mute = f" (отозвано {event.retracted_at:%Y-%m-%d %H:%M})"
+        elif not event.trusted:
+            mute = " (склейка low: не в истории объекта)"
+        else:
+            mute = "" if event.notify else " (без уведомления)"
         listing_ref = f" #{event.listing_id}" if event.listing_id else ""
         lines.append(
             f"    {event.at:%Y-%m-%d %H:%M} {event.type}{listing_ref}{mute} {event.payload}"

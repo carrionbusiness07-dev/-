@@ -247,7 +247,7 @@ def build_check_report(
     all_events = data.object_events(oid, trusted_only=False) if oid else []
     ids = {r.id for r in included}
     if scope == "object":
-        events = [e for e in all_events if e.notify]
+        events = [e for e in all_events if e.trusted]
     else:
         events = [e for e in all_events if e.listing_id == target.id]
 
@@ -498,12 +498,12 @@ def _basis(session: Session, cache: FeatureCache, listing: Listing, now: datetim
         LOC_GEO: ["координаты", "площадь"],
     }.get(verdict.location, ["комнаты", "площадь"])
     n = verdict.photo_matches
-    if n >= DEFAULT_CONFIG.phash_min_matches:
+    if verdict.photo_ok:
         parts.append(f"{n} {plural(n, 'совпавшее фото', 'совпавших фото', 'совпавших фото')}")
     if any("перевыложил" in r for r in verdict.reasons):
         parts.append("тот же продавец")
     text = " + ".join(parts)
-    if n < DEFAULT_CONFIG.phash_min_matches:
+    if not verdict.photo_ok:
         text += ", фото не подтверждают"
     return text
 

@@ -4,6 +4,9 @@ python -m minsk_realty.matching explain 42
 python -m minsk_realty.matching explain listing:17
 python -m minsk_realty.matching explain https://re.kufar.by/vi/1000000001
 python -m minsk_realty.matching process [--full]   # склейка и события без сборщика
+
+Если склейку в этот момент выполняет сборщик, `process` пропускает проход (код выхода 3),
+а не ждёт и не падает: блокировка — matching/lock.py.
 """
 
 from __future__ import annotations
@@ -32,8 +35,11 @@ def main(argv: list[str] | None = None) -> int:
             ref = int(args.ref) if args.ref.isdigit() else args.ref
             print(explain(session, ref))
         else:
-            print(process_after_run(session, full=args.full))
+            stats = process_after_run(session, full=args.full)
+            print(stats)
             session.commit()
+            if stats.skipped:
+                return 3  # склейку уже выполняет сборщик: повторите позже
     return 0
 
 

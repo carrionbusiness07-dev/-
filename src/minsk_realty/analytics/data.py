@@ -114,6 +114,9 @@ class EventRow:
     created_at: datetime
     notify: bool
     payload: dict[str, Any]
+    # Из надёжной склейки (high/medium). notify уже не годится как признак надёжности:
+    # старые события и события поздней склейки надёжны, но без уведомления.
+    trusted: bool = True
 
     @property
     def pct(self) -> float | None:
@@ -182,9 +185,9 @@ class MarketData:
         return None
 
     def object_events(self, object_id: int, *, trusted_only: bool = True) -> list[EventRow]:
-        """События объекта. trusted_only — без событий цены из склеек low (notify=False)."""
+        """События объекта. trusted_only — без событий цены из склеек low (trusted=False)."""
         rows = self.events.get(object_id, [])
-        return [e for e in rows if e.notify] if trusted_only else list(rows)
+        return [e for e in rows if e.trusted] if trusted_only else list(rows)
 
     # --- Объект ---
 
@@ -247,7 +250,8 @@ def load_market(
     """Загрузить срез. Без фильтров — весь рынок; с фильтрами — объекты и/или объявления."""
     obj_q = select(RealtyObject)
     lst_q = select(Listing)
-    ev_q = select(Event).order_by(Event.at, Event.id)
+    # Отозванные события (объявление отцепили от объекта) — не факты, в историю не идут.
+    ev_q = select(Event).where(Event.retracted_at.is_(None)).order_by(Event.at, Event.id)
     if object_ids is not None or listing_ids is not None:
         oids = set(object_ids or ())
         lids = set(listing_ids or ())
@@ -320,6 +324,7 @@ def load_market(
                 created_at=e.created_at,
                 notify=e.notify,
                 payload=dict(e.payload or {}),
+                trusted=e.trusted,
             )
         )
     return MarketData(

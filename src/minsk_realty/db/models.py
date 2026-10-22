@@ -85,13 +85,24 @@ class Base(DeclarativeBase):
 
 
 class RealtyObject(Base):
-    """Физическая квартира. К ней Вера (matching) привязывает объявления с разных площадок."""
+    """Физическая квартира. К ней Вера (matching) привязывает объявления с разных площадок.
+
+    Поля объекта — по основному (первому) объявлению, дополненные и обновлённые по надёжным
+    объявлениям (`matching.matcher.refresh_object`). `street_tail` — последнее слово
+    нормализованной улицы: ключ отбора кандидатов склейки в БД (индекс вместе с комнатами
+    и площадью).
+    """
 
     __tablename__ = "objects"
+    __table_args__ = (
+        Index("ix_objects_street_tail_rooms_area", "street_tail", "rooms", "area_total"),
+        Index("ix_objects_rooms_area", "rooms", "area_total"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     fingerprint: Mapped[str | None] = mapped_column(String(128), index=True)
     street_norm: Mapped[str | None] = mapped_column(String(128))
+    street_tail: Mapped[str | None] = mapped_column(String(64))
     house: Mapped[str | None] = mapped_column(String(16))
     rooms: Mapped[int | None]
     area_total: Mapped[float | None] = mapped_column(Float)
@@ -120,6 +131,10 @@ class Listing(Base):
 
     object_id: Mapped[int | None] = mapped_column(ForeignKey("objects.id"), index=True)
     match_confidence: Mapped[str | None] = mapped_column(_enum(CONFIDENCE, "match_confidence"))
+    # Основание склейки (пишет matching): {"rule": "founder"} у основного объявления объекта,
+    # иначе {"rule": "compare", "location": "fingerprint"|"address"|"geo"|"none",
+    # "photo_matches": n, "photos_needed": k, "relist": bool}. NULL — склейка до 0003.
+    match_basis: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
 
     seller_type: Mapped[str] = mapped_column(_enum(SELLER_TYPES, "seller_type"), default="unknown")
     agency_name: Mapped[str | None] = mapped_column(String(256))
@@ -185,9 +200,17 @@ class Event(Base):
     """Лента изменений объекта — основа отчёта /check и уведомлений.
 
     События пишет Вера (minsk_realty.matching). `dedup_key` делает генерацию идемпотентной:
-    повторная обработка не создаёт дублей. `notify=False` — событие из склейки с низкой
-    уверенностью: в историю оно попадает, а пользователю не отправляется. `at` — когда это
-    произошло на рынке, `created_at` — когда мы это заметили (по нему удобно рассылать новое).
+    повторная обработка не создаёт дублей. `at` — когда это произошло на рынке,
+    `created_at` — когда мы это заметили (по нему удобно рассылать новое).
+
+    - `trusted` — событие из надёжной склейки (high/medium): из таких строится история
+      объекта в отчёте. False — события цены объявления, склеенного с low.
+    - `notify` — можно отправить пользователю: trusted, не отозвано и свежее (произошло
+      не раньше `MatchingConfig.notify_max_age` до того, как мы его заметили). Старые события
+      при первом запуске или поздней склейке идут в историю без уведомления.
+    - `retracted_at` — событие отозвано: объявление, на котором оно основано, отцепили от
+      объекта. В историю и уведомления такие события не идут. Рассылка должна брать только
+      `notify AND retracted_at IS NULL`.
     """
 
     __tablename__ = "events"
@@ -206,6 +229,8 @@ class Event(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
     dedup_key: Mapped[str] = mapped_column(String(96))
     notify: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    trusted: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    retracted_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
