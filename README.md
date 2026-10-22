@@ -7,6 +7,11 @@
 - Правила проекта для Claude: [.claude/skills/minsk-realty/SKILL.md](.claude/skills/minsk-realty/SKILL.md)
 - Агенты: [.claude/agents/](.claude/agents/) — Стас (сбор), Вера (склейка), Лев (аналитика), Мила (бот), Глеб (контроль)
 
+## Кабинет
+
+Локальный веб-кабинет «Хроника»: `python -m minsk_realty.web` → http://localhost:8080 (в docker compose — сервис `web`).
+Посмотреть на вымышленных данных: `python scripts/demo_db.py demo.db`, затем `DATABASE_URL=sqlite:///demo.db python -m minsk_realty.web`.
+
 ## Разработка
 
 ```bash
