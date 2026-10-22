@@ -1,0 +1,58 @@
+{
+  "ads": [
+    {
+      "ad_id": 1000000001,
+      "list_id": 1000000001,
+      "ad_link": "https://re.kufar.by/vi/1000000001",
+      "account_id": "9000001",
+      "company_ad": true,
+      "currency": "USD",
+      "list_time": "2026-10-03T09:15:00Z",
+      "price_usd": "9250000",
+      "price_byn": "30525000",
+      "subject": "2-комнатная квартира, ул. Притыцкого",
+      "body": "Продаётся светлая квартира. Звоните!",
+      "images": [{"path": "adim1/fake-0001.jpg"}, {"path": "adim1/fake-0002.jpg"}],
+      "ad_parameters": [
+        {"p": "type", "v": "sell", "pl": "Тип сделки", "vl": "Продажа"},
+        {"p": "category", "v": "1010", "pl": "Категория", "vl": "Квартиры"},
+        {"p": "rooms", "v": "2", "pl": "Комнат", "vl": "2"},
+        {"p": "size", "v": 54.2, "pl": "Общая площадь", "vl": "54.2"},
+        {"p": "region", "v": "7", "pl": "Регион", "vl": "Минск"},
+        {"p": "area", "v": "30", "pl": "Город / Район", "vl": "Фрунзенский"},
+        {"p": "coordinates", "v": [27.4782, 53.9048], "pl": "Координаты", "vl": ["", ""]}
+      ],
+      "account_parameters": [
+        {"p": "name", "v": "Имя", "pl": "Имя", "vl": "Имя"},
+        {"p": "address", "v": "Минск, ул. Притыцкого, 10", "pl": "Адрес", "vl": "Минск, ул. Притыцкого, 10"}
+      ]
+    },
+    {
+      "ad_id": 1000000002,
+      "list_id": 1000000002,
+      "ad_link": "https://re.kufar.by/vi/1000000002",
+      "account_id": "9000002",
+      "company_ad": false,
+      "currency": "BYR",
+      "list_time": "2026-10-02T18:40:00Z",
+      "price_usd": "7100000",
+      "price_byn": "23430000",
+      "subject": "1-комнатная квартира, Уручье",
+      "images": [],
+      "ad_parameters": [
+        {"p": "rooms", "v": "1", "pl": "Комнат", "vl": "1"},
+        {"p": "size", "v": 38, "pl": "Общая площадь", "vl": "38"},
+        {"p": "region", "v": "7", "pl": "Регион", "vl": "Минск"},
+        {"p": "area", "v": "28", "pl": "Город / Район", "vl": "Первомайский"}
+      ],
+      "account_parameters": []
+    }
+  ],
+  "total": 2,
+  "pagination": {
+    "pages": [
+      {"label": "self", "num": 1, "token": null},
+      {"label": "next", "num": 2, "token": "eyJmYWtlIjoibmV4dCJ9"}
+    ]
+  }
+}
