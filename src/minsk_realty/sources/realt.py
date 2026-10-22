@@ -35,8 +35,11 @@ class RealtAdapter:
     def __init__(self, client: PoliteClient | None = None, *, town: str = "Минск") -> None:
         self._client = client or PoliteClient()
         self._town = town
+        # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
+        self.last_search_complete = False
 
-    def search(self, *, max_pages: int = 50) -> Iterator[RawListing]:
+    def search(self, *, max_pages: int = 500) -> Iterator[RawListing]:
+        self.last_search_complete = False
         seen = 0
         for page in range(1, max_pages + 1):
             if page > 1:
@@ -50,6 +53,7 @@ class RealtAdapter:
             seen += len(objects)
             total = (page_props.get("pagination") or {}).get("totalCount") or 0
             if not objects or seen >= total:
+                self.last_search_complete = True
                 return
 
     def parse(self, raw: RawListing, *, seen_at: datetime | None = None) -> ListingSnapshot:

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from minsk_realty.db.models import Listing, Snapshot
+from minsk_realty.db.models import Listing, Snapshot, SourceRun
 from minsk_realty.models import ListingSnapshot
 
 # Поля, изменение которых даёт новую строку в snapshots. Порядок важен для хеша.
@@ -28,10 +28,24 @@ SIGNIFICANT_FIELDS = (
 )
 
 
+# Меняйте версию при правке SIGNIFICANT_FIELDS: тогда сравнение идёт только между хешами одной версии
+# и правка набора полей не порождает разом новые снимки у всех объявлений.
+HASH_VERSION = "v1"
+
+
 def content_hash(snap: ListingSnapshot) -> str:
-    data = {field: getattr(snap, field) for field in SIGNIFICANT_FIELDS}
+    data = {field: _canonical(getattr(snap, field)) for field in SIGNIFICANT_FIELDS}
     raw = json.dumps(data, default=str, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+    return f"{HASH_VERSION}:{hashlib.sha256(raw.encode()).hexdigest()[:24]}"
+
+
+def _canonical(value):
+    # 92500, 92500.0 и 92500.00 — одна и та же цена.
+    if isinstance(value, Decimal):
+        return str(value.quantize(Decimal("0.01")))
+    if isinstance(value, float):
+        return round(value, 2)
+    return value
 
 
 def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Snapshot | None]:
@@ -56,13 +70,16 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
         session.add(listing)
 
     listing.url = snap.url
-    listing.last_seen = snap.seen_at
+    # Снимки могут прийти не по порядку: last_seen не должен откатываться назад.
+    listing.last_seen = max(listing.last_seen, snap.seen_at)
     listing.status = "active"
-    listing.seller_type = snap.seller_type
-    listing.agency_name = snap.agency_name
-    listing.seller_key = snap.seller_key
-    listing.posted_at_source = snap.posted_at
-    listing.updated_at_source = snap.updated_at
+    # Разовая ошибка разбора не должна стирать уже известные данные о продавце.
+    if snap.seller_type != "unknown":
+        listing.seller_type = snap.seller_type
+    listing.agency_name = snap.agency_name or listing.agency_name
+    listing.seller_key = snap.seller_key or listing.seller_key
+    listing.posted_at_source = snap.posted_at or listing.posted_at_source
+    listing.updated_at_source = snap.updated_at or listing.updated_at_source
     session.flush()
 
     digest = content_hash(snap)
@@ -100,18 +117,21 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
     return listing, snapshot
 
 
-def mark_unseen_inactive(session: Session, source: str, run_started_at: datetime) -> int:
-    """После полного прохода по площадке пометить неактивными объявления, которых не было в выдаче.
+def mark_unseen_inactive(session: Session, run: SourceRun) -> int:
+    """Пометить неактивными объявления площадки, которых не было в выдаче за этот проход.
 
-    Событие `removed` из этого не следует напрямую: Вера ставит его только после 3 суток
-    неактивности всех объявлений объекта.
+    Работает только для успешного и полного прохода: если сборщик упёрся в лимит страниц
+    или его остановил 403/429, непросмотренные объявления не гасятся — иначе через 3 суток
+    появились бы ложные `removed` (их ставит Вера по неактивности всех объявлений объекта).
     """
+    if run.status != "ok" or not run.complete:
+        return 0
     result = session.execute(
         update(Listing)
         .where(
-            Listing.source == source,
+            Listing.source == run.source,
             Listing.status == "active",
-            Listing.last_seen < run_started_at,
+            Listing.last_seen < run.started_at,
         )
         .values(status="inactive")
     )

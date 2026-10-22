@@ -1,3 +1,5 @@
+import pytest
+
 from minsk_realty.privacy import PHONE_PLACEHOLDER, scrub, seller_key
 
 
@@ -25,3 +27,9 @@ def test_seller_key_is_stable_and_not_reversible():
     assert first != seller_key("realt", "9000001", salt="s")
     assert "9000001" not in first
     assert seller_key("kufar", None) is None
+
+
+def test_seller_key_requires_salt(monkeypatch):
+    monkeypatch.delenv("SELLER_KEY_SALT")
+    with pytest.raises(RuntimeError):
+        seller_key("kufar", "9000001")

@@ -33,6 +33,12 @@ ITEM_URL = "https://re.kufar.by/vi/{ad_id}"
 # Ссылки вида re.kufar.by/vi/123456789, kufar.by/item/123456789 (+ возможный путь перед id).
 URL_RE = re.compile(r"kufar\.by/(?:vi|item)/(?:[^?#\s]*/)?(\d{6,})")
 
+# Белый список параметров объявления, которые уходят в snapshots.extra. Новые ключи площадки
+# в БД не попадают, пока их явно не добавят сюда (защита от новых полей с персональными данными).
+EXTRA_PARAMS = frozenset(
+    {"type", "category", "rooms", "size", "region", "area", "coordinates", "metro"}
+)
+
 # UNVERIFIED: значения поля `currency` в продаже не видели живьём.
 CURRENCY_MAP = {"USD": "USD", "BYR": "BYN", "BYN": "BYN", "EUR": "EUR"}
 
@@ -42,8 +48,11 @@ class KufarAdapter:
 
     def __init__(self, client: PoliteClient | None = None) -> None:
         self._client = client or PoliteClient()
+        # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
+        self.last_search_complete = False
 
-    def search(self, *, max_pages: int = 50) -> Iterator[RawListing]:
+    def search(self, *, max_pages: int = 500) -> Iterator[RawListing]:
+        self.last_search_complete = False
         params = dict(SEARCH_PARAMS)
         for page in range(max_pages):
             if page:
@@ -53,6 +62,7 @@ class KufarAdapter:
                 yield to_raw(ad)
             token = next_cursor(data)
             if not token:
+                self.last_search_complete = True
                 return
             params["cursor"] = token
 
@@ -104,7 +114,7 @@ class KufarAdapter:
                 for img in ad.get("images") or []
                 if img.get("path")
             ],
-            extra={key: p.get("v") for key, p in params.items()},
+            extra={key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
         )
 
     def resolve_url(self, url: str) -> str | None:

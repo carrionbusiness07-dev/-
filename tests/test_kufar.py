@@ -60,9 +60,22 @@ def test_search_follows_cursor_and_pauses(fixtures_dir):
 
     sleeps = []
     client = PoliteClient(transport=httpx.MockTransport(handler), sleep=sleeps.append)
-    ids = [r.external_id for r in KufarAdapter(client).search()]
+    adapter = KufarAdapter(client)
+    ids = [r.external_id for r in adapter.search()]
 
     assert ids == ["1000000001", "1000000002"]
     assert seen_params[0]["typ"] == "sell" and seen_params[0]["cat"] == "1010"
     assert seen_params[1]["cursor"] == next_cursor(page1)
     assert len(sleeps) == 1 and 2.0 <= sleeps[0] <= 5.0
+    assert adapter.last_search_complete
+
+
+def test_search_cut_by_max_pages_is_not_complete(fixtures_dir):
+    page = load(fixtures_dir)  # всегда отдаёт токен следующей страницы
+    client = PoliteClient(
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=page)),
+        sleep=lambda s: None,
+    )
+    adapter = KufarAdapter(client)
+    assert len(list(adapter.search(max_pages=2))) == 4
+    assert not adapter.last_search_complete

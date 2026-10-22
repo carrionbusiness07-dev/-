@@ -75,7 +75,11 @@ class SourceAdapter(Protocol):
 
     source: str
 
-    def search(self, *, max_pages: int = 50) -> Iterator[RawListing]: ...
+    # True, если последний search() дошёл до конца выдачи. Без этого сборщик не гасит
+    # пропавшие объявления (см. db.repository.mark_unseen_inactive).
+    last_search_complete: bool
+
+    def search(self, *, max_pages: int = 500) -> Iterator[RawListing]: ...
 
     def parse(self, raw: RawListing) -> ListingSnapshot: ...
 

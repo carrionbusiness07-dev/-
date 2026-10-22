@@ -54,6 +54,10 @@ def seller_key(source: str, account_id: str | int | None, salt: str | None = Non
     """Псевдоним продавца: по нему видно «тот же продавец», но нельзя восстановить id аккаунта."""
     if account_id in (None, ""):
         return None
-    salt = salt if salt is not None else os.environ.get("SELLER_KEY_SALT", "")
+    salt = salt if salt is not None else os.environ.get("SELLER_KEY_SALT")
+    if not salt:
+        # Без соли id аккаунтов Kufar (последовательные числа) восстанавливаются перебором.
+        # Соль задаётся один раз в секретах и не меняется: смена соли рвёт связь «тот же продавец».
+        raise RuntimeError("SELLER_KEY_SALT не задан")
     digest = hashlib.sha256(f"{salt}:{source}:{account_id}".encode()).hexdigest()
     return digest[:32]

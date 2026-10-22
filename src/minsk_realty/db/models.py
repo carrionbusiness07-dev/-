@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     DateTime,
     Enum,
     Float,
@@ -20,7 +21,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 SOURCES = ("kufar", "realt", "onliner", "domovita")
 SELLER_TYPES = ("owner", "agency", "unknown")
@@ -35,6 +38,34 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+class UTCDateTime(TypeDecorator):
+    """Время всегда в UTC и всегда с часовым поясом — и в PostgreSQL, и в SQLite.
+
+    SQLite не хранит часовой пояс: без этого типа даты читаются «наивными»,
+    и сравнение с aware-датами либо падает, либо сравнивает настенное время.
+    """
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect: Any) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            raise ValueError("naive datetime: передавайте время с часовым поясом")
+        value = value.astimezone(UTC)
+        return value.replace(tzinfo=None) if dialect.name == "sqlite" else value
+
+    def process_result_value(self, value: datetime | None, dialect: Any) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+
+
+# jsonb в PostgreSQL: сравнение, GROUP BY и индексы; обычный JSON в SQLite.
+JSONType = JSON().with_variant(JSONB(), "postgresql")
+
+
 def _enum(values: tuple[str, ...], name: str) -> Enum:
     # native_enum=False: обычная строка + CHECK — одинаково в SQLite и PostgreSQL, проще миграции.
     return Enum(*values, name=name, native_enum=False, create_constraint=True, length=16)
@@ -44,7 +75,7 @@ class Base(DeclarativeBase):
     metadata = MetaData(
         naming_convention={
             "ix": "ix_%(column_0_label)s",
-            "uq": "uq_%(table_name)s_%(column_0_name)s",
+            "uq": "uq_%(table_name)s_%(column_0_N_name)s",
             "ck": "ck_%(table_name)s_%(constraint_name)s",
             "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
             "pk": "pk_%(table_name)s",
@@ -70,7 +101,7 @@ class RealtyObject(Base):
     microdistrict: Mapped[str | None] = mapped_column(String(64))
     lat: Mapped[float | None] = mapped_column(Float)
     lon: Mapped[float | None] = mapped_column(Float)
-    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    first_seen_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     listings: Mapped[list[Listing]] = relationship(back_populates="object")
 
@@ -94,10 +125,10 @@ class Listing(Base):
     seller_key: Mapped[str | None] = mapped_column(String(32), index=True)
 
     status: Mapped[str] = mapped_column(_enum(LISTING_STATUSES, "listing_status"), default="active")
-    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    posted_at_source: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    updated_at_source: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    first_seen: Mapped[datetime] = mapped_column(UTCDateTime())
+    last_seen: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    posted_at_source: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    updated_at_source: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
     object: Mapped[RealtyObject | None] = relationship(back_populates="listings")
     snapshots: Mapped[list[Snapshot]] = relationship(
@@ -114,7 +145,7 @@ class Snapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     listing_id: Mapped[int] = mapped_column(ForeignKey("listings.id", ondelete="CASCADE"))
-    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    seen_at: Mapped[datetime] = mapped_column(UTCDateTime())
     content_hash: Mapped[str] = mapped_column(String(32))
 
     price_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
@@ -133,7 +164,7 @@ class Snapshot(Base):
     town: Mapped[str | None] = mapped_column(String(64))
     lat: Mapped[float | None] = mapped_column(Float)
     lon: Mapped[float | None] = mapped_column(Float)
-    extra: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    extra: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
 
     listing: Mapped[Listing] = relationship(back_populates="snapshots")
 
@@ -157,10 +188,12 @@ class Event(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     object_id: Mapped[int] = mapped_column(ForeignKey("objects.id", ondelete="CASCADE"))
-    listing_id: Mapped[int | None] = mapped_column(ForeignKey("listings.id", ondelete="SET NULL"))
+    listing_id: Mapped[int | None] = mapped_column(
+        ForeignKey("listings.id", ondelete="SET NULL"), index=True
+    )
     type: Mapped[str] = mapped_column(_enum(EVENT_TYPES, "event_type"))
-    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    at: Mapped[datetime] = mapped_column(UTCDateTime())
+    payload: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
 
 
 class User(Base):
@@ -170,7 +203,7 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Watch(Base):
@@ -180,9 +213,9 @@ class Watch(Base):
         ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     object_id: Mapped[int] = mapped_column(
-        ForeignKey("objects.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("objects.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class Check(Base):
@@ -193,8 +226,10 @@ class Check(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     url: Mapped[str] = mapped_column(String(512))
-    listing_id: Mapped[int | None] = mapped_column(ForeignKey("listings.id", ondelete="SET NULL"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    listing_id: Mapped[int | None] = mapped_column(
+        ForeignKey("listings.id", ondelete="SET NULL"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
 class SourceRun(Base):
@@ -205,9 +240,11 @@ class SourceRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source: Mapped[str] = mapped_column(_enum(SOURCES, "source"))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     status: Mapped[str] = mapped_column(_enum(RUN_STATUSES, "run_status"), default="running")
+    # True только если сборщик дошёл до последней страницы выдачи без обрыва.
+    complete: Mapped[bool] = mapped_column(Boolean, default=False)
     listings_seen: Mapped[int] = mapped_column(Integer, default=0)
     parse_errors: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(String(1024))

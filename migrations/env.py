@@ -20,6 +20,18 @@ from minsk_realty.db.models import Base
 from minsk_realty.db.session import database_url
 
 target_metadata = Base.metadata
+
+
+def render_item(type_, obj, autogen_context):
+    """UTCDateTime в миграциях пишется как обычный DateTime(timezone=True):
+    миграции не должны импортировать код приложения."""
+    from minsk_realty.db.models import UTCDateTime
+
+    if type_ == "type" and isinstance(obj, UTCDateTime):
+        return "sa.DateTime(timezone=True)"
+    return False
+
+
 config.set_main_option("sqlalchemy.url", database_url())
 
 # other values from the config, defined by the needs of env.py,
@@ -45,6 +57,7 @@ def run_migrations_offline() -> None:
         url=url,
         target_metadata=target_metadata,
         render_as_batch=True,
+        render_item=render_item,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -71,6 +84,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             render_as_batch=True,
+            render_item=render_item,
         )
 
         with context.begin_transaction():

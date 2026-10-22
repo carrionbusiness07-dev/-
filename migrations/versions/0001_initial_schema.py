@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises:
-Create Date: 2026-10-22 13:00:14.409873
+Create Date: 2026-10-22 13:04:37.044605
 
 """
 
@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "0001"
@@ -75,6 +76,7 @@ def upgrade() -> None:
             ),
             nullable=False,
         ),
+        sa.Column("complete", sa.Boolean(), nullable=False),
         sa.Column("listings_seen", sa.Integer(), nullable=False),
         sa.Column("parse_errors", sa.Integer(), nullable=False),
         sa.Column("error", sa.String(length=1024), nullable=True),
@@ -161,7 +163,7 @@ def upgrade() -> None:
             ["object_id"], ["objects.id"], name=op.f("fk_listings_object_id_objects")
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_listings")),
-        sa.UniqueConstraint("source", "external_id", name=op.f("uq_listings_source")),
+        sa.UniqueConstraint("source", "external_id", name=op.f("uq_listings_source_external_id")),
     )
     with op.batch_alter_table("listings", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_listings_last_seen"), ["last_seen"], unique=False)
@@ -184,6 +186,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("user_id", "object_id", name=op.f("pk_watchlist")),
     )
+    with op.batch_alter_table("watchlist", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_watchlist_object_id"), ["object_id"], unique=False)
+
     op.create_table(
         "checks",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -203,6 +208,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_checks")),
     )
     with op.batch_alter_table("checks", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_checks_listing_id"), ["listing_id"], unique=False)
         batch_op.create_index(batch_op.f("ix_checks_user_id"), ["user_id"], unique=False)
 
     op.create_table(
@@ -228,7 +234,11 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column(
+            "payload",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["listing_id"],
             ["listings.id"],
@@ -244,6 +254,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_events")),
     )
     with op.batch_alter_table("events", schema=None) as batch_op:
+        batch_op.create_index(batch_op.f("ix_events_listing_id"), ["listing_id"], unique=False)
         batch_op.create_index("ix_events_object_at", ["object_id", "at"], unique=False)
 
     op.create_table(
@@ -258,7 +269,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_photo_hashes")),
-        sa.UniqueConstraint("listing_id", "phash", name=op.f("uq_photo_hashes_listing_id")),
+        sa.UniqueConstraint("listing_id", "phash", name=op.f("uq_photo_hashes_listing_id_phash")),
     )
     with op.batch_alter_table("photo_hashes", schema=None) as batch_op:
         batch_op.create_index(batch_op.f("ix_photo_hashes_phash"), ["phash"], unique=False)
@@ -297,7 +308,11 @@ def upgrade() -> None:
         sa.Column("town", sa.String(length=64), nullable=True),
         sa.Column("lat", sa.Float(), nullable=True),
         sa.Column("lon", sa.Float(), nullable=True),
-        sa.Column("extra", sa.JSON(), nullable=False),
+        sa.Column(
+            "extra",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["listing_id"],
             ["listings.id"],
@@ -325,12 +340,17 @@ def downgrade() -> None:
     op.drop_table("photo_hashes")
     with op.batch_alter_table("events", schema=None) as batch_op:
         batch_op.drop_index("ix_events_object_at")
+        batch_op.drop_index(batch_op.f("ix_events_listing_id"))
 
     op.drop_table("events")
     with op.batch_alter_table("checks", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_checks_user_id"))
+        batch_op.drop_index(batch_op.f("ix_checks_listing_id"))
 
     op.drop_table("checks")
+    with op.batch_alter_table("watchlist", schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f("ix_watchlist_object_id"))
+
     op.drop_table("watchlist")
     with op.batch_alter_table("listings", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_listings_seller_key"))
