@@ -78,5 +78,5 @@ def notify(text: str) -> None:
             json={"chat_id": chat_id, "text": f"⚠️ {text}"},
             timeout=10,
         ).raise_for_status()
-    except httpx.HTTPError:
-        log.exception("не удалось отправить алерт в Telegram")
+    except httpx.HTTPError as exc:  # без traceback: в URL запроса лежит токен бота
+        log.error("не удалось отправить алерт в Telegram: %s", type(exc).__name__)

@@ -37,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
         level=os.environ.get("LOG_LEVEL", "INFO"),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # INFO пишет URL с токеном бота
     if not os.environ.get("SELLER_KEY_SALT"):
         sys.exit("SELLER_KEY_SALT не задан — см. .env.example")
     sources = [s.strip() for s in args.sources.split(",") if s.strip()]
