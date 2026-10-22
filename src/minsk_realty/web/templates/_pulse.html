@@ -6,7 +6,7 @@
   {% set first = (series | selectattr("value") | list | first) %}
   {% set last = (series | selectattr("value") | list | last) %}
   {% if first and last and first.value %}
-  <p class="pulse-change">{{ ((last.value / first.value - 1) * 100) | pct }} за {{ series | length }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
+  <p class="pulse-change"><span class="compact-only">медиана по Минску · </span>{{ ((last.value / first.value - 1) * 100) | pct }} за {{ series | length }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
   {% endif %}
   {% set values = series | selectattr("value") | map(attribute="value") | list %}
   {% if values %}
@@ -29,7 +29,7 @@
     <div><dt>Новых квартир</dt><dd>{{ w.new_objects }}</dd></div>
     <div><dt>Подешевели</dt><dd>{{ w.dropped_objects }}{% if w.drop_step_median_pct %} <small>шаг {{ w.drop_step_median_pct | pct }}</small>{% endif %}</dd></div>
     <div><dt>Сняты с продажи</dt><dd>{{ w.removed_objects }}</dd></div>
-    <div><dt>Новые объявления — на деле перевыложенные</dt><dd>{% if w.relisted_share is not none %}{{ (w.relisted_share * 100) | round | int }}%{% else %}—{% endif %} <small>{{ w.relisted_listings }} из {{ w.new_listings }} объявл.</small></dd></div>
+    <div><dt><span class="compact-hide">Новые объявления — на деле перевыложенные</span><span class="compact-only">Перевыложены «как новые»</span></dt><dd>{% if w.relisted_share is not none %}{{ (w.relisted_share * 100) | round | int }}%{% else %}—{% endif %} <small>{{ w.relisted_listings }} из {{ w.new_listings }} объявл.</small></dd></div>
   </dl>
 </section>
 
