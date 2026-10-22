@@ -1,0 +1,36 @@
+# Запуск на сервере в Беларуси (Kufar закрыт для запросов из-за рубежа):
+#   cp .env.example .env  # заполнить
+#   docker compose up -d --build
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: realty
+      POSTGRES_DB: realty
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U realty"]
+      interval: 10s
+      retries: 5
+
+  migrate:
+    build: .
+    env_file: .env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  collector:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

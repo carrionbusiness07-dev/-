@@ -117,6 +117,9 @@ class KufarAdapter:
             extra={key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
         )
 
+    def close(self) -> None:
+        self._client.close()
+
     def resolve_url(self, url: str) -> str | None:
         match = URL_RE.search(url)
         return match.group(1) if match else None

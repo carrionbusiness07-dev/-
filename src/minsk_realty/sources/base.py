@@ -5,6 +5,7 @@ from __future__ import annotations
 import random
 import time
 from collections.abc import Callable, Iterator
+from datetime import datetime
 from typing import Any, Protocol
 
 import httpx
@@ -81,6 +82,8 @@ class SourceAdapter(Protocol):
 
     def search(self, *, max_pages: int = 500) -> Iterator[RawListing]: ...
 
-    def parse(self, raw: RawListing) -> ListingSnapshot: ...
+    def parse(self, raw: RawListing, *, seen_at: datetime | None = None) -> ListingSnapshot: ...
 
     def resolve_url(self, url: str) -> str | None: ...
+
+    def close(self) -> None: ...
