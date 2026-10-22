@@ -1,0 +1,41 @@
+"""Командная строка склейки.
+
+python -m minsk_realty.matching explain 42
+python -m minsk_realty.matching explain listing:17
+python -m minsk_realty.matching explain https://re.kufar.by/vi/1000000001
+python -m minsk_realty.matching process [--full]   # склейка и события без сборщика
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+
+from minsk_realty.db.session import make_engine, make_session_factory
+from minsk_realty.matching.explain import explain
+from minsk_realty.matching.pipeline import process_after_run
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="minsk_realty.matching")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p_explain = sub.add_parser("explain", help="почему склеилось или не склеилось")
+    p_explain.add_argument("ref", help="id объекта, listing:<id> или ссылка на объявление")
+    p_process = sub.add_parser("process", help="пересчитать склейку и события")
+    p_process.add_argument("--full", action="store_true", help="все объявления, а не недавние")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    factory = make_session_factory(make_engine())
+    with factory() as session:
+        if args.cmd == "explain":
+            ref = int(args.ref) if args.ref.isdigit() else args.ref
+            print(explain(session, ref))
+        else:
+            print(process_after_run(session, full=args.full))
+            session.commit()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

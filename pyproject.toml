@@ -9,6 +9,9 @@ dependencies = [
     "pydantic>=2.7",
     "sqlalchemy>=2.0",
     "alembic>=1.13",
+    # phash фото для склейки уровня 2 (сами фото не храним).
+    "imagehash>=4.3",
+    "Pillow>=10",
 ]
 
 [project.optional-dependencies]

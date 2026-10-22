@@ -22,6 +22,7 @@ import time
 from minsk_realty.collector.run import collect, is_blocked
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import AlertThrottle, check_sources, notify
+from minsk_realty.matching import process_after_run
 from minsk_realty.sources.kufar import KufarAdapter
 from minsk_realty.sources.realt import RealtAdapter
 
@@ -88,6 +89,12 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                 adapter.close()
         except Exception:
             log.exception("%s: сбой цикла сборщика", source)
+        try:  # склейка и события (Вера): сбой не должен останавливать сбор
+            with factory() as session:
+                process_after_run(session, source)
+                session.commit()
+        except Exception:
+            log.exception("%s: сбой склейки после прохода", source)
     try:
         with factory() as session:
             for alert in check_sources(session, sources):

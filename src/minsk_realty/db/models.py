@@ -20,6 +20,7 @@ from sqlalchemy import (
     Numeric,
     String,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -181,10 +182,19 @@ class PhotoHash(Base):
 
 
 class Event(Base):
-    """Лента изменений объекта — основа отчёта /check и уведомлений."""
+    """Лента изменений объекта — основа отчёта /check и уведомлений.
+
+    События пишет Вера (minsk_realty.matching). `dedup_key` делает генерацию идемпотентной:
+    повторная обработка не создаёт дублей. `notify=False` — событие из склейки с низкой
+    уверенностью: в историю оно попадает, а пользователю не отправляется. `at` — когда это
+    произошло на рынке, `created_at` — когда мы это заметили (по нему удобно рассылать новое).
+    """
 
     __tablename__ = "events"
-    __table_args__ = (Index("ix_events_object_at", "object_id", "at"),)
+    __table_args__ = (
+        Index("ix_events_object_at", "object_id", "at"),
+        UniqueConstraint("object_id", "dedup_key"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     object_id: Mapped[int] = mapped_column(ForeignKey("objects.id", ondelete="CASCADE"))
@@ -194,6 +204,9 @@ class Event(Base):
     type: Mapped[str] = mapped_column(_enum(EVENT_TYPES, "event_type"))
     at: Mapped[datetime] = mapped_column(UTCDateTime())
     payload: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    dedup_key: Mapped[str] = mapped_column(String(96))
+    notify: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, index=True)
 
 
 class User(Base):

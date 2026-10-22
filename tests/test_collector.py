@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from minsk_realty.collector.__main__ import run_cycle
 from minsk_realty.collector.run import collect
-from minsk_realty.db.models import Base, Listing, Snapshot, SourceRun
+from minsk_realty.db.models import Base, Event, Listing, Snapshot, SourceRun
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import Alert, AlertThrottle, check_sources
 from minsk_realty.models import ListingSnapshot
@@ -169,3 +169,15 @@ def test_run_cycle_skips_blocked_source_and_survives_errors(factory, monkeypatch
     monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
     run_cycle(factory, ["kufar", "realt"], set(), AlertThrottle())  # не должно бросить
     assert created == ["realt"]  # kufar пропущен: последний проход заблокирован
+
+
+def test_run_cycle_runs_matching_after_collect(factory, ads, monkeypatch):
+    monkeypatch.setattr(
+        "minsk_realty.collector.__main__.ADAPTERS", {"kufar": lambda: FakeKufar(ads)}
+    )
+    monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    with factory() as session:
+        linked = session.execute(select(Listing.object_id, Listing.match_confidence)).all()
+        assert len(linked) == 2 and all(obj and conf == "high" for obj, conf in linked)
+        assert sorted(session.scalars(select(Event.type))) == ["new", "new"]
