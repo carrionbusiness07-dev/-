@@ -117,6 +117,23 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
     return listing, snapshot
 
 
+def touch_listing(session: Session, source: str, external_id: str, seen_at) -> None:
+    """Отметить, что объявление есть в выдаче, даже если его не удалось разобрать.
+
+    Иначе нечитаемое объявление погасло бы как снятое, а через 3 дня Вера поставила бы
+    ложный `removed`.
+    """
+    session.execute(
+        update(Listing)
+        .where(
+            Listing.source == source,
+            Listing.external_id == external_id,
+            Listing.last_seen < seen_at,
+        )
+        .values(last_seen=seen_at)
+    )
+
+
 def mark_unseen_inactive(session: Session, run: SourceRun) -> int:
     """Пометить неактивными объявления площадки, которых не было в выдаче за этот проход.
 

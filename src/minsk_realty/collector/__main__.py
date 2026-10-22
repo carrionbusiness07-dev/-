@@ -3,6 +3,7 @@
     python -m minsk_realty.collector            # бесконечный цикл, проход раз в 30–60 минут
     python -m minsk_realty.collector --once     # один проход (например, из cron)
     python -m minsk_realty.collector --sources realt
+    python -m minsk_realty.collector --unblock kufar   # снять остановку после 403/429
 
 Перед первым запуском: `alembic upgrade head`. Нужны переменные окружения DATABASE_URL
 и SELLER_KEY_SALT (см. .env.example). Kufar работает только с сервера в Беларуси.
@@ -14,14 +15,17 @@ import argparse
 import logging
 import os
 import random
+import signal
 import sys
 import time
 
-from minsk_realty.collector.run import collect
+from minsk_realty.collector.run import collect, is_blocked
 from minsk_realty.db.session import make_engine, make_session_factory
-from minsk_realty.health.check import check_sources, notify
+from minsk_realty.health.check import AlertThrottle, check_sources, notify
 from minsk_realty.sources.kufar import KufarAdapter
 from minsk_realty.sources.realt import RealtAdapter
+
+log = logging.getLogger("minsk_realty.collector")
 
 ADAPTERS = {"kufar": KufarAdapter, "realt": RealtAdapter}
 INTERVAL_MINUTES = (30, 60)
@@ -31,6 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="minsk_realty.collector")
     parser.add_argument("--once", action="store_true", help="один проход и выход")
     parser.add_argument("--sources", default=",".join(ADAPTERS), help="через запятую")
+    parser.add_argument(
+        "--unblock",
+        action="append",
+        default=[],
+        help="запустить площадку, остановленную после 403/429 (человек проверил причину)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -45,20 +55,46 @@ def main(argv: list[str] | None = None) -> int:
     if unknown:
         sys.exit(f"неизвестные площадки: {', '.join(sorted(unknown))}")
 
+    # docker stop шлёт SIGTERM: превращаем его в SystemExit, чтобы проход закрыл запись в БД.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
     factory = make_session_factory(make_engine())
+    throttle = AlertThrottle()
+    unblocked = set(args.unblock)
     while True:
-        for source in sources:
+        run_cycle(factory, sources, unblocked, throttle)
+        unblocked.clear()  # --unblock действует на один проход: дальше снова решает журнал
+        if args.once:
+            return 0
+        time.sleep(random.uniform(*INTERVAL_MINUTES) * 60)
+
+
+def run_cycle(factory, sources, unblocked, throttle) -> None:
+    """Один цикл: все площадки по очереди и проверка здоровья.
+
+    Любая ошибка логируется и не прерывает цикл: иначе контейнер с restart: unless-stopped
+    перезапускался бы сразу и обходил площадки без паузы 30–60 минут.
+    """
+    for source in sources:
+        try:
+            with factory() as session:
+                if is_blocked(session, source) and source not in unblocked:
+                    log.warning("%s: остановлена после 403/429, пропускаю", source)
+                    continue
             adapter = ADAPTERS[source]()
             try:
                 collect(adapter, factory)
             finally:
                 adapter.close()
+        except Exception:
+            log.exception("%s: сбой цикла сборщика", source)
+    try:
         with factory() as session:
             for alert in check_sources(session, sources):
-                notify(alert)
-        if args.once:
-            return 0
-        time.sleep(random.uniform(*INTERVAL_MINUTES) * 60)
+                if throttle.should_send(alert):
+                    notify(alert.text)
+    except Exception:
+        log.exception("сбой проверки здоровья источников")
 
 
 if __name__ == "__main__":

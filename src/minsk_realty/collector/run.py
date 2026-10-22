@@ -6,10 +6,12 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from minsk_realty.db.models import SourceRun
-from minsk_realty.db.repository import mark_unseen_inactive, save_snapshot
+from minsk_realty.db.repository import mark_unseen_inactive, save_snapshot, touch_listing
 from minsk_realty.sources.base import SourceAdapter, SourceBlocked
 
 log = logging.getLogger(__name__)
@@ -29,7 +31,8 @@ def collect(
 ) -> SourceRun:
     """Обойти выдачу площадки, записать снимки и закрыть запись `SourceRun`.
 
-    Возвращает итоговую запись прохода (её же читает health-мониторинг).
+    Каждое объявление пишется в своей точке сохранения (SAVEPOINT): ошибка разбора или БД
+    на одном объявлении не теряет остальные и не ломает сессию.
     """
     with session_factory() as session:
         run = SourceRun(source=adapter.source, started_at=now(), status="running")
@@ -40,29 +43,35 @@ def collect(
             for raw in adapter.search(max_pages=max_pages):
                 run.listings_seen += 1
                 try:
-                    snap = adapter.parse(raw, seen_at=run.started_at)
-                    save_snapshot(session, snap)
-                except Exception:  # одно битое объявление не должно ронять весь проход
+                    with session.begin_nested():
+                        save_snapshot(session, adapter.parse(raw, seen_at=run.started_at))
+                except Exception as exc:  # noqa: BLE001 — одно битое объявление не роняет проход
                     run.parse_errors += 1
-                    log.exception("%s: не разобрано объявление %s", adapter.source, raw.external_id)
+                    log.warning(
+                        "%s: не записано объявление %s: %s",
+                        adapter.source,
+                        raw.external_id,
+                        _short_error(exc),
+                    )
+                    with session.begin_nested():
+                        touch_listing(session, adapter.source, raw.external_id, run.started_at)
                 if run.listings_seen % COMMIT_EVERY == 0:
                     session.commit()
         except SourceBlocked as exc:
             run.status, run.error = "blocked", str(exc)[:1024]
             log.error("%s: площадка отказывает, источник остановлен: %s", adapter.source, exc)
-        except Exception as exc:
-            run.status, run.error = "failed", f"{type(exc).__name__}: {exc}"[:1024]
-            log.exception("%s: проход упал", adapter.source)
+        except Exception as exc:  # noqa: BLE001 — любой сбой закрывает проход как failed
+            run.status, run.error = "failed", _short_error(exc)
+            log.error("%s: проход упал: %s", adapter.source, run.error)
+        except BaseException:  # SIGTERM/Ctrl+C: закрыть запись прохода и выйти
+            run.status, run.error = "failed", "interrupted"
+            raise
         else:
             run.status = "ok"
-            too_many_errors = (
-                run.listings_seen == 0
-                or run.parse_errors / run.listings_seen > MAX_PARSE_ERROR_SHARE
-            )
-            run.complete = adapter.last_search_complete and not too_many_errors
+            run.complete = adapter.last_search_complete and _few_errors(run)
             deactivated = mark_unseen_inactive(session, run)
             log.info(
-                "%s: просмотрено %d, ошибок разбора %d, полный проход: %s, погашено %d",
+                "%s: просмотрено %d, ошибок %d, полный проход: %s, погашено %d",
                 adapter.source,
                 run.listings_seen,
                 run.parse_errors,
@@ -73,3 +82,28 @@ def collect(
             run.finished_at = now()
             session.commit()
         return run
+
+
+def is_blocked(session: Session, source: str) -> bool:
+    """Последний завершённый проход площадки закончился блокировкой (403/429).
+
+    Такую площадку сборщик больше не трогает, пока человек не запустит его с `--unblock`.
+    """
+    status = session.scalar(
+        select(SourceRun.status)
+        .where(SourceRun.source == source, SourceRun.finished_at.is_not(None))
+        .order_by(SourceRun.started_at.desc())
+        .limit(1)
+    )
+    return status == "blocked"
+
+
+def _few_errors(run: SourceRun) -> bool:
+    return run.listings_seen > 0 and run.parse_errors / run.listings_seen <= MAX_PARSE_ERROR_SHARE
+
+
+def _short_error(exc: Exception) -> str:
+    # Текст ошибок SQLAlchemy содержит SQL и параметры (url, адрес) — в журнал и алерты не нужен.
+    if isinstance(exc, SQLAlchemyError):
+        return type(exc).__name__
+    return f"{type(exc).__name__}: {exc}"[:1024]

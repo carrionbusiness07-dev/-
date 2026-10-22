@@ -4,10 +4,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from minsk_realty.collector.__main__ import run_cycle
 from minsk_realty.collector.run import collect
 from minsk_realty.db.models import Base, Listing, Snapshot, SourceRun
 from minsk_realty.db.session import make_engine, make_session_factory
-from minsk_realty.health.check import check_sources
+from minsk_realty.health.check import Alert, AlertThrottle, check_sources
+from minsk_realty.models import ListingSnapshot
 from minsk_realty.sources.base import SourceBlocked
 from minsk_realty.sources.kufar import KufarAdapter, to_raw
 
@@ -93,8 +95,7 @@ def test_health_alerts(factory, ads):
         )
     with factory() as session:
         alerts = check_sources(session, ["kufar"], now=T0 + timedelta(hours=25))
-    assert any("подряд с ошибкой" in a for a in alerts)
-    assert any("0 объявлений" in a for a in alerts)
+    assert {a.key for a in alerts} == {"kufar:failing", "kufar:silence"}
 
     collect(FakeKufar(ads), factory, now=clock(T0 + timedelta(hours=26)))
     with factory() as session:
@@ -104,6 +105,67 @@ def test_health_alerts(factory, ads):
 def test_blocked_source_alert(factory):
     collect(FakeKufar([], fail_with=SourceBlocked("403")), factory, now=clock(T0))
     with factory() as session:
-        [alert] = [a for a in check_sources(session, ["kufar"], now=T0) if "отказывает" in a]
-        assert "kufar" in alert
+        [alert] = [a for a in check_sources(session, ["kufar"], now=T0) if a.key == "kufar:blocked"]
+        assert "--unblock kufar" in alert.text
         assert session.scalar(select(SourceRun.status)) == "blocked"
+
+
+class BadRowKufar(FakeKufar):
+    """Второе объявление не проходит CHECK в БД (как слишком длинное значение в PostgreSQL)."""
+
+    def parse(self, raw, *, seen_at=None):
+        snap = super().parse(raw, seen_at=seen_at)
+        if raw.external_id == "1000000002":
+            return ListingSnapshot.model_construct(**{**dict(snap), "price_currency": "XXX"})
+        return snap
+
+
+def test_db_error_on_one_listing_keeps_the_rest(factory, ads):
+    run = collect(BadRowKufar(ads), factory, now=clock(T0))
+    assert (run.status, run.parse_errors, run.finished_at is not None) == ("ok", 1, True)
+    with factory() as session:
+        assert session.scalars(select(Listing.external_id)).all() == ["1000000001"]
+
+
+def test_unparsable_listing_is_not_deactivated(factory, ads):
+    collect(FakeKufar(ads * 3), factory, now=clock(T0))  # 6 объявлений, два id
+    broken = [ads[0]] * 5 + [dict(ads[1], ad_parameters="not-a-list")]
+    run = collect(FakeKufar(broken), factory, now=clock(T0 + timedelta(hours=1)))
+    assert run.complete and run.parse_errors == 1
+    with factory() as session:
+        assert set(session.scalars(select(Listing.status))) == {"active"}
+
+
+def test_parse_error_alert(factory, ads):
+    collect(FakeKufar([dict(ad, ad_parameters="x") for ad in ads]), factory, now=clock(T0))
+    with factory() as session:
+        keys = {a.key for a in check_sources(session, ["kufar"], now=T0 + timedelta(hours=25))}
+    assert keys == {"kufar:parse_errors", "kufar:silence"}
+
+
+def test_alert_throttle():
+    throttle = AlertThrottle()
+    alert = Alert("kufar:blocked", "текст")
+    assert throttle.should_send(alert, T0)
+    assert not throttle.should_send(
+        Alert("kufar:blocked", "другой текст"), T0 + timedelta(hours=23)
+    )
+    assert throttle.should_send(alert, T0 + timedelta(hours=25))
+
+
+def test_run_cycle_skips_blocked_source_and_survives_errors(factory, monkeypatch):
+    collect(FakeKufar([], fail_with=SourceBlocked("403")), factory, now=clock(T0))
+    created = []
+
+    class Exploding:
+        def __init__(self):
+            created.append("realt")
+            raise RuntimeError("adapter init failed")
+
+    monkeypatch.setattr(
+        "minsk_realty.collector.__main__.ADAPTERS",
+        {"kufar": lambda: created.append("kufar"), "realt": Exploding},
+    )
+    monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
+    run_cycle(factory, ["kufar", "realt"], set(), AlertThrottle())  # не должно бросить
+    assert created == ["realt"]  # kufar пропущен: последний проход заблокирован

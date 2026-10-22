@@ -17,9 +17,17 @@ def database_url() -> str:
 def make_engine(url: str | None = None) -> Engine:
     engine = create_engine(url or database_url())
     if engine.dialect.name == "sqlite":
-        # В SQLite внешние ключи (и ON DELETE CASCADE) выключены по умолчанию.
-        event.listen(engine, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON"))
+        event.listen(engine, "connect", _sqlite_on_connect)
+        # Рецепт SQLAlchemy для pysqlite: транзакции открываем сами, иначе SAVEPOINT
+        # (session.begin_nested) не работает, а сборщик держит на нём каждое объявление.
+        event.listen(engine, "begin", lambda conn: conn.exec_driver_sql("BEGIN"))
     return engine
+
+
+def _sqlite_on_connect(dbapi_connection, _record) -> None:
+    dbapi_connection.isolation_level = None
+    # В SQLite внешние ключи (и ON DELETE CASCADE) выключены по умолчанию.
+    dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
 
 def make_session_factory(engine: Engine) -> sessionmaker:

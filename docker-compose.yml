@@ -1,6 +1,23 @@
 # Запуск на сервере в Беларуси (Kufar закрыт для запросов из-за рубежа):
 #   cp .env.example .env  # заполнить
 #   docker compose up -d --build
+name: minsk-realty
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-app: &app
+  build: .
+  env_file: .env
+  # Адрес БД собирается из одного пароля, чтобы он не разъехался в двух местах.
+  environment:
+    DATABASE_URL: postgresql+psycopg://realty:${POSTGRES_PASSWORD}@db:5432/realty
+  init: true
+  logging: *logging
+
 services:
   db:
     image: postgres:16
@@ -15,18 +32,17 @@ services:
       test: ["CMD-SHELL", "pg_isready -U realty"]
       interval: 10s
       retries: 5
+    logging: *logging
 
   migrate:
-    build: .
-    env_file: .env
+    <<: *app
     command: ["alembic", "upgrade", "head"]
     depends_on:
       db:
         condition: service_healthy
 
   collector:
-    build: .
-    env_file: .env
+    <<: *app
     restart: unless-stopped
     depends_on:
       migrate:

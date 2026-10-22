@@ -5,24 +5,33 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from minsk_realty.collector.run import MAX_PARSE_ERROR_SHARE
 from minsk_realty.db.models import SourceRun
 
 log = logging.getLogger(__name__)
 
 SILENCE_WINDOW = timedelta(hours=24)
 FAILURES_IN_A_ROW = 3
+REPEAT_ALERT_AFTER = timedelta(hours=24)
+
+
+@dataclass(frozen=True)
+class Alert:
+    key: str  # площадка + вид проблемы: по нему алерты не повторяются каждый проход
+    text: str
 
 
 def check_sources(
     session: Session, sources: Iterable[str], *, now: datetime | None = None
-) -> list[str]:
-    """Вернуть тексты алертов. Пустой список — всё в порядке."""
+) -> list[Alert]:
+    """Вернуть текущие проблемы источников. Пустой список — всё в порядке."""
     now = now or datetime.now(UTC)
     alerts = []
     for source in sources:
@@ -37,17 +46,38 @@ def check_sources(
         latest = recent[0]
         if latest.status == "blocked":
             alerts.append(
-                f"{source}: площадка отказывает (403/429), сбор остановлен. {latest.error}"
+                Alert(
+                    f"{source}:blocked",
+                    f"{source}: площадка отказывает (403/429), сбор остановлен до "
+                    f"`--unblock {source}`. {latest.error}",
+                )
             )
         elif len(recent) == FAILURES_IN_A_ROW and all(r.status != "ok" for r in recent):
-            alerts.append(f"{source}: {FAILURES_IN_A_ROW} прохода подряд с ошибкой. {latest.error}")
+            alerts.append(
+                Alert(
+                    f"{source}:failing",
+                    f"{source}: {FAILURES_IN_A_ROW} прохода подряд с ошибкой. {latest.error}",
+                )
+            )
+        if (
+            latest.status == "ok"
+            and latest.listings_seen
+            and latest.parse_errors / latest.listings_seen > MAX_PARSE_ERROR_SHARE
+        ):
+            alerts.append(
+                Alert(
+                    f"{source}:parse_errors",
+                    f"{source}: не разобрано {latest.parse_errors} из {latest.listings_seen} "
+                    "объявлений — похоже, площадка поменяла формат",
+                )
+            )
 
         got_data = session.scalar(
             select(SourceRun.id)
             .where(
                 SourceRun.source == source,
                 SourceRun.status == "ok",
-                SourceRun.listings_seen > 0,
+                SourceRun.listings_seen > SourceRun.parse_errors,
                 SourceRun.started_at >= now - SILENCE_WINDOW,
             )
             .limit(1)
@@ -59,8 +89,31 @@ def check_sources(
             .limit(1)
         )
         if got_data is None and oldest_run is not None and oldest_run <= now - SILENCE_WINDOW:
-            alerts.append(f"{source}: 0 объявлений за последние сутки — проверьте парсер")
+            alerts.append(
+                Alert(
+                    f"{source}:silence",
+                    f"{source}: 0 записанных объявлений за последние сутки — проверьте парсер",
+                )
+            )
     return alerts
+
+
+class AlertThrottle:
+    """Пропускает алерт, если такой же (по `key`) уже отправлялся меньше суток назад.
+
+    Иначе один инцидент давал бы алерт каждые 30–60 минут.
+    """
+
+    def __init__(self) -> None:
+        self._sent: dict[str, datetime] = {}
+
+    def should_send(self, alert: Alert, now: datetime | None = None) -> bool:
+        now = now or datetime.now(UTC)
+        last = self._sent.get(alert.key)
+        if last is not None and now - last < REPEAT_ALERT_AFTER:
+            return False
+        self._sent[alert.key] = now
+        return True
 
 
 def notify(text: str) -> None:

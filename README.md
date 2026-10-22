@@ -21,12 +21,14 @@ ruff check .
 Kufar не отвечает на запросы не из Беларуси, поэтому сборщик работает на сервере в Беларуси.
 
 ```bash
-cp .env.example .env        # заполнить POSTGRES_PASSWORD, SELLER_KEY_SALT, DATABASE_URL
+cp .env.example .env        # заполнить POSTGRES_PASSWORD и SELLER_KEY_SALT
 docker compose up -d --build
 docker compose logs -f collector
 ```
 
 Сборщик обходит Kufar и Realt раз в 30–60 минут и записывает изменения объявлений.
-Если площадка перестаёт отдавать данные, он присылает алерт в Telegram (`TELEGRAM_BOT_TOKEN`, `ADMIN_CHAT_ID`).
+Если площадка перестаёт отдавать данные, он присылает алерт в Telegram (`TELEGRAM_BOT_TOKEN`, `ADMIN_CHAT_ID`), не чаще раза в сутки на одну проблему.
+После ответов 403/429 площадка останавливается. Запустить её снова после проверки причины:
+`docker compose run --rm collector python -m minsk_realty.collector --once --unblock kufar`.
 Первые живые фикстуры (сохранятся в `tests/fixtures/` на сервере):
-`docker compose run --rm --user root -v "$PWD/tests/fixtures:/app/tests/fixtures" collector python scripts/capture_fixture.py kufar`
+`docker compose run --rm --user "$(id -u):$(id -g)" -v "$PWD/tests/fixtures:/app/tests/fixtures" collector python scripts/capture_fixture.py kufar`
