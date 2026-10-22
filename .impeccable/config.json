@@ -11,6 +11,24 @@
         ],
         "createdAt": "2026-10-22T07:44:00.847Z",
         "reason": "Claude: flagged pair mixes dark-theme --muted (#93a0ae) with light-theme --surface (#ffffff), which never render together; light/dark pairs checked by hand >=4.5:1"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "scripts/phone_template.html"
+        ],
+        "createdAt": "2026-10-22T12:35:33.402Z",
+        "reason": "Claude: same token palette as trainer; flagged pair mixes dark-theme --muted with light-theme --surface, never rendered together"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "phone/konspekt.html"
+        ],
+        "createdAt": "2026-10-22T12:35:33.416Z",
+        "reason": "Claude: same token palette as trainer; flagged pair mixes dark-theme --muted with light-theme --surface, never rendered together"
       }
     ]
   }
