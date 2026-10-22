@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "trainer/coinglass-trainer.html"
+        ],
+        "createdAt": "2026-10-22T07:44:00.847Z",
+        "reason": "Claude: flagged pair mixes dark-theme --muted (#93a0ae) with light-theme --surface (#ffffff), which never render together; light/dark pairs checked by hand >=4.5:1"
+      }
+    ]
+  }
+}
