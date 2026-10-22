@@ -1,0 +1,468 @@
+"""Тексты для бота и канала. Только форматирование: все цифры — из структур отчёта.
+
+`icons=False` убирает эмодзи (веб-кабинет, логи).
+"""
+
+from __future__ import annotations
+
+from minsk_realty.analytics.fmt import (
+    CONFIDENCE_NAMES,
+    SELLER_NAMES,
+    SOURCE_NAMES,
+    date_full,
+    date_short,
+    date_words,
+    days_text,
+    district_label,
+    money,
+    objects_text,
+    pct,
+    plural,
+    ppm,
+    rooms_label,
+    times_text,
+)
+from minsk_realty.analytics.hypothesis import HypothesisReport
+from minsk_realty.analytics.medians import MedianCell
+from minsk_realty.analytics.report import CheckReport, OtherListing
+from minsk_realty.analytics.weekly import WeeklySummary
+
+_ICONS = {
+    "flat": "🏠",
+    "time": "⏳",
+    "relist": "↻",
+    "history": "📉",
+    "cross": "🔁",
+    "median": "📊",
+    "verdict": "💬",
+    "info": "ℹ️",
+    "maybe": "❓",
+    "top": "🔻",
+}
+
+DEALS_NOTE = "Это цены объявлений, не сделок. Сделки — статистика НКА на realt.by/statistics"
+SUPPORTED_TEXT = "Kufar или Realt"
+
+
+def _icon(name: str, icons: bool) -> str:
+    return f"{_ICONS[name]} " if icons else ""
+
+
+def _source(source: str) -> str:
+    return SOURCE_NAMES.get(source, source)
+
+
+def _price_with_usd(amount, currency, usd) -> str:
+    text = money(amount, currency)
+    if currency != "USD" and usd is not None:
+        text += f" (≈ {money(usd, 'USD')})"
+    return text
+
+
+def render_check_text(report: CheckReport, *, icons: bool = True, max_history: int = 8) -> str:
+    obs = (
+        f"Наблюдаем рынок с {date_full(report.observation_start)}"
+        if report.observation_start
+        else "Наблюдение за рынком только начинается"
+    )
+    if report.status == "unsupported_url":
+        return (
+            "Не понимаю эту ссылку. Пришлите ссылку на объявление о продаже квартиры "
+            f"с {SUPPORTED_TEXT}."
+        )
+    if report.status == "not_found":
+        return (
+            f"{_icon('info', icons)}Этого объявления пока нет в нашей базе. Сборщик обходит "
+            f"{_source(report.source or '')} раз в 30–60 минут, и свежие объявления появляются "
+            "с задержкой. Попробуйте позже.\n" + obs
+        )
+
+    lines = [_header(report, icons), _now_line(report)]
+    if report.data_level == "first_time":
+        lines += [
+            "",
+            f"{_icon('info', icons)}Эту квартиру мы видим впервые. Истории пока нет.",
+            "Нажмите «Следить» — сообщу, если цена изменится или объявление снимут.",
+        ]
+        median = _median_lines(report, icons)
+        if median:
+            lines += ["", *median]
+        lines += ["", _match_line(report), obs]
+        return "\n".join(lines)
+
+    lines += ["", *_exposure_lines(report, icons)]
+    lines += ["", *_history_lines(report, icons, max_history)]
+    if report.others:
+        lines += ["", *_others_lines(report, icons)]
+    if report.possible_object:
+        lines += ["", *_possible_lines(report, icons)]
+    median = _median_lines(report, icons)
+    if median:
+        lines += ["", *median]
+    lines += ["", *_verdict_lines(report, icons)]
+    lines += ["", _match_line(report)]
+    if report.data_level == "short":
+        lines.append(
+            f"{_icon('info', icons)}Квартира уже продавалась, когда мы начали наблюдать: "
+            "её настоящая история длиннее нашей."
+        )
+    lines.append(obs)
+    return "\n".join(lines)
+
+
+def _header(report: CheckReport, icons: bool) -> str:
+    f = report.flat
+    parts = []
+    if f is not None:
+        if f.rooms:
+            parts.append(f"{f.rooms}-комн.")
+        if f.area:
+            parts.append(f"{f.area:g} м²")
+        if f.floor is not None and f.floors_total:
+            parts.append(f"{f.floor}/{f.floors_total} эт.")
+        if f.street:
+            parts.append(f.street)
+        if f.district:
+            parts.append(district_label(f.district))
+    return _icon("flat", icons) + (", ".join(parts) or "Квартира")
+
+
+def _seller(seller_type: str) -> str:
+    return SELLER_NAMES.get(seller_type, seller_type)
+
+
+def _now_line(report: CheckReport) -> str:
+    listing = report.listing
+    price = listing.price
+    who = f"{_source(listing.source)}, {_seller(listing.seller_type)}"
+    if price is None:
+        return f"Цена не указана — {who}"
+    extra = []
+    if price.currency != "USD" and price.usd is not None:
+        extra.append(f"≈ {money(price.usd, 'USD')}")
+    if price.usd_per_m2 is not None:
+        extra.append(ppm(price.usd_per_m2))
+    text = money(price.amount, price.currency) + (f" ({', '.join(extra)})" if extra else "")
+    if listing.status != "active":
+        return f"Последняя цена: {text} — {who}, объявление снято"
+    return f"Сейчас: {text} — {who}"
+
+
+def _exposure_lines(report: CheckReport, icons: bool) -> list[str]:
+    e = report.exposure
+    if e is None:
+        return [f"{_icon('time', icons)}Срок на рынке посчитать не из чего"]
+    how = "опубликована" if e.start_basis == "posted_at_source" else "впервые замечена"
+    if e.at_least:
+        head = f"На рынке: как минимум {days_text(e.days)}"
+        if e.start_basis == "posted_at_source":
+            detail = f"{how} {date_words(e.start)} на {_source(e.start_source)}, по дате площадки"
+        else:
+            since = date_words(e.observed_since) if e.observed_since else date_words(e.start)
+            detail = (
+                f"уже продавалась, когда мы начали следить за {_source(e.start_source)} {since}"
+            )
+    else:
+        head = f"На рынке: {days_text(e.days)}"
+        detail = f"{how} {date_words(e.start)} на {_source(e.start_source)}"
+    lines = [f"{_icon('time', icons)}{head} ({detail})"]
+    relists = e.relist_count + e.returned_new_listing
+    if relists:
+        lines.append(f"   {_icon('relist', icons)}Перевыкладывалась {times_text(relists)}")
+    if e.site_days is not None and e.state == "active" and e.days - e.site_days >= 7:
+        lines.append(
+            f"   На сайте объявлению {days_text(e.site_days)}, на самом деле квартира продаётся "
+            f"{'как минимум ' if e.at_least else ''}{days_text(e.days)}"
+        )
+    if e.state == "removed":
+        lines.append(f"   Снята со всех площадок {date_short(e.end)}")
+    elif e.state == "hidden":
+        lines.append(
+            f"   Сейчас объявлений нет (последний раз видели {date_short(e.end)}); "
+            "если не вернётся за 3 дня, считаем снятой"
+        )
+    s = report.sellers
+    if s is not None and s.count > 1:
+        kinds = []
+        if s.agencies:
+            kinds.append(f"{s.agencies} {plural(s.agencies, 'агентство', 'агентства', 'агентств')}")
+        if s.owners:
+            kinds.append(
+                f"{s.owners} {plural(s.owners, 'собственник', 'собственника', 'собственников')}"
+            )
+        lines.append(
+            f"   Продавцов за историю: {s.count}" + (f" ({', '.join(kinds)})" if kinds else "")
+        )
+    return lines
+
+
+def _history_lines(report: CheckReport, icons: bool, limit: int) -> list[str]:
+    points = list(report.history)
+    if not points:
+        return [f"{_icon('history', icons)}Цена в объявлении не указана"]
+    if len(points) == 1:
+        p = points[0]
+        price = _price_with_usd(p.amount, p.currency, p.usd)
+        return [
+            f"{_icon('history', icons)}Цена не менялась: {price} с {date_short(p.at)} "
+            + f"({_source(p.source)})"
+        ]
+    lines = [f"{_icon('history', icons)}История цены:"]
+    hidden = 0
+    if len(points) > limit:
+        hidden = len(points) - limit
+        points = points[:1] + points[-(limit - 1) :]
+    multi = len({p.listing_id for p in report.history}) > 1
+    for i, p in enumerate(points):
+        note = ""
+        if p.kind == "new_listing":
+            note = " (новое объявление, тот же объект)"
+        elif p.kind == "parallel":
+            note = " (ещё одно объявление этой квартиры)"
+        elif p.kind == "currency":
+            note = " (сменили валюту)"
+        elif p.kind == "change" and p.change_pct is not None:
+            note = f" ({pct(p.change_pct)})"
+        if p.kind == "new_listing" and p.change_pct:
+            note = f" (новое объявление, тот же объект, {pct(p.change_pct)})"
+        source = _source(p.source)
+        if (
+            multi
+            and p.seller_type in ("owner", "agency")
+            and p.kind in ("first", "new_listing", "parallel")
+        ):
+            source += f", {_seller(p.seller_type)}"
+        lines.append(
+            f"   {date_short(p.at)}  {_price_with_usd(p.amount, p.currency, p.usd)}  {source}{note}"
+        )
+        if hidden and i == 0:
+            lines.append(
+                f"   … ещё {hidden} {plural(hidden, 'изменение', 'изменения', 'изменений')}"
+            )
+    moves = report.moves
+    if moves and moves.total_change_pct and len({p.currency for p in report.history}) == 1:
+        lines.append(f"   Всего: {pct(moves.total_change_pct)} от первой цены")
+    return lines
+
+
+def _other_line(o: OtherListing) -> str:
+    who = SELLER_NAMES.get(o.seller_type, o.seller_type)
+    if o.other_seller and o.seller_type == "agency":
+        who = "другое агентство"
+    elif not o.other_seller:
+        who = "тот же продавец"
+    price = (
+        _price_with_usd(o.amount, o.currency, o.usd) if o.amount is not None else "цена не указана"
+    )
+    text = f"   {_source(o.source)} — {price} ({who})"
+    if o.confidence == "low":
+        return text + " — возможно, та же квартира, склейка не подтверждена"
+    if o.cheaper_by is not None and o.cheaper_by > 0:
+        text += f"  ← дешевле на {money(o.cheaper_by, o.cheaper_currency)}"
+    elif o.cheaper_by is not None and o.cheaper_by < 0:
+        text += f"  дороже на {money(-o.cheaper_by, o.cheaper_currency)}"
+    return text
+
+
+def _others_lines(report: CheckReport, icons: bool) -> list[str]:
+    same_source = any(o.source == report.listing.source for o in report.others)
+    head = (
+        "Другие объявления этой квартиры сейчас:" if same_source else "Сейчас на других площадках:"
+    )
+    return [f"{_icon('cross', icons)}{head}", *(_other_line(o) for o in report.others)]
+
+
+def _possible_lines(report: CheckReport, icons: bool) -> list[str]:
+    p = report.possible_object
+    e = p.exposure
+    where = ", ".join(_source(s) for s in p.sources)
+    facts = []
+    if e is not None:
+        facts.append(f"там она на рынке {'как минимум ' if e.at_least else ''}{days_text(e.days)}")
+    if p.drops:
+        facts.append(f"{p.drops} {plural(p.drops, 'снижение', 'снижения', 'снижений')} цены")
+    since = f" с {date_short(e.start)}" if e is not None else ""
+    lines = [
+        f"{_icon('maybe', icons)}Возможно, это та же квартира, что продаётся на {where}{since}"
+        + (f": {', '.join(facts)}." if facts else ".")
+    ]
+    why = f" ({p.basis})" if p.basis else ""
+    lines.append(
+        f"   Склейка не подтверждена{why}, поэтому выше — история только этого объявления."
+    )
+    return lines
+
+
+def _median_lines(report: CheckReport, icons: bool) -> list[str]:
+    m = report.median
+    if m is None:
+        return []
+    cell = m.cell
+    where = district_label(cell.district) if cell.district else "Минск"
+    if not cell.enough:
+        text = f"{where}: мало данных для медианы ({objects_text(cell.n)}, нужно хотя бы 10)"
+        return [_icon("median", icons) + text]
+    group = rooms_label(cell.rooms)
+    line = (
+        f"{_icon('median', icons)}{where}: медиана {ppm(cell.median)} "
+        f"({group}, {objects_text(cell.n)})"
+    )
+    if m.diff_pct is not None:
+        if abs(m.diff_pct) < 1:
+            line += " → эта квартира на уровне медианы"
+        else:
+            side = "ниже" if m.diff_pct < 0 else "выше"
+            line += f" → эта квартира на {pct(m.diff_pct, signed=False)} {side} медианы"
+    lines = [line]
+    if report.flat and report.flat.district and not cell.district:
+        lines.append("   По району мало данных, сравниваем с Минском")
+    lines.append(f"   {DEALS_NOTE}")
+    return lines
+
+
+def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
+    b = report.bargaining
+    if b is None:
+        return []
+    if b.level == "unknown" or not b.reasons:
+        return [f"{_icon('verdict', icons)}Вывод: {b.recommendation}"]
+    shorts = [r.short for r in b.reasons]
+    return [
+        f"{_icon('verdict', icons)}Вывод: {', '.join(shorts)}.",
+        f"   {b.recommendation}",
+    ]
+
+
+def _match_line(report: CheckReport) -> str:
+    m = report.match
+    if m is None or m.level is None:
+        return "Склейка этого объявления ещё не выполнена — показываем только его историю"
+    if m.single:
+        text = "Уверенность склейки: других объявлений этой квартиры мы не нашли"
+        if m.low_listings:
+            text += " (есть похожие, но склейка не подтверждена)"
+        return text
+    level = CONFIDENCE_NAMES.get(m.level, m.level)
+    return f"Уверенность склейки: {level}" + (f" ({m.basis})" if m.basis else "")
+
+
+# --- Недельная сводка ---------------------------------------------------------------------
+
+
+def render_weekly_text(summary: WeeklySummary, *, icons: bool = True) -> str:
+    s, c = summary, summary.counts
+    lines = [f"{_icon('median', icons)}Квартиры Минска на продажу, неделя {s.week}"]
+    lines.append("• Медиана: " + _city_median(s.median, s.median_change_pct))
+    if c.dropped_objects:
+        step = f", медианный шаг {pct(c.drop_step_median_pct)}" if c.drop_step_median_pct else ""
+        lines.append(f"• Подешевели: {objects_text(c.dropped_objects)}{step}")
+    else:
+        lines.append("• Подешевели: снижений за неделю не было")
+    exp = s.exposure_median
+    if exp is not None and exp.enough:
+        note = ""
+        if s.exposure_truncated_share and s.exposure_truncated_share >= 0.5:
+            note = " (как минимум: большую часть квартир мы застали уже в продаже)"
+        lines.append(f"• Медианный срок экспозиции: {days_text(round(exp.median))}{note}")
+    if c.relisted_share is not None:
+        lines.append(f"• Перевыложено «как новые»: {c.relisted_share:.0%} новых объявлений")
+    if s.top_drops:
+        lines.append(f"{_icon('top', icons)}Топ-{len(s.top_drops)} снижения недели:")
+        for i, d in enumerate(s.top_drops, 1):
+            what = ", ".join(
+                x
+                for x in (
+                    rooms_label(d.rooms) if d.rooms else None,
+                    d.street,
+                    district_label(d.district) if d.district else None,
+                )
+                if x
+            )
+            lines.append(
+                f"   {i}. {what or 'Квартира'}: {money(d.old_amount, d.currency)} → "
+                f"{money(d.new_amount, d.currency)} ({pct(d.pct)}) {d.url}"
+            )
+    if s.observation_start:
+        lines.append(
+            f"Наблюдаем рынок с {date_full(s.observation_start)}. Цены объявлений, не сделок."
+        )
+    return "\n".join(lines)
+
+
+def _city_median(cell: MedianCell | None, change: float | None) -> str:
+    if cell is None or not cell.enough:
+        n = cell.n if cell else 0
+        return f"мало данных ({objects_text(n)})"
+    text = ppm(cell.median)
+    if change is not None:
+        text += f" ({pct(change)} за неделю)"
+    return text
+
+
+# --- Гипотеза ------------------------------------------------------------------------------
+
+DECISIONS = {
+    "continue": "ПРОДОЛЖАЕМ: критерии раздела 9 выполнены",
+    "stop": (
+        "ОСТАНАВЛИВАЕМ продукт (инструмент остаётся личным): "
+        "перевыкладываний и расхождений почти нет"
+    ),
+    "borderline": "ПОГРАНИЧНО: часть критериев не выполнена, решение за пользователем",
+    "too_early": "РАНО СУДИТЬ: данных для решения пока мало (метрики предварительные)",
+}
+
+
+def _share(share) -> str:
+    value = share.share
+    return f"{share.count} из {share.total}" + (f" ({value:.1%})" if value is not None else "")
+
+
+def render_hypothesis_text(r: HypothesisReport) -> str:
+    obs = date_full(r.observation_start) if r.observation_start else "—"
+    sources = ", ".join(f"{_source(s)} {n}" for s, n in r.listings_by_source) or "нет"
+    rows = [
+        ("Перевыкладывались (relisted / вернулись под новым ID)", r.relisted),
+        ("На нескольких площадках / у нескольких продавцов (cross_listed)", r.cross_listed),
+        ("Перевыкладывались ИЛИ cross_listed", r.relisted_or_cross),
+        ("  — среди объектов, которые видим ≥ 14 дней", r.relisted_or_cross_mature),
+        ("Есть снижения цены", r.with_drops),
+        ("  — среди объектов, которые видим ≥ 14 дней", r.with_drops_mature),
+        ("Отчёт показывает то, чего нет на сайте", r.with_insight),
+        ("Возвращались после снятия", r.returned),
+        ("Сейчас сняты", r.removed),
+        ("Объявления со склейкой low (среди привязанных)", r.low_listings),
+    ]
+    width = max(len(label) for label, _ in rows)
+    lines = [
+        f"Проверка гипотезы на {date_full(r.at)}",
+        (
+            f"Наблюдаем с {obs} ({days_text(r.observation_days)}); объектов {r.objects}, "
+            f"из них видим ≥ 14 дней: {r.mature_objects}; объявлений: {sources}"
+        ),
+        "",
+        "| Метрика | Значение |",
+        "|---|---|",
+        *(f"| {label.ljust(width)} | {_share(share)} |" for label, share in rows),
+        "",
+        "Срок экспозиции (дней, для снятых — до снятия):",
+    ]
+    e = r.exposure
+    if e.n:
+        lines.append(
+            f"   p25 {e.p25:.0f} · медиана {e.p50:.0f} · p75 {e.p75:.0f} · p90 {e.p90:.0f}; "
+            f"«как минимум» у {e.at_least_share:.0%}"
+        )
+        lines += [f"   {b.label:>10}: {b.count} ({b.share:.0%})" for b in e.buckets]
+    else:
+        lines.append("   нет объектов")
+    lines += ["", "Критерии (docs/01-idea.md, раздел 9):"]
+    for c in r.criteria:
+        value = "нет данных" if c.value is None else f"{c.value:.1%}"
+        mark = "да " if c.passed else "нет"
+        lines.append(f"   [{mark}] {c.label}: {value} (порог {c.threshold:.0%})")
+    lines += ["", f"Рекомендация: {DECISIONS[r.decision]}"]
+    lines += [f"   • {reason}" for reason in r.reasons]
+    if r.sample_object_ids:
+        ids = ", ".join(str(i) for i in r.sample_object_ids)
+        lines.append(f"Случайные объекты для ручной проверки /check: {ids}")
+    return "\n".join(lines)
