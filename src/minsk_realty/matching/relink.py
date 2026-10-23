@@ -1,11 +1,17 @@
 """Пересклейка объявлений, собранных без адреса (разовая починка после ошибки адаптера).
 
-До 24.10.2026 адаптер Kufar читал адрес не из того поля, и каждое объявление Kufar
+До 23.10.2026 адаптер Kufar читал адрес не из того поля, и каждое объявление Kufar
 основало свой объект без улицы и дома. Объекты не сливаются, поэтому после починки
 такое объявление само не найдёт свою пару на Realt: его нужно отцепить и склеить заново.
 
 Трогаем только объекты из одного объявления площадки, у которого есть снимок без адреса,
 а последний снимок уже с адресом. Объекты из списков пользователей не трогаем.
+Пересклеенное основное объявление помечается (`match_basis.relinked`), поэтому повторный
+запуск его не трогает, даже если пары для него так и не нашлось.
+
+Запускать при остановленных сборщике и боте, после полного прохода площадки на новом
+адаптере (docs/setup-home-computer.md): пересклейка держит в одной транзакции тысячи
+объявлений.
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, Watch
 from minsk_realty.matching.lock import try_lock
+from minsk_realty.matching.matcher import FOUNDER_BASIS
 from minsk_realty.matching.pipeline import ProcessStats, process_after_run
 
 log = logging.getLogger(__name__)
@@ -36,7 +43,7 @@ def unaddressed_objects(session: Session, source: str) -> list[int]:
         .having(func.count() == 1)
     )
     candidates = session.execute(
-        select(Listing.id, Listing.object_id).where(
+        select(Listing.id, Listing.object_id, Listing.match_basis).where(
             Listing.source == source,
             Listing.object_id.in_(single),
             exists().where(Snapshot.listing_id == Listing.id, _no_address()),
@@ -44,7 +51,9 @@ def unaddressed_objects(session: Session, source: str) -> list[int]:
         )
     ).all()
     out = []
-    for listing_id, object_id in candidates:
+    for listing_id, object_id, basis in candidates:
+        if (basis or {}).get("relinked"):
+            continue  # уже пересклеено, пары не нашлось — это и есть ответ
         last = session.scalar(
             select(Snapshot)
             .where(Snapshot.listing_id == listing_id)
@@ -66,13 +75,25 @@ def relink_unaddressed(
     if not try_lock(session):
         return 0, ProcessStats(skipped=True)
     object_ids = unaddressed_objects(session, source)
+    relinked = list(session.scalars(select(Listing).where(Listing.object_id.in_(object_ids))))
+    for item in relinked:
+        item.object_id, item.match_confidence, item.match_basis = None, None, None
+    session.flush()
     if object_ids:
-        for item in session.scalars(select(Listing).where(Listing.object_id.in_(object_ids))):
-            item.object_id, item.match_confidence, item.match_basis = None, None, None
-        session.flush()
         # События объекта однозначно следуют из снимков: склейка запишет их заново.
         session.execute(delete(Event).where(Event.object_id.in_(object_ids)))
-        session.execute(delete(RealtyObject).where(RealtyObject.id.in_(object_ids)))
+        # Объект, который успели взять в список «Следить», не удаляем (он просто опустеет).
+        session.execute(
+            delete(RealtyObject).where(
+                RealtyObject.id.in_(object_ids),
+                ~exists().where(Watch.object_id == RealtyObject.id),
+            )
+        )
         session.flush()
         log.info("%s: пересклеиваю %d объявлений без адреса", source, len(object_ids))
-    return len(object_ids), process_after_run(session, source, now=now or datetime.now(UTC))
+    stats = process_after_run(session, source, now=now or datetime.now(UTC))
+    for item in relinked:
+        if (item.match_basis or {}).get("rule") == FOUNDER_BASIS["rule"]:
+            item.match_basis = {**item.match_basis, "relinked": True}
+    session.flush()
+    return len(object_ids), stats

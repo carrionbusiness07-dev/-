@@ -84,15 +84,18 @@ services:
       PGUSER: realty
       PGDATABASE: realty
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      TZ: Europe/Minsk  # дата в имени файла — по Минску
     volumes:
       - ./backups:/backups
     entrypoint:
       - /bin/sh
       - -c
       - |
+        trap 'exit 0' TERM INT
         while true; do
           f=/backups/realty-$$(date +%Y-%m-%d).dump
           if [ ! -f "$$f" ]; then
+            rm -f /backups/realty-*.dump.tmp
             if pg_dump -Fc -f "$$f.tmp"; then
               mv "$$f.tmp" "$$f" && echo "бэкап готов: $$f"
               find /backups -name 'realty-*.dump' -mtime +14 -delete
@@ -100,7 +103,7 @@ services:
               rm -f "$$f.tmp"; echo "бэкап не удался, повтор через час"
             fi
           fi
-          sleep 3600
+          sleep 3600 & wait $$!
         done
     depends_on:
       db:

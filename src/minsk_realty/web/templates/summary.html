@@ -33,7 +33,7 @@
       </div>
       {% endfor %}
       <div class="progress-cell">
-        <span class="progress-label">Адрес найден</span>
+        <span class="progress-label">Адрес в объявлениях</span>
         <span class="progress-list">{% for name, value in progress.address %}<span>{{ name }} <b>{{ value | share }}</b></span>{% endfor %}</span>
       </div>
       <div class="progress-cell">
@@ -74,10 +74,10 @@
       </details>
       {% endif %}
       {% endfor %}
-      {% if shown < total %}
+      {% if shown < total and limit < feed_max %}
       <p class="more">
         <span>Показаны {{ shown }} из {{ total }}</span>
-        <a href="?kind={{ kind }}&days={{ days }}&limit={{ limit + page_size }}">Показать ещё {{ [page_size, total - shown] | min }}</a>
+        <a href="?kind={{ kind }}&days={{ days }}&limit={{ [limit + page_size, feed_max] | min }}">Показать ещё {{ [page_size, total - shown, feed_max - shown] | min }}</a>
       </p>
       {% endif %}
     {% else %}

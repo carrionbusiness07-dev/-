@@ -11,6 +11,7 @@ import re
 import threading
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from typing import Annotated
@@ -118,11 +119,12 @@ def summary(
     session: SessionDep,
     kind: str = Query("all"),
     days: int = Query(7, ge=1, le=60),
-    limit: int = Query(views.FEED_PAGE, ge=1, le=5000),
+    limit: int = Query(views.FEED_PAGE, ge=1),
 ):
     snap = _snapshot(session)
     if kind not in dict(views.FILTERS):
         kind = "all"
+    limit = min(limit, views.FEED_MAX)
     feed = views.build_feed(snap, days=days, kind=kind, limit=limit)
     return _page(
         request,
@@ -135,6 +137,7 @@ def summary(
         shown=feed.shown,
         limit=limit,
         page_size=views.FEED_PAGE,
+        feed_max=views.FEED_MAX,
         filters=views.FILTERS,
         kind=kind,
         days=days,
@@ -235,5 +238,6 @@ def market(request: Request, session: SessionDep):
 @app.get("/sources", response_class=HTMLResponse)
 def sources(request: Request, session: SessionDep):
     snap = _snapshot(session)
-    runs = views.recent_runs(session, snap.now)
+    # Срез кэшируется до 15 минут, а «прерван» и «идёт» должны быть по часам.
+    runs = views.recent_runs(session, snap.now if snap.demo else datetime.now(UTC))
     return _page(request, "sources.html", snap, session, runs=runs)

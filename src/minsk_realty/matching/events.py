@@ -102,23 +102,34 @@ def load_priced(session: Session, listing_ids: Iterable[int]) -> dict[int, list[
 NO_FULL_PASS = datetime.max.replace(tzinfo=UTC)
 
 
-def baseline_ends(session: Session) -> dict[str, datetime]:
-    """Конец исходного среза по площадкам: начало первого полного прохода сборщика.
+def baseline_ends(session: Session, cfg: MatchingConfig) -> dict[str, datetime]:
+    """Конец исходного среза по площадкам: начало первого полного прохода сборщика, но не
+    раньше `cfg.baseline_min` от первого прохода площадки.
 
     Объявление с `first_seen` не позже этого момента было на рынке до начала наблюдений.
-    Площадки без единого прохода (тесты, ручная загрузка) исходного среза не имеют.
+    Площадка без полного прохода — весь увиденный рынок исходный срез. Площадки без единого
+    прохода в журнале (тесты, ручная загрузка) исходного среза не имеют.
     """
-    ends = {source: NO_FULL_PASS for source in session.scalars(select(SourceRun.source).distinct())}
+    first_any = dict(
+        session.execute(
+            select(SourceRun.source, func.min(SourceRun.started_at)).group_by(SourceRun.source)
+        ).all()
+    )
+    ends = dict.fromkeys(first_any, NO_FULL_PASS)
     first_full = session.execute(
         select(SourceRun.source, func.min(SourceRun.started_at))
         .where(SourceRun.status == "ok", SourceRun.complete.is_(True))
         .group_by(SourceRun.source)
     )
     for source, started_at in first_full:
-        if isinstance(started_at, str):  # на случай драйвера, отдающего min() строкой
-            started_at = datetime.fromisoformat(started_at)
-        ends[source] = started_at if started_at.tzinfo else started_at.replace(tzinfo=UTC)
+        ends[source] = max(_utc(started_at), _utc(first_any[source]) + cfg.baseline_min)
     return ends
+
+
+def _utc(value: datetime | str) -> datetime:
+    if isinstance(value, str):  # на случай драйвера, отдающего min() строкой
+        value = datetime.fromisoformat(value)
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 def in_baseline(listing: Listing, ends: dict[str, datetime]) -> bool:
@@ -260,7 +271,7 @@ def generate_for(
     """
     total: Counter[str] = Counter()
     ids = sorted(set(object_ids))
-    ends = baseline_ends(session) if ids else {}
+    ends = baseline_ends(session, cfg) if ids else {}
     for i in range(0, len(ids), _CHUNK):
         chunk = ids[i : i + _CHUNK]
         listings: dict[int, list[Listing]] = defaultdict(list)

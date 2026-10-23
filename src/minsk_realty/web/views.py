@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -103,6 +104,7 @@ class Snapshot:
 
 
 _cache: dict[str, Snapshot] = {}
+_load_lock = threading.Lock()
 # Срез перечитывается, когда в БД что-то поменялось (закончился проход, склейка записала
 # события). Срок жизни — подстраховка на изменения, которых версия не видит.
 CACHE_SECONDS = 15 * 60
@@ -126,9 +128,21 @@ def market_snapshot(session: Session, key: str) -> Snapshot:
     """Срез рынка для страниц. Загрузка всего рынка — около секунды, поэтому срез живёт,
     пока данные не изменились: сборщик пишет раз в 30–60 минут."""
     version = data_version(session)
+    cached = _fresh(key, version)
+    if cached:
+        return cached
+    with _load_lock:  # фоновый прогрев и запрос не грузят рынок дважды одновременно
+        return _fresh(key, version) or _load(session, key, version)
+
+
+def _fresh(key: str, version: tuple) -> Snapshot | None:
     cached = _cache.get(key)
     if cached and cached.version == version and time.monotonic() - cached.loaded_at < CACHE_SECONDS:
         return cached
+    return None
+
+
+def _load(session: Session, key: str, version: tuple) -> Snapshot:
     demo = bool(session.scalar(select(SourceRun.id).where(SourceRun.error == DEMO_MARKER).limit(1)))
     now = datetime.now(UTC)
     if demo:
@@ -173,12 +187,12 @@ class Observation:
     day: int | None
     total_days: int
     gauges: list[Gauge]
-    address: list[tuple[str, float]]  # площадка → доля активных объявлений с улицей и домом
+    address: list[tuple[str, float]]  # площадка → доля активных объявлений с адресом
     full_passes: list[tuple[str, int]]  # площадка → полных проходов за сутки
 
 
 def observation_metrics(snap: Snapshot) -> tuple[list[Gauge], dict[str, float]]:
-    """Метрики гипотезы (Leo) и доля активных объявлений с улицей и домом по площадкам."""
+    """Метрики гипотезы (Leo) и доля активных объявлений с адресом по площадкам."""
 
     def compute() -> tuple[list[Gauge], dict[str, float]]:
         report = compute_hypothesis(snap.data, snap.now)
@@ -188,12 +202,14 @@ def observation_metrics(snap: Snapshot) -> tuple[list[Gauge], dict[str, float]]:
             for c in report.criteria
             if c.key in labels
         ]
+        # По самому объявлению, а не по объекту: Kufar без адреса, склеенный с объектом Realt,
+        # не должен считаться «с адресом».
         counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
         for row in snap.data.listings.values():
-            if not row.active or row.object_id is None:
+            if not row.active:
                 continue
-            obj = snap.data.objects.get(row.object_id)
-            counts[row.source][0] += bool(obj and obj.street_norm and obj.house)
+            last = snap.data.last_snapshot(row.id)
+            counts[row.source][0] += bool(last and (last.street or last.address_raw))
             counts[row.source][1] += 1
         return gauges, {src: have / total for src, (have, total) in counts.items() if total}
 
@@ -269,6 +285,7 @@ def day_label(d: date, today: date) -> str:
 
 
 FEED_PAGE = 50
+FEED_MAX = 2000  # дальше листать ленту бессмысленно: для поиска есть «Объекты»
 
 
 @dataclass

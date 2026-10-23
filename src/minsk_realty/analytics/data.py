@@ -77,6 +77,7 @@ class SnapRow:
     floors_total: int | None
     street: str | None
     district: str | None
+    address_raw: str | None = None
 
     @property
     def priced(self) -> bool:
@@ -346,6 +347,7 @@ def load_market(
         Snapshot.floors_total,
         Snapshot.street,
         Snapshot.district,
+        Snapshot.address_raw,
     ).order_by(Snapshot.listing_id, Snapshot.seen_at, Snapshot.id)
     if object_ids is not None or listing_ids is not None:
         snap_q = snap_q.where(Snapshot.listing_id.in_(set(listings)))
@@ -363,6 +365,7 @@ def load_market(
                 floors_total=s.floors_total,
                 street=s.street,
                 district=s.district,
+                address_raw=s.address_raw,
             )
         )
     events: dict[int, list[EventRow]] = defaultdict(list)

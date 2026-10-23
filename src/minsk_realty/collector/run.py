@@ -72,6 +72,7 @@ def collect(
             raise
         else:
             run.status = "ok"
+            run.error = None  # мог пометить «прерван» соседний процесс, пока проход шёл
             run.complete = adapter.last_search_complete and _few_errors(run)
             deactivated = mark_unseen_inactive(session, run)
             log.info(

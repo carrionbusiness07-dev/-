@@ -930,6 +930,20 @@ def test_relink_unaddressed_kufar_joins_its_realt_pair(session):
     assert relink_unaddressed(session, "kufar", now=T0 + 3 * HOUR)[0] == 0
 
 
+def test_relink_unaddressed_runs_once_even_without_a_pair(session):
+    from minsk_realty.matching.relink import relink_unaddressed
+
+    observe(session, "kufar", T0, kufar("201", address_raw=None, lat=None, lon=None))
+    observe(session, "kufar", T0 + HOUR, kufar("201"))
+    k = listing(session, "kufar", "201")
+    assert relink_unaddressed(session, "kufar", now=T0 + HOUR)[0] == 1
+    object_id = k.object_id
+    assert object_id is not None and k.match_basis.get("relinked")
+    # Пары нет, объявление снова основало свой объект — второй запуск его не трогает.
+    assert relink_unaddressed(session, "kufar", now=T0 + 2 * HOUR)[0] == 0
+    assert k.object_id == object_id
+
+
 def test_baseline_listings_get_no_new_event(session):
     """Первый полный проход — исходный срез: квартиры продавались и раньше."""
     run = SourceRun(source="realt", started_at=T0, status="ok", complete=True)
@@ -938,9 +952,22 @@ def test_baseline_listings_get_no_new_event(session):
     first = listing(session, "realt", "101").object_id
     assert events(session, first) == []
 
+    # Первые сутки — тоже исходный срез: поднятое во время прохода объявление уезжает
+    # наверх выдачи за курсор и попадает в базу проходом позже.
     observe(session, "realt", T0 + HOUR, realt("101"), realt("102", house="12"))
-    second = listing(session, "realt", "102").object_id
-    assert second != first and events(session, second) == ["new"]
+    bumped = listing(session, "realt", "102").object_id
+    assert bumped != first and events(session, bumped) == []
+
+    observe(
+        session,
+        "realt",
+        T0 + DAY + HOUR,
+        realt("101"),
+        realt("102", house="12"),
+        realt("103", house="14"),
+    )
+    fresh = listing(session, "realt", "103").object_id
+    assert events(session, fresh) == ["new"]
 
 
 def test_new_event_written_before_baseline_rule_is_retracted(session):

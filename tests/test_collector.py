@@ -184,6 +184,12 @@ def test_run_cycle_runs_matching_after_collect(factory, ads, monkeypatch):
         assert session.scalar(select(Listing.object_id))
         assert list(session.scalars(select(Event.type))) == []
 
+    with factory() as session:  # прошли сутки: исходный срез закончился
+        for row in session.scalars(select(SourceRun)):
+            row.started_at -= timedelta(days=2)
+        for row in session.scalars(select(Listing)):
+            row.first_seen -= timedelta(days=2)
+        session.commit()
     shown.append(ads)
     run_cycle(factory, ["kufar"], set(), AlertThrottle())
     with factory() as session:
