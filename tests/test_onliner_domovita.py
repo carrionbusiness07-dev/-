@@ -285,3 +285,34 @@ def test_not_found_onliner_explains_realt_copies():
         )
     )
     assert "раз в 6 часов" in domovita
+
+
+def test_domovita_404_past_the_end_finishes_the_pass(domovita_items):
+    """Платные объявления на каждой странице раздвигают выдачу: настоящих страниц больше
+    расчётных. Страница за концом отвечает 404 — это конец выдачи, а не сбой прохода."""
+    page_items = {
+        page: [dict(i, id=i["id"] + page * 10**6) for i in domovita_items][:17] + domovita_items[:3]
+        for page in range(1, 5)
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params.get("page", "1"))
+        if page not in page_items:
+            return httpx.Response(404)
+        html = next_data_html(page_items[page], 68, "B")
+        if request.url.path.startswith("/_next/"):
+            return httpx.Response(
+                200,
+                json={
+                    "pageProps": {
+                        "listingCardsFromSSR": {"totalCount": 68, "items": page_items[page]}
+                    }
+                },
+            )
+        return httpx.Response(200, text=html)
+
+    adapter = DomovitaAdapter(client=client(handler))
+    raws = list(adapter.search())
+    # 4 страницы по 17 своих объявлений + 3 повторяющихся платных = 71 уникальное из 68 заявленных
+    assert len(raws) == 71
+    assert adapter.last_search_complete

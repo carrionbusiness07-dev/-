@@ -55,13 +55,15 @@ MINSK_TZ = timezone(timedelta(hours=3))
 # «649 946 BYN». Обратный пересчёт BYN → USD круглым почти не бывает, поэтому при ничьей
 # побеждает USD, затем EUR.
 CURRENCY_ORDER = ("USD", "EUR", "BYN")
-# Пока обходим 150 страниц, сверху появляются новые и поднятые объявления, и выдача
-# сдвигается вниз: на стыке страниц объявление повторяется, а хвост уезжает дальше
-# рассчитанного числа страниц. Поэтому идём и дальше, пока страницы дают новые объявления
-# (не больше EXTRA_PAGES сверху). Проход полный, только если увидели почти всю выдачу:
-# иначе пропущенные объявления погасли бы как снятые.
+# На каждой странице 2–3 места занимают платные объявления, которые повторяются от страницы
+# к странице, а пока обходим ~180 страниц, сверху появляются новые и поднятые. Поэтому
+# настоящих страниц больше, чем totalCount / 20 (живой проход 23.10: 171 страница при
+# расчётных 154). Идём дальше расчётного, пока страницы дают новые объявления, но не больше
+# чем в 1,5 раза. Страница за концом выдачи отвечает 404 — это конец, а не ошибка.
+# Проход полный, только если увидели почти всю выдачу: иначе пропущенные объявления
+# погасли бы как снятые.
 MIN_COVERAGE = 0.95
-EXTRA_PAGES = 20
+EXTRA_PAGES_SHARE = 0.5
 # «9/а» → «9а»: литера через дробь (корпус через дробь — цифра, «10/1» не трогаем).
 HOUSE_LETTER_RE = re.compile(r"^(\d+)\s*/\s*([а-яa-z])$", re.IGNORECASE)
 
@@ -87,7 +89,8 @@ class DomovitaAdapter:
         page_size = len(cards.get("items") or []) or 1
         pages = math.ceil(total / page_size)
         reached_end = False
-        for page in range(1, min(max_pages, pages + EXTRA_PAGES) + 1):
+        last_page = pages + max(20, int(pages * EXTRA_PAGES_SHARE))
+        for page in range(1, min(max_pages, last_page) + 1):
             if page > 1:
                 self._client.pause()
                 cards = self._data_page(page)
@@ -121,7 +124,13 @@ class DomovitaAdapter:
 
     def _html_page(self, page: int) -> dict[str, Any]:
         params = {"page": page} if page > 1 else None
-        data = extract_next_data(self._client.get(LIST_URL, params=params).text)
+        try:
+            html = self._client.get(LIST_URL, params=params).text
+        except httpx.HTTPStatusError as exc:
+            if page > 1 and exc.response.status_code == 404:
+                return {"items": []}  # страницы с таким номером нет: выдача кончилась
+            raise
+        data = extract_next_data(html)
         self._build = data.get("buildId") or self._build
         return listing_cards(data["props"]["pageProps"])
 
@@ -138,7 +147,7 @@ class DomovitaAdapter:
             # Сайт выложили заново, старый buildId больше не отвечает: берём страницу HTML-ом.
             self._client.pause()
             cards = self._html_page(page)
-            if self._build == build:
+            if self._build == build and cards.get("items"):
                 # buildId тот же, а лёгкий адрес не отвечает — до конца прохода только HTML,
                 # без лишнего запроса-неудачи на каждую страницу.
                 log.warning("domovita: /_next/data не отвечает, обход HTML-страницами")

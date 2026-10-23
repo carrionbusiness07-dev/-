@@ -32,6 +32,9 @@ class PoliteClient:
     """
 
     max_consecutive_refusals = 3
+    # Обрыв соединения, таймаут, сбой DNS — повторить через 10 и 30 с, а не терять весь
+    # проход из-за одной страницы. Отказы площадки (403/429) считаются отдельно, выше.
+    network_retries = (10.0, 30.0)
 
     def __init__(
         self,
@@ -54,7 +57,7 @@ class PoliteClient:
         self, url: str, *, params: dict[str, Any] | None = None, **kwargs: Any
     ) -> httpx.Response:
         while True:
-            response = self._client.get(url, params=params, **kwargs)
+            response = self._get_retrying(url, params=params, **kwargs)
             if response.status_code not in (403, 429):
                 self._refusals = 0
                 response.raise_for_status()
@@ -63,6 +66,16 @@ class PoliteClient:
             if self._refusals >= self.max_consecutive_refusals:
                 raise SourceBlocked(f"{url}: {response.status_code} {self._refusals} раза подряд")
             self._sleep(self._backoff_base * 2 ** (self._refusals - 1))
+
+    def _get_retrying(self, url: str, **kwargs: Any) -> httpx.Response:
+        for delay in (*self.network_retries, None):
+            try:
+                return self._client.get(url, **kwargs)
+            except httpx.TransportError:
+                if delay is None:
+                    raise
+                self._sleep(delay)
+        raise AssertionError("unreachable")
 
     def pause(self) -> None:
         self._sleep(random.uniform(*self._page_pause))

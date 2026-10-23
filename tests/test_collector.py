@@ -241,6 +241,9 @@ def test_run_cycle_respects_min_interval(factory, monkeypatch):
         session.commit()
     run_cycle(factory, ["kufar"], set(), AlertThrottle())
     assert created == []  # полный проход был час назад — рано
+    run_cycle(factory, ["kufar"], set(), AlertThrottle(), forced={"kufar"})
+    assert created == ["slow"]  # --force: человек попросил обойти сейчас
+    created.clear()
 
     with factory() as session:
         for run in session.scalars(select(SourceRun)):

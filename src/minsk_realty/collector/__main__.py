@@ -4,6 +4,8 @@
     python -m minsk_realty.collector --once     # один проход (например, из cron)
     python -m minsk_realty.collector --sources realt
     python -m minsk_realty.collector --unblock kufar   # снять остановку после 403/429
+    python -m minsk_realty.collector --once --force domovita  # обойти сейчас, не дожидаясь
+                                                              # min_interval площадки
 
 Перед первым запуском: `alembic upgrade head`. Нужны переменные окружения DATABASE_URL
 и SELLER_KEY_SALT (см. .env.example). Kufar работает только с сервера в Беларуси.
@@ -41,6 +43,12 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="запустить площадку, остановленную после 403/429 (человек проверил причину)",
     )
+    parser.add_argument(
+        "--force",
+        action="append",
+        default=[],
+        help="обойти площадку сейчас, даже если её min_interval ещё не прошёл",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -68,14 +76,15 @@ def main(argv: list[str] | None = None) -> int:
             close_stale_runs(session, older_than=None)
             session.commit()
     while True:
-        run_cycle(factory, sources, unblocked, throttle)
+        run_cycle(factory, sources, unblocked, throttle, forced=set(args.force))
+        args.force = []  # как и --unblock: только на первый цикл
         unblocked.clear()  # --unblock действует на один проход: дальше снова решает журнал
         if args.once:
             return 0
         time.sleep(random.uniform(*INTERVAL_MINUTES) * 60)
 
 
-def run_cycle(factory, sources, unblocked, throttle) -> None:
+def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> None:
     """Один цикл: все площадки по очереди и проверка здоровья.
 
     Любая ошибка логируется и не прерывает цикл: иначе контейнер с restart: unless-stopped
@@ -96,7 +105,11 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                     continue
                 # Площадкам, которые сами отдают историю цены, частый опрос не нужен.
                 interval = getattr(ADAPTERS[source], "min_interval", None)
-                last = last_pass_started(session, source) if interval else None
+                last = (
+                    last_pass_started(session, source)
+                    if interval and source not in forced
+                    else None
+                )
                 now = datetime.now(UTC)
                 # Время прохода из будущего (часы компьютера убегали) не должно блокировать.
                 if last is not None and last <= now and now - last < interval:
