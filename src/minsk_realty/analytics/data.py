@@ -248,10 +248,51 @@ def load_market(
     listing_ids: Iterable[int] | None = None,
 ) -> MarketData:
     """Загрузить срез. Без фильтров — весь рынок; с фильтрами — объекты и/или объявления."""
-    obj_q = select(RealtyObject)
-    lst_q = select(Listing)
+    # Только нужные колонки, без ORM-объектов: на всём рынке (десятки тысяч строк) это
+    # в несколько раз быстрее, а JSON-поля снимков (extra) вообще не читаются.
+    obj_q = select(
+        RealtyObject.id,
+        RealtyObject.street_norm,
+        RealtyObject.house,
+        RealtyObject.rooms,
+        RealtyObject.area_total,
+        RealtyObject.floor,
+        RealtyObject.floors_total,
+        RealtyObject.district,
+        RealtyObject.microdistrict,
+        RealtyObject.first_seen_at,
+    )
+    lst_q = select(
+        Listing.id,
+        Listing.object_id,
+        Listing.source,
+        Listing.external_id,
+        Listing.url,
+        Listing.match_confidence,
+        Listing.status,
+        Listing.first_seen,
+        Listing.last_seen,
+        Listing.posted_at_source,
+        Listing.seller_type,
+        Listing.agency_name,
+        Listing.seller_key,
+    )
     # Отозванные события (объявление отцепили от объекта) — не факты, в историю не идут.
-    ev_q = select(Event).where(Event.retracted_at.is_(None)).order_by(Event.at, Event.id)
+    ev_q = (
+        select(
+            Event.id,
+            Event.object_id,
+            Event.listing_id,
+            Event.type,
+            Event.at,
+            Event.created_at,
+            Event.notify,
+            Event.payload,
+            Event.trusted,
+        )
+        .where(Event.retracted_at.is_(None))
+        .order_by(Event.at, Event.id)
+    )
     if object_ids is not None or listing_ids is not None:
         oids = set(object_ids or ())
         lids = set(listing_ids or ())
@@ -272,7 +313,7 @@ def load_market(
             microdistrict=o.microdistrict,
             first_seen_at=o.first_seen_at,
         )
-        for o in session.scalars(obj_q)
+        for o in session.execute(obj_q)
     }
     listings = {
         r.id: ListingRow(
@@ -290,13 +331,25 @@ def load_market(
             agency_name=r.agency_name,
             seller_key=r.seller_key,
         )
-        for r in session.scalars(lst_q)
+        for r in session.execute(lst_q)
     }
     snapshots: dict[int, list[SnapRow]] = defaultdict(list)
-    snap_q = select(Snapshot).order_by(Snapshot.listing_id, Snapshot.seen_at, Snapshot.id)
+    snap_q = select(
+        Snapshot.listing_id,
+        Snapshot.seen_at,
+        Snapshot.price_amount,
+        Snapshot.price_currency,
+        Snapshot.price_usd,
+        Snapshot.area_total,
+        Snapshot.rooms,
+        Snapshot.floor,
+        Snapshot.floors_total,
+        Snapshot.street,
+        Snapshot.district,
+    ).order_by(Snapshot.listing_id, Snapshot.seen_at, Snapshot.id)
     if object_ids is not None or listing_ids is not None:
         snap_q = snap_q.where(Snapshot.listing_id.in_(set(listings)))
-    for s in session.scalars(snap_q):
+    for s in session.execute(snap_q):
         snapshots[s.listing_id].append(
             SnapRow(
                 listing_id=s.listing_id,
@@ -313,7 +366,7 @@ def load_market(
             )
         )
     events: dict[int, list[EventRow]] = defaultdict(list)
-    for e in session.scalars(ev_q):
+    for e in session.execute(ev_q):
         events[e.object_id].append(
             EventRow(
                 id=e.id,

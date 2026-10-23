@@ -19,7 +19,7 @@ import signal
 import sys
 import time
 
-from minsk_realty.collector.run import collect, is_blocked
+from minsk_realty.collector.run import close_stale_runs, collect, is_blocked
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import AlertThrottle, check_sources, notify
 from minsk_realty.matching import process_after_run
@@ -62,6 +62,12 @@ def main(argv: list[str] | None = None) -> int:
     factory = make_session_factory(make_engine())
     throttle = AlertThrottle()
     unblocked = set(args.unblock)
+    if not args.once:
+        # Постоянный сборщик один: «идущие» проходы от прошлого запуска — прерванные.
+        # Разовый --once может работать рядом с ним и чужие проходы не трогает.
+        with factory() as session:
+            close_stale_runs(session, older_than=None)
+            session.commit()
     while True:
         run_cycle(factory, sources, unblocked, throttle)
         unblocked.clear()  # --unblock действует на один проход: дальше снова решает журнал
@@ -76,6 +82,12 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
     Любая ошибка логируется и не прерывает цикл: иначе контейнер с restart: unless-stopped
     перезапускался бы сразу и обходил площадки без паузы 30–60 минут.
     """
+    try:
+        with factory() as session:
+            close_stale_runs(session)
+            session.commit()
+    except Exception:
+        log.exception("сбой при закрытии прерванных проходов")
     for source in sources:
         try:
             with factory() as session:

@@ -5,7 +5,7 @@
   <header class="page-head">
     <div>
       <h1>Объекты</h1>
-      {% set active = rows | selectattr("state", "equalto", "active") | list | length %}{% set hidden = (rows | length) - active %}
+      {% set hidden = total - active %}
       <p class="page-dek">{{ active }} {{ fmt.plural(active, "квартира", "квартиры", "квартир") }} в продаже{% if hidden %} и {{ hidden }} недавно {{ fmt.plural(hidden, "скрыта", "скрыты", "скрыты") }} — пропали из выдачи меньше 3 суток назад{% endif %}{% if district %} · {{ district }} р-н{% endif %}</p>
     </div>
     <form class="filters" method="get">
@@ -28,7 +28,7 @@
         <th scope="col">Квартира</th>
         <th scope="col">Район</th>
         {% for key, label in [("price", "Цена"), ("ppm", "$/м²"), ("days", "На рынке"), ("drops", "Снижений"), ("relists", "Перевыкл.")] %}
-        <th scope="col" class="num" {% if sort == key %}aria-sort="{{ 'ascending' if key in ('price', 'ppm') else 'descending' }}"{% endif %}><a href="?sort={{ key }}&district={{ district }}">{{ label }}{% if sort == key %}<svg aria-hidden="true" width="12" height="12"><use href="#i-arrow-{{ 'up' if key in ('price', 'ppm') else 'down' }}"/></svg>{% endif %}</a></th>
+        <th scope="col" class="num" {% if sort == key %}aria-sort="{{ 'ascending' if key in ('price', 'ppm') else 'descending' }}"{% endif %}><a href="?sort={{ key }}&district={{ district | urlencode }}">{{ label }}{% if sort == key %}<svg aria-hidden="true" width="12" height="12"><use href="#i-arrow-{{ 'up' if key in ('price', 'ppm') else 'down' }}"/></svg>{% endif %}</a></th>
         {% endfor %}
         <th scope="col">Площадки</th>
       </tr>
@@ -51,5 +51,12 @@
     </tbody>
   </table>
   </div>
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Страницы списка">
+    <span class="pager-info">{{ first }}–{{ first + rows | length - 1 }} из {{ total }}</span>
+    {% if page > 1 %}<a href="?sort={{ sort }}&district={{ district | urlencode }}&page={{ page - 1 }}" rel="prev"><svg aria-hidden="true" width="14" height="14"><use href="#i-arrow-left"/></svg>Назад</a>{% endif %}
+    {% if page < pages %}<a href="?sort={{ sort }}&district={{ district | urlencode }}&page={{ page + 1 }}" rel="next">Дальше<svg aria-hidden="true" width="14" height="14"><use href="#i-arrow-right"/></svg></a>{% endif %}
+  </nav>
+  {% endif %}
 </main>
 {% endblock %}

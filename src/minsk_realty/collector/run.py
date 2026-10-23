@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,6 +20,10 @@ COMMIT_EVERY = 100
 # Если не разобралась заметная доля объявлений, площадка, скорее всего, поменяла формат.
 # Такой проход не считается полным, чтобы не погасить объявления по ошибке.
 MAX_PARSE_ERROR_SHARE = 0.2
+# Проход идёт 5–20 минут. Запись «running» старше этого — от процесса, который убили
+# (выключили компьютер, Docker Desktop закрылся), и закрыть её он уже не сможет.
+STALE_RUN_AFTER = timedelta(hours=2)
+INTERRUPTED = "interrupted"
 
 
 def collect(
@@ -64,7 +68,7 @@ def collect(
             run.status, run.error = "failed", _short_error(exc)
             log.error("%s: проход упал: %s", adapter.source, run.error)
         except BaseException:  # SIGTERM/Ctrl+C: закрыть запись прохода и выйти
-            run.status, run.error = "failed", "interrupted"
+            run.status, run.error = "failed", INTERRUPTED
             raise
         else:
             run.status = "ok"
@@ -82,6 +86,30 @@ def collect(
             run.finished_at = now()
             session.commit()
         return run
+
+
+def close_stale_runs(
+    session: Session, *, older_than: timedelta | None = STALE_RUN_AFTER, at: datetime | None = None
+) -> int:
+    """Закрыть проходы, оставшиеся «running» после убитого процесса, как прерванные.
+
+    `older_than=None` — закрыть все: так делает сборщик при запуске, когда его прошлые
+    проходы точно никто не ведёт.
+    """
+    at = at or datetime.now(UTC)
+    query = update(SourceRun).where(SourceRun.status == "running")
+    if older_than is not None:
+        query = query.where(SourceRun.started_at < at - older_than)
+    closed = session.execute(
+        query.values(status="failed", error=INTERRUPTED, finished_at=at),
+        execution_options={"synchronize_session": False},
+    ).rowcount
+    for obj in list(session.identity_map.values()):
+        if isinstance(obj, SourceRun):
+            session.expire(obj)  # перечитать из БД при следующем обращении
+    if closed:
+        log.warning("закрыто прерванных проходов: %d", closed)
+    return closed or 0
 
 
 def is_blocked(session: Session, source: str) -> bool:

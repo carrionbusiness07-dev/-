@@ -1,5 +1,5 @@
 {% macro entry(e) %}
-<li class="entry entry-{{ e.kind }}">
+<li class="entry entry-{{ e.kind }}{% if e.delta_dir == 'up' %} entry-up{% endif %}">
   <a class="entry-link" href="/objects/{{ e.object_id }}">
     <div class="entry-rubric">
       <span class="rubric rubric-{{ e.kind }}">{{ e.rubric }}</span>

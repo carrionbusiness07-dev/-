@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from minsk_realty.matching.address import parse_address
 from minsk_realty.sources.kufar import KufarAdapter, to_raw
 from minsk_realty.sources.realt import RealtAdapter
 from minsk_realty.sources.realt import to_raw as realt_raw
@@ -39,6 +40,14 @@ def test_every_live_kufar_ad_parses(kufar_ads):
     assert sum(1 for s in snaps if s.floors_total) >= 19  # у одного объявления этажности нет
     assert {s.town for s in snaps} == {"Минск"}
     assert Counter(s.price_currency for s in snaps) == {"EUR": 7, "BYN": 7, "USD": 6}
+    # Адрес лежит в `v`, `vl` у него пустой: без адреса не работает склейка Kufar↔Realt.
+    assert all(s.address_raw and s.address_raw.endswith("Минск") for s in snaps)
+
+
+def test_kufar_live_addresses_give_street_and_house(kufar_ads):
+    adapter = KufarAdapter(client=object())
+    parsed = [parse_address(adapter.parse(to_raw(ad)).address_raw) for ad in kufar_ads]
+    assert sum(1 for a in parsed if a.street and a.house) >= 18
 
 
 def test_kufar_price_is_taken_in_the_sellers_currency(kufar_ads):

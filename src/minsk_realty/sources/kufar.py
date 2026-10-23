@@ -109,7 +109,7 @@ class KufarAdapter:
             area_total=_float(_value(params, "size")),
             floor=_first_int(_value(params, "floor")),
             floors_total=_first_int(_value(params, "re_number_floors")),
-            address_raw=_label(account, "address"),
+            address_raw=_text(account, "address"),
             district=_label(params, "area"),
             town=_label(params, "region"),
             lat=_float(lat),
@@ -176,6 +176,15 @@ def _value(params: dict[str, dict], key: str) -> Any:
 def _label(params: dict[str, dict], key: str) -> str | None:
     value = params.get(key, {}).get("vl")
     return value if isinstance(value, str) and value else None
+
+
+def _text(params: dict[str, dict], key: str) -> str | None:
+    """Текстовый параметр. Адрес Kufar лежит в `v` («Мира пр, 8, Минск»), а `vl` у него пустой."""
+    for field in ("v", "vl"):
+        value = params.get(key, {}).get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _from_cents(value: Any) -> Decimal | None:

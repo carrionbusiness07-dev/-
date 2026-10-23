@@ -22,6 +22,9 @@
       </dl>
       {% endif %}
       {% for a in h.alerts %}<p class="alert">{{ a }}</p>{% endfor %}
+      {% if h.state == "warning" and not h.alerts %}
+      <p class="alert">{% if not h.last_ok_at %}Ещё ни одного успешного прохода. Пока его нет, снятые объявления не отмечаются, а новые не считаются новыми. Причина неудачных проходов — в таблице ниже.{% else %}Успешного прохода не было больше трёх часов: проверьте, включён ли компьютер и запущен ли Docker.{% endif %}</p>
+      {% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -29,19 +32,20 @@
     <h2 id="runs-title" class="section-title">Последние проходы</h2>
     <div class="table-wrap">
     <table class="history">
-      <thead><tr><th scope="col">Начало</th><th scope="col">Площадка</th><th scope="col">Итог</th><th scope="col" class="num">Объявлений</th><th scope="col" class="num">Ошибок</th><th scope="col">Полный</th></tr></thead>
+      <thead><tr><th scope="col">Начало</th><th scope="col">Площадка</th><th scope="col">Итог</th><th scope="col" class="num">Объявлений</th><th scope="col" class="num">Ошибок</th><th scope="col">Полный</th><th scope="col">Причина</th></tr></thead>
       <tbody>
-      {% for run in runs %}
+      {% for row in runs %}{% set run = row.run %}
         <tr>
           <td>{{ run.started_at | dshort }} {{ fmt.local(run.started_at).strftime("%H:%M") }}</td>
           <td>{{ sources.get(run.source, run.source) }}</td>
-          <td><span class="dot dot-{{ {'ok': 'ok', 'running': 'warning', 'failed': 'failing', 'blocked': 'blocked'}[run.status] }}" aria-hidden="true"></span>{{ {"ok": "успешно", "running": "идёт", "failed": "ошибка", "blocked": "отказ площадки"}[run.status] }}</td>
+          <td><span class="dot dot-{{ row.dot }}" aria-hidden="true"></span>{{ row.label }}</td>
           <td class="num">{{ run.listings_seen }}</td>
           <td class="num">{% if run.parse_errors %}<span class="warn">{{ run.parse_errors }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
           <td>{{ "да" if run.complete else "нет" }}</td>
+          <td class="run-reason">{{ row.reason or "" }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="6" class="empty-cell">За неделю проходов не было. Запустите сборщик: <code>docker compose up -d</code></td></tr>
+        <tr><td colspan="7" class="empty-cell">За неделю проходов не было. Запустите сборщик: <code>docker compose up -d</code></td></tr>
       {% endfor %}
       </tbody>
     </table>

@@ -11,6 +11,7 @@
 <body>
 <svg class="visually-hidden" aria-hidden="true">
   <symbol id="i-arrow-left" viewBox="0 0 16 16"><path d="M13 8H3m4-4-4 4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 16 16"><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-arrow-down" viewBox="0 0 16 16"><path d="M8 3v10m-4-4 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-arrow-up" viewBox="0 0 16 16"><path d="M8 13V3M4 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-external" viewBox="0 0 16 16"><path d="M6 3h7v7M13 3 4 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -35,7 +36,7 @@
       <a class="status-line" href="/sources">
         <span class="dot dot-{{ h.state }}" aria-hidden="true"></span>
         <span>{{ sources.get(h.source, h.source) }}</span>
-        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "warning" %}внимание{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
+        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "warning" %}{{ "нет прохода" if not h.last_ok_at else "давно" }}{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
       </a>
       {% endfor %}
       <p class="rail-since">Наблюдаем с {{ snap.data.observation_start | dshort if snap.data.observation_start else "—" }}</p>

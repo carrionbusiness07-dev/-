@@ -173,7 +173,11 @@ html { scrollbar-color: var(--paper-3) transparent; }
 h1 { font: 700 44px/1 var(--head); letter-spacing: -0.01em; text-wrap: balance; }
 .page-dek { margin-top: var(--s2); color: var(--ink-2); font-size: 15px; }
 
-.check-form { display: flex; gap: var(--s2); width: min(100%, 420px); }
+.check-form { width: min(100%, 520px); }
+.check-label { display: block; margin-bottom: 6px; font: 700 17px/1.2 var(--head); letter-spacing: 0.01em; }
+.check-row { display: flex; gap: var(--s2); }
+.check-row input[type="url"], .check-row button { height: 46px; }
+.check-row button { padding: 0 var(--s5); font-size: 19px; }
 input, select, button { font: inherit; color: inherit; }
 input[type="url"], select {
   flex: 1; min-width: 0;
@@ -214,6 +218,7 @@ button:active { background: var(--spot-deep); }
 .tabs a:hover, .period a:hover { color: var(--ink); border-bottom-color: var(--rule); }
 .tabs a[aria-current="true"], .period a[aria-current="true"] { color: var(--ink); font-weight: 650; border-bottom-color: var(--ink); }
 .tabs .count { color: var(--ink-3); font-weight: 400; margin-left: 2px; }
+.tabs a.is-empty { color: var(--ink-3); }
 .period a { font-size: 13px; }
 
 .day { margin-top: var(--s6); }
@@ -283,6 +288,9 @@ section.day .price-old {
   animation: strike 700ms var(--ease) 200ms both;
 }
 @keyframes strike { from { background-size: 0 1.5px; } }
+/* Подорожание — не правка корректора: старую цену зачёркиваем серым, а не красным. */
+.entry-up .price-old { text-decoration-color: var(--ink-3); }
+section.day .entry-up .price-old { background-image: linear-gradient(var(--ink-3), var(--ink-3)); }
 .price-gone { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-3); }
 .price-meta { margin-top: 2px; display: flex; justify-content: flex-end; gap: var(--s3); font-size: 13px; color: var(--ink-3); }
 .delta { font-weight: 650; }
@@ -290,6 +298,46 @@ section.day .price-old {
 .delta-up { color: var(--amber); }
 
 .empty { padding: var(--s7) 0 var(--s6); color: var(--ink-2); max-width: 60ch; }
+
+.more {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline;
+  gap: var(--s2) var(--s4);
+  margin-top: var(--s4); padding-top: var(--s3);
+  border-top: 1px solid var(--rule);
+  font-size: 14px; color: var(--ink-3);
+}
+.more a, .pager a { font-weight: 650; color: var(--spot); text-underline-offset: 3px; }
+.pager {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s5);
+  margin-top: var(--s4); font-size: 14px;
+}
+.pager-info { color: var(--ink-3); margin-right: auto; }
+.pager a { display: inline-flex; align-items: center; gap: 6px; }
+.run-reason { max-width: 36ch; font-size: 13px; color: var(--ink-2); }
+
+/* Ход наблюдения: колонтитул над лентой на время проверки идеи */
+.progress {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3) var(--s5);
+  padding: var(--s4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.progress-title {
+  grid-column: 1 / -1;
+  font: 700 13px/1 var(--body); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.progress-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.progress-label { font-size: 12px; color: var(--ink-3); }
+.progress-value { font: 700 22px/1 var(--head); }
+.progress-value small { font: 400 12px var(--body); color: var(--ink-3); margin-left: 2px; }
+.progress-value.is-passed { color: var(--green); }
+.progress-list { display: flex; flex-wrap: wrap; gap: 2px var(--s3); font-size: 14px; color: var(--ink-2); }
+.progress-list b { color: var(--ink); }
+.progress-list b.warn { color: var(--amber); }
+.progress-bar { display: block; height: 4px; background: var(--paper-3); border-radius: 2px; overflow: hidden; }
+.progress-bar span { display: block; height: 100%; width: calc(var(--p) * 100%); background: var(--spot); }
 .empty-title { font: 700 22px/1.2 var(--head); color: var(--ink); margin-bottom: var(--s2); }
 
 /* Пульс рынка */

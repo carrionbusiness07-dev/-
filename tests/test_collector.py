@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from minsk_realty.collector.__main__ import run_cycle
-from minsk_realty.collector.run import collect
+from minsk_realty.collector.run import INTERRUPTED, close_stale_runs, collect
 from minsk_realty.db.models import Base, Event, Listing, Snapshot, SourceRun
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import Alert, AlertThrottle, check_sources
@@ -172,12 +172,42 @@ def test_run_cycle_skips_blocked_source_and_survives_errors(factory, monkeypatch
 
 
 def test_run_cycle_runs_matching_after_collect(factory, ads, monkeypatch):
+    shown = [ads[:1]]
     monkeypatch.setattr(
-        "minsk_realty.collector.__main__.ADAPTERS", {"kufar": lambda: FakeKufar(ads)}
+        "minsk_realty.collector.__main__.ADAPTERS", {"kufar": lambda: FakeKufar(shown[-1])}
     )
     monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
     run_cycle(factory, ["kufar"], set(), AlertThrottle())
     with factory() as session:
+        # Первый полный проход — исходный срез рынка: квартиры не «новые», их просто
+        # впервые увидели.
+        assert session.scalar(select(Listing.object_id))
+        assert list(session.scalars(select(Event.type))) == []
+
+    shown.append(ads)
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    with factory() as session:
         linked = session.execute(select(Listing.object_id, Listing.match_confidence)).all()
         assert len(linked) == 2 and all(obj and conf == "high" for obj, conf in linked)
-        assert sorted(session.scalars(select(Event.type))) == ["new", "new"]
+        assert list(session.scalars(select(Event.type))) == ["new"]
+
+
+def test_close_stale_runs_marks_killed_passes_interrupted(factory):
+    with factory() as session:
+        old = SourceRun(source="kufar", started_at=T0 - timedelta(hours=3), status="running")
+        fresh = SourceRun(source="realt", started_at=T0 - timedelta(minutes=10), status="running")
+        session.add_all([old, fresh])
+        session.commit()
+
+        assert close_stale_runs(session, at=T0) == 1
+        assert (old.status, old.error, fresh.status) == ("failed", INTERRUPTED, "running")
+        # При запуске постоянного сборщика «идущих» проходов быть не может: закрыть все.
+        assert close_stale_runs(session, older_than=None, at=T0) == 1
+        assert fresh.status == "failed"
+        session.commit()
+        # Прерванные проходы — не вина площадки: «3 сбоя подряд» из них не складываются.
+        session.add(SourceRun(source="kufar", started_at=T0, status="running"))
+        session.commit()
+        close_stale_runs(session, older_than=None, at=T0 + timedelta(hours=1))
+        session.commit()
+        assert check_sources(session, ["kufar"], now=T0 + timedelta(hours=1)) == []

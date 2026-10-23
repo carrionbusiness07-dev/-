@@ -13,3 +13,6 @@ tests/fixtures/**/*.raw.*
 
 # Скриншоты проверки дизайна
 .impeccable/review/
+
+# Резервные копии базы (docker compose, сервис backup)
+backups/

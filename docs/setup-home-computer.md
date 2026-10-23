@@ -147,9 +147,22 @@ docker compose logs --tail 20 bot
 | Запустить снова | `docker compose up -d` |
 | Обновить код | `git pull` → `docker compose up -d --build` |
 | Снять остановку площадки после 403/429 | `docker compose run --rm collector python -m minsk_realty.collector --once --unblock kufar` |
-| Бэкап базы | `docker compose exec db pg_dump -U realty realty > backup.sql` |
+| Пересклеить Kufar, собранный без адреса (один раз после обновления 24.10) | `docker compose run --rm collector python -m minsk_realty.matching relink-unaddressed` |
+| Логи бэкапа | `docker compose logs --tail 20 backup` |
 
-**Бэкап** стоит делать хотя бы раз в неделю и хранить вне этого компьютера. Накопленную историю ничем не заменить. На Windows это можно автоматизировать через «Планировщик заданий».
+## Резервные копии
+
+Сервис `backup` раз в сутки сам кладёт копию базы в папку `backups` внутри проекта (например, `D:\minsk-realty\backups\realty-2026-10-24.dump`). Хранятся последние 14 дней. Если компьютер ночью выключен, копия появится через час после включения.
+
+Накопленную историю ничем не заменить, поэтому раз в неделю копируйте свежий файл из `backups` за пределы компьютера: на флешку, в облако или в почту себе.
+
+**Восстановить базу из копии** (например, после переустановки):
+```
+docker compose stop collector web bot
+docker compose exec backup pg_restore --clean --if-exists -d realty /backups/realty-2026-10-24.dump
+docker compose up -d
+```
+Вместо даты подставьте имя нужного файла из папки `backups`.
 
 Если пользователь удалил свои данные командой `/forget`, его Telegram ID исчезает из базы, но остаётся в старых бэкапах, пока вы их не удалите. Не храните бэкапы дольше, чем нужно: например, только последние 4–8 недель.
 

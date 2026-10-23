@@ -904,3 +904,51 @@ def test_legacy_false_high_is_revised_on_first_pass(session):
     assert stats.detached == 1 and k.object_id != oid
     assert cross.retracted_at == T0 + 2 * HOUR and not cross.notify
     assert r.match_basis == {"rule": "founder"}
+
+
+# --- Пересклейка Kufar, собранного без адреса ---------------------------------------
+
+
+def test_relink_unaddressed_kufar_joins_its_realt_pair(session):
+    from minsk_realty.matching.relink import relink_unaddressed
+
+    observe(session, "realt", T0, realt("101"))
+    # Старый адаптер: адреса нет, объявление основало свой объект.
+    observe(session, "kufar", T0 + HOUR, kufar("201", address_raw=None, lat=None, lon=None))
+    r, k = listing(session, "realt", "101"), listing(session, "kufar", "201")
+    assert objects_count(session) == 2 and k.object_id != r.object_id
+
+    # Починенный адаптер: тот же Kufar уже с адресом. Сам по себе объект не сольётся.
+    observe(session, "kufar", T0 + 2 * HOUR, kufar("201"))
+    assert k.object_id != r.object_id
+
+    count, stats = relink_unaddressed(session, "kufar", now=T0 + 2 * HOUR)
+    assert count == 1 and not stats.skipped
+    assert k.object_id == r.object_id  # low, как у любой пары Kufar↔Realt без фото
+    assert objects_count(session) == 1
+    # Повторный запуск ничего не трогает: объект уже не из одного объявления.
+    assert relink_unaddressed(session, "kufar", now=T0 + 3 * HOUR)[0] == 0
+
+
+def test_baseline_listings_get_no_new_event(session):
+    """Первый полный проход — исходный срез: квартиры продавались и раньше."""
+    run = SourceRun(source="realt", started_at=T0, status="ok", complete=True)
+    session.add(run)
+    observe(session, "realt", T0, realt("101"))
+    first = listing(session, "realt", "101").object_id
+    assert events(session, first) == []
+
+    observe(session, "realt", T0 + HOUR, realt("101"), realt("102", house="12"))
+    second = listing(session, "realt", "102").object_id
+    assert second != first and events(session, second) == ["new"]
+
+
+def test_new_event_written_before_baseline_rule_is_retracted(session):
+    observe(session, "realt", T0, realt("101"))  # проходов в БД нет — исходного среза нет
+    object_id = listing(session, "realt", "101").object_id
+    assert events(session, object_id) == ["new"]
+
+    session.add(SourceRun(source="realt", started_at=T0, status="ok", complete=True))
+    observe(session, "realt", T0 + HOUR, realt("101"))
+    [new] = events(session, object_id, with_payload=True)
+    assert new.retracted_at is not None and not new.notify

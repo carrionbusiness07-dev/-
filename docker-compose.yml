@@ -44,6 +44,8 @@ services:
   collector:
     <<: *app
     restart: unless-stopped
+    # Дать проходу закрыть запись в журнале, а не обрываться на середине.
+    stop_grace_period: 30s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -71,6 +73,39 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  # Резервная копия базы раз в сутки: папка backups/ рядом с проектом, последние 14 дней.
+  # Раз в час проверяет, есть ли копия за сегодня, — выключенный ночью компьютер не мешает.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: realty
+      PGDATABASE: realty
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          f=/backups/realty-$$(date +%Y-%m-%d).dump
+          if [ ! -f "$$f" ]; then
+            if pg_dump -Fc -f "$$f.tmp"; then
+              mv "$$f.tmp" "$$f" && echo "бэкап готов: $$f"
+              find /backups -name 'realty-*.dump' -mtime +14 -delete
+            else
+              rm -f "$$f.tmp"; echo "бэкап не удался, повтор через час"
+            fi
+          fi
+          sleep 3600
+        done
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
 
 volumes:
   pgdata:

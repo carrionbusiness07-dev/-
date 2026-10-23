@@ -1,6 +1,9 @@
 """События объекта строго по определениям SKILL.md («Склейка объектов» → «События»).
 
 - new          — объект впервые появился на рынке (первое надёжное объявление).
+                 Исходный срез — всё, что площадка показала до конца первого полного
+                 прохода сборщика, — не новинка: эти квартиры продавались и раньше, мы их
+                 просто впервые увидели. Для них `new` не пишется (а записанное — отзывается).
 - price_drop / price_up — цена изменилась минимум на 0.5% в исходной валюте объявления.
                  Смена валюты — не событие цены (база сравнения начинается заново).
                  Курс (price_usd) в сравнении не участвует вовсе.
@@ -35,14 +38,14 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from minsk_realty.db.models import Event, Listing, Snapshot
+from minsk_realty.db.models import Event, Listing, Snapshot, SourceRun
 from minsk_realty.matching.config import MatchingConfig
 from minsk_realty.matching.rules import TRUSTED
 
@@ -93,6 +96,34 @@ def load_priced(session: Session, listing_ids: Iterable[int]) -> dict[int, list[
         for row in session.execute(_priced_query(ids[i : i + _CHUNK])):
             out[row.listing_id].append(row)
     return out
+
+
+# Площадка ещё не прошла выдачу целиком: всё, что видели, — исходный срез.
+NO_FULL_PASS = datetime.max.replace(tzinfo=UTC)
+
+
+def baseline_ends(session: Session) -> dict[str, datetime]:
+    """Конец исходного среза по площадкам: начало первого полного прохода сборщика.
+
+    Объявление с `first_seen` не позже этого момента было на рынке до начала наблюдений.
+    Площадки без единого прохода (тесты, ручная загрузка) исходного среза не имеют.
+    """
+    ends = {source: NO_FULL_PASS for source in session.scalars(select(SourceRun.source).distinct())}
+    first_full = session.execute(
+        select(SourceRun.source, func.min(SourceRun.started_at))
+        .where(SourceRun.status == "ok", SourceRun.complete.is_(True))
+        .group_by(SourceRun.source)
+    )
+    for source, started_at in first_full:
+        if isinstance(started_at, str):  # на случай драйвера, отдающего min() строкой
+            started_at = datetime.fromisoformat(started_at)
+        ends[source] = started_at if started_at.tzinfo else started_at.replace(tzinfo=UTC)
+    return ends
+
+
+def in_baseline(listing: Listing, ends: dict[str, datetime]) -> bool:
+    end = ends.get(listing.source)
+    return end is not None and listing.first_seen <= end
 
 
 def price_change_pct(old: Decimal, new: Decimal) -> Decimal:
@@ -229,6 +260,7 @@ def generate_for(
     """
     total: Counter[str] = Counter()
     ids = sorted(set(object_ids))
+    ends = baseline_ends(session) if ids else {}
     for i in range(0, len(ids), _CHUNK):
         chunk = ids[i : i + _CHUNK]
         listings: dict[int, list[Listing]] = defaultdict(list)
@@ -250,7 +282,7 @@ def generate_for(
         priced = load_priced(session, (item.id for rows in listings.values() for item in rows))
         for oid in chunk:
             em = _Emitter(session, oid, now, cfg, events[oid])
-            _object_events(em, listings[oid], priced, cfg, now)
+            _object_events(em, listings[oid], priced, cfg, now, ends)
             total.update(em.created)
     session.flush()
     return total
@@ -262,6 +294,7 @@ def _object_events(
     priced: dict[int, list[Any]],
     cfg: MatchingConfig,
     now: datetime,
+    ends: dict[str, datetime],
 ) -> None:
     _reconcile(em, listings)
     if not listings:
@@ -269,7 +302,12 @@ def _object_events(
     trusted = [item for item in listings if item.match_confidence in TRUSTED]
     if trusted:
         first = trusted[0]
-        em.emit("new", "new", first.first_seen, first.id, {"source": first.source})
+        if in_baseline(first, ends):
+            old = em.by_key.get("new")
+            if old is not None and old.retracted_at is None:
+                em.retract(old)  # записано до того, как появилось правило исходного среза
+        else:
+            em.emit("new", "new", first.first_seen, first.id, {"source": first.source})
     for item in listings:
         _listing_prices(em, item, priced.get(item.id, []), cfg)
     _relisted(em, trusted, priced, cfg)

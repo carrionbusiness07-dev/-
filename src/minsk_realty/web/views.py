@@ -20,8 +20,11 @@ from minsk_realty.analytics import (
     build_price_history,
     compute_baseline,
     compute_exposure,
+    compute_hypothesis,
+    compute_overview,
     load_market,
 )
+from minsk_realty.analytics.config import DEFAULT_ANALYTICS
 from minsk_realty.analytics.fmt import (
     MONTHS_GEN,
     district_label,
@@ -32,7 +35,8 @@ from minsk_realty.analytics.fmt import (
     street_label,
 )
 from minsk_realty.analytics.fmt import pct as _pct
-from minsk_realty.db.models import SourceRun
+from minsk_realty.collector.run import INTERRUPTED, STALE_RUN_AFTER
+from minsk_realty.db.models import Event, RealtyObject, SourceRun
 
 DEMO_MARKER = "demo"
 
@@ -40,6 +44,14 @@ DEMO_MARKER = "demo"
 def pct(value: float) -> str:
     """−4,1%: в интерфейсе десятичная запятая, как принято в русском."""
     return _pct(value).replace(".", ",")
+
+
+def share(value: float | None) -> str:
+    """Доля в процентах: 0,4% · 12% · —."""
+    if value is None:
+        return "—"
+    text = f"{value * 100:.1f}" if value < 0.1 else f"{value * 100:.0f}"
+    return text.removesuffix(".0").replace(".", ",") + "%"
 
 
 SOURCE_NAMES = {"kufar": "Kufar", "realt": "Realt", "onliner": "Onliner", "domovita": "Domovita"}
@@ -74,6 +86,9 @@ class Snapshot:
     now: datetime
     demo: bool
     loaded_at: float
+    version: tuple = ()
+    # Расчёты поверх среза (лента, пульс, список объектов): считаются один раз на срез.
+    memo: dict = field(default_factory=dict, repr=False)
 
     @property
     def issue(self) -> int | None:
@@ -81,15 +96,38 @@ class Snapshot:
         start = self.data.observation_start
         return (local(self.now).date() - local(start).date()).days + 1 if start else None
 
+    def cached(self, key, compute):
+        if key not in self.memo:
+            self.memo[key] = compute()
+        return self.memo[key]
+
 
 _cache: dict[str, Snapshot] = {}
-CACHE_SECONDS = 60
+# Срез перечитывается, когда в БД что-то поменялось (закончился проход, склейка записала
+# события). Срок жизни — подстраховка на изменения, которых версия не видит.
+CACHE_SECONDS = 15 * 60
+
+
+def data_version(session: Session) -> tuple:
+    """Дешёвый отпечаток состояния БД: меняется после каждого прохода и склейки."""
+    row = session.execute(
+        select(
+            select(func.max(SourceRun.id)).scalar_subquery(),
+            select(func.max(SourceRun.finished_at)).scalar_subquery(),
+            select(func.max(Event.id)).scalar_subquery(),
+            select(func.max(Event.retracted_at)).scalar_subquery(),
+            select(func.max(RealtyObject.id)).scalar_subquery(),
+        )
+    ).one()
+    return tuple(str(value) for value in row)
 
 
 def market_snapshot(session: Session, key: str) -> Snapshot:
-    """Срез рынка для страниц. Кэш на минуту: сборщик пишет раз в 30–60 минут."""
+    """Срез рынка для страниц. Загрузка всего рынка — около секунды, поэтому срез живёт,
+    пока данные не изменились: сборщик пишет раз в 30–60 минут."""
+    version = data_version(session)
     cached = _cache.get(key)
-    if cached and time.monotonic() - cached.loaded_at < CACHE_SECONDS:
+    if cached and cached.version == version and time.monotonic() - cached.loaded_at < CACHE_SECONDS:
         return cached
     demo = bool(session.scalar(select(SourceRun.id).where(SourceRun.error == DEMO_MARKER).limit(1)))
     now = datetime.now(UTC)
@@ -97,9 +135,92 @@ def market_snapshot(session: Session, key: str) -> Snapshot:
         # Демо-база заканчивается в прошлом: «сейчас» — вскоре после её последнего прохода.
         last = session.scalar(select(func.max(SourceRun.finished_at)))
         now = (last or now) + timedelta(hours=2)
-    snap = Snapshot(load_market(session), now, demo, time.monotonic())
+    snap = Snapshot(load_market(session), now, demo, time.monotonic(), version)
     _cache[key] = snap
     return snap
+
+
+def warm(snap: Snapshot) -> None:
+    """Посчитать заранее то, что нужно страницам по умолчанию (фоновый прогрев кабинета)."""
+    feed_groups(snap, 7)
+    overview(snap, 5)
+    observation_metrics(snap)
+    city_series(snap)
+    all_object_rows(snap)
+    overview(snap, 10)  # «Рынок»
+    city_series(snap, 12)
+
+
+def overview(snap: Snapshot, top: int):
+    return snap.cached(("overview", top), lambda: compute_overview(snap.data, snap.now, top=top))
+
+
+# --- Ход наблюдения ------------------------------------------------------------------------
+
+
+@dataclass
+class Gauge:
+    label: str
+    value: float | None
+    threshold: float | None
+    passed: bool
+
+
+@dataclass
+class Observation:
+    """Полоса над лентой: идёт ли эксперимент на 6 недель и копятся ли чистые данные."""
+
+    day: int | None
+    total_days: int
+    gauges: list[Gauge]
+    address: list[tuple[str, float]]  # площадка → доля активных объявлений с улицей и домом
+    full_passes: list[tuple[str, int]]  # площадка → полных проходов за сутки
+
+
+def observation_metrics(snap: Snapshot) -> tuple[list[Gauge], dict[str, float]]:
+    """Метрики гипотезы (Leo) и доля активных объявлений с улицей и домом по площадкам."""
+
+    def compute() -> tuple[list[Gauge], dict[str, float]]:
+        report = compute_hypothesis(snap.data, snap.now)
+        labels = {"relisted_or_cross": "Дубли и перевыкладывания", "with_drops": "Подешевели"}
+        gauges = [
+            Gauge(labels[c.key], c.value, c.threshold, c.passed)
+            for c in report.criteria
+            if c.key in labels
+        ]
+        counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for row in snap.data.listings.values():
+            if not row.active or row.object_id is None:
+                continue
+            obj = snap.data.objects.get(row.object_id)
+            counts[row.source][0] += bool(obj and obj.street_norm and obj.house)
+            counts[row.source][1] += 1
+        return gauges, {src: have / total for src, (have, total) in counts.items() if total}
+
+    return snap.cached("observation", compute)
+
+
+def observation(snap: Snapshot, session: Session) -> Observation:
+    gauges, address = observation_metrics(snap)
+    passes = dict(
+        session.execute(
+            select(SourceRun.source, func.count())
+            .where(
+                SourceRun.status == "ok",
+                SourceRun.complete.is_(True),
+                SourceRun.started_at >= snap.now - timedelta(hours=24),
+            )
+            .group_by(SourceRun.source)
+        ).all()
+    )
+    sources = [s for s in SOURCE_NAMES if s in address or s in passes]
+    return Observation(
+        day=snap.issue,
+        total_days=DEFAULT_ANALYTICS.hypothesis_weeks * 7,
+        gauges=gauges,
+        address=[(SOURCE_NAMES[s], address[s]) for s in sources if s in address],
+        full_passes=[(SOURCE_NAMES[s], int(passes.get(s, 0))) for s in sources],
+    )
 
 
 # --- Лента «Что изменилось» ----------------------------------------------------------------
@@ -147,42 +268,80 @@ def day_label(d: date, today: date) -> str:
     return words[0].upper() + words[1:]
 
 
-def build_feed(
-    snap: Snapshot, *, days: int = 7, kind: str = "all"
-) -> tuple[list[Day], dict[str, int]]:
-    data, now = snap.data, snap.now
-    since = now - timedelta(days=days)
-    grouped: dict[tuple[int, date], list] = defaultdict(list)
-    for object_id, events in data.events.items():
-        for event in events:
-            if event.trusted and since <= event.at <= now and event.type in KINDS:
-                grouped[(object_id, local(event.at).date())].append(event)
+FEED_PAGE = 50
 
-    entries: list[Entry] = []
-    for (object_id, _), events in grouped.items():
-        entry = _entry(data, now, object_id, events)
-        if entry is not None:
-            entries.append(entry)
+
+@dataclass
+class FeedGroup:
+    """События одной квартиры за один день — одна строка ленты."""
+
+    object_id: int
+    events: list  # главное — первым
+    kind: str
+    tags: set[str]
+    at: datetime
+
+
+def feed_groups(snap: Snapshot, days: int) -> list[FeedGroup]:
+    """Строки ленты за `days` дней, свежие первыми. Дорогая часть строки (история цены,
+    срок на рынке) здесь не считается — только для показанной страницы ленты."""
+
+    def compute() -> list[FeedGroup]:
+        data, now = snap.data, snap.now
+        since = now - timedelta(days=days)
+        grouped: dict[tuple[int, date], list] = defaultdict(list)
+        for object_id, events in data.events.items():
+            for event in events:
+                if event.trusted and since <= event.at <= now and event.type in KINDS:
+                    grouped[(object_id, local(event.at).date())].append(event)
+        order = list(KINDS)
+        groups = []
+        for (object_id, _), events in grouped.items():
+            if object_id not in data.objects or not data.object_listings(object_id):
+                continue
+            events = sorted(events, key=lambda e: order.index(e.type))
+            kind = events[0].type
+            tags = {e.type for e in events} - {kind}
+            groups.append(FeedGroup(object_id, events, kind, tags, max(e.at for e in events)))
+        groups.sort(key=lambda g: g.at, reverse=True)
+        return groups
+
+    return snap.cached(("feed", days), compute)
+
+
+@dataclass
+class Feed:
+    days: list[Day]
+    counts: dict[str, int]
+    total: int  # строк под фильтром
+    shown: int
+
+
+def build_feed(snap: Snapshot, *, days: int = 7, kind: str = "all", limit: int = FEED_PAGE) -> Feed:
+    data, now = snap.data, snap.now
+    groups = feed_groups(snap, days)
 
     # Счётчики — по квартирам, а не по записям ленты: квартира, подешевевшая дважды за
     # неделю, считается один раз (как «Подешевели» в пульсе рынка).
     objects_by_tag: dict[str, set[int]] = {key: set() for key, _ in FILTERS}
-    for entry in entries:
-        objects_by_tag["all"].add(entry.object_id)
-        for tag in {entry.kind, *entry.tags}:
+    for group in groups:
+        objects_by_tag["all"].add(group.object_id)
+        for tag in {group.kind, *group.tags}:
             if tag in objects_by_tag:
-                objects_by_tag[tag].add(entry.object_id)
+                objects_by_tag[tag].add(group.object_id)
     counts = {key: len(ids) for key, ids in objects_by_tag.items()}
 
     if kind != "all":
-        entries = [e for e in entries if e.kind == kind or kind in e.tags]
-    entries.sort(key=lambda e: e.at, reverse=True)
+        groups = [g for g in groups if g.kind == kind or kind in g.tags]
+    entries = [_entry(data, now, g.object_id, g.events) for g in groups[:limit]]
     today = local(now).date()
     by_day: dict[date, Day] = {}
     for entry in entries:
+        if entry is None:
+            continue
         d = local(entry.at).date()
         by_day.setdefault(d, Day(d, day_label(d, today))).entries.append(entry)
-    return list(by_day.values()), counts
+    return Feed(list(by_day.values()), counts, len(groups), min(limit, len(groups)))
 
 
 def _entry(data: MarketData, now: datetime, object_id: int, events: list) -> Entry | None:
@@ -207,6 +366,10 @@ def _entry(data: MarketData, now: datetime, object_id: int, events: list) -> Ent
     current = amounts[-1] if amounts else None
     previous: list[tuple[Decimal, str]] = []
     for item in reversed(amounts[:-1]):
+        # Только в валюте текущей цены: «$102 338 → €91 219» не сравнить глазами (и это не
+        # изменение цены — продавец сменил валюту).
+        if item[1] != current[1]:
+            break
         if item != current and item not in previous:
             previous.append(item)
         if len(previous) == 2:
@@ -250,17 +413,26 @@ def _entry(data: MarketData, now: datetime, object_id: int, events: list) -> Ent
         delta_dir=delta_dir,
         note=note,
         source=SOURCE_NAMES.get(listing.source, listing.source),
-        seller=f"агентство «{listing.agency_name}»"
-        if listing.agency_name
-        else ("собственник" if listing.seller_type == "owner" else "продавец не указан"),
+        seller=seller_label(listing),
         url=listing.url,
         ppm=ppm(price.usd_per_m2) if price and price.usd_per_m2 else None,
+    )
+
+
+def seller_label(listing) -> str:
+    if listing.agency_name:
+        return f"агентство «{listing.agency_name}»"
+    # Kufar отдаёт только признак «агентство», без названия.
+    return {"owner": "собственник", "agency": "агентство"}.get(
+        listing.seller_type, "продавец не указан"
     )
 
 
 def _note(event, exposure, data: MarketData, object_id: int, now: datetime) -> str | None:
     days = exposure.days if exposure else None
     at_least = "как минимум " if exposure and exposure.at_least else ""
+    if days == 0 and exposure.at_least and event.type in ("price_drop", "price_up"):
+        return "впервые замечена сегодня"
     if event.type == "relisted" and exposure is not None:
         site = exposure.site_days or 0
         return f"на сайте {site} дн. · на деле {at_least}{days} дн."
@@ -295,6 +467,10 @@ class WeekPoint:
 
 def city_series(snap: Snapshot, weeks: int = 8) -> list[WeekPoint]:
     """Медиана $/м² по Минску на конец каждой из последних недель (из истории)."""
+    return snap.cached(("series", weeks), lambda: _city_series(snap, weeks))
+
+
+def _city_series(snap: Snapshot, weeks: int) -> list[WeekPoint]:
     points = []
     for k in range(weeks - 1, -1, -1):
         at = snap.now - timedelta(weeks=k)
@@ -326,7 +502,19 @@ class ObjectRow:
     state: str  # active / hidden / removed
 
 
+OBJECTS_PAGE = 100
+
+
 def object_rows(snap: Snapshot, *, district: str | None = None) -> list[ObjectRow]:
+    rows = all_object_rows(snap)
+    return [r for r in rows if r.district_raw == district] if district else list(rows)
+
+
+def all_object_rows(snap: Snapshot) -> list[ObjectRow]:
+    return snap.cached("objects", lambda: _object_rows(snap))
+
+
+def _object_rows(snap: Snapshot) -> list[ObjectRow]:
     data, now = snap.data, snap.now
     rows = []
     for object_id, obj in data.objects.items():
@@ -334,8 +522,6 @@ def object_rows(snap: Snapshot, *, district: str | None = None) -> list[ObjectRo
         if not listings:
             continue
         raw_district = data.object_district(object_id)
-        if district and raw_district != district:
-            continue
         events = data.object_events(object_id)
         exposure = compute_exposure(listings, events, now, data.source_starts)
         if exposure is None or exposure.state == "removed":
@@ -488,7 +674,9 @@ def history_rows(report) -> list[HistoryRow]:
     """История цены без дублей: одна строка на дату и цену, площадки — через запятую."""
     rows: list[HistoryRow] = []
     for point in report.history:
-        seller = point.agency_name or ("собственник" if point.seller_type == "owner" else "—")
+        seller = point.agency_name or {"owner": "собственник", "agency": "агентство"}.get(
+            point.seller_type, "—"
+        )
         source = SOURCE_NAMES.get(point.source, point.source)
         last = rows[-1] if rows else None
         if (
@@ -512,12 +700,37 @@ def history_rows(report) -> list[HistoryRow]:
 # --- Источники -----------------------------------------------------------------------------
 
 
-def recent_runs(session: Session, now: datetime, limit: int = 40) -> list[SourceRun]:
-    return list(
-        session.scalars(
-            select(SourceRun)
-            .where(SourceRun.started_at >= now - timedelta(days=7))
-            .order_by(SourceRun.started_at.desc())
-            .limit(limit)
-        )
+@dataclass
+class RunRow:
+    run: SourceRun
+    label: str
+    dot: str
+    reason: str | None
+
+
+RUN_LABELS = {
+    "ok": ("успешно", "ok"),
+    "running": ("идёт", "warning"),
+    "failed": ("ошибка", "failing"),
+    "blocked": ("отказ площадки", "blocked"),
+}
+
+
+def run_row(run: SourceRun, now: datetime) -> RunRow:
+    label, dot = RUN_LABELS.get(run.status, (run.status, "warning"))
+    reason = run.error if run.status in ("failed", "blocked") else None
+    stale = run.status == "running" and now - run.started_at > STALE_RUN_AFTER
+    if stale or (run.status == "failed" and run.error == INTERRUPTED):
+        # Процесс остановили посреди прохода (выключили компьютер, перезапустили Docker).
+        label, dot, reason = "прерван", "never", "сборщик остановили посреди прохода"
+    return RunRow(run, label, dot, reason[:160] if reason else None)
+
+
+def recent_runs(session: Session, now: datetime, limit: int = 40) -> list[RunRow]:
+    runs = session.scalars(
+        select(SourceRun)
+        .where(SourceRun.started_at >= now - timedelta(days=7))
+        .order_by(SourceRun.started_at.desc())
+        .limit(limit)
     )
+    return [run_row(run, now) for run in runs]

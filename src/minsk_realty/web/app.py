@@ -5,8 +5,12 @@ python -m minsk_realty.web            # http://localhost:8080
 
 from __future__ import annotations
 
+import logging
+import os
 import re
-from collections.abc import Iterator
+import threading
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
 from functools import cache
 from pathlib import Path
 from typing import Annotated
@@ -21,7 +25,6 @@ from sqlalchemy.orm import Session
 from minsk_realty.analytics import (
     build_check_report,
     compute_baseline,
-    compute_overview,
     fmt,
     source_health_summary,
 )
@@ -46,13 +49,40 @@ templates.env.filters["nb"] = nb
 templates.env.filters["money"] = lambda v, c="USD": nb(fmt.money(v, c))
 templates.env.filters["pct"] = lambda v: views.pct(v) if v is not None else "—"
 templates.env.filters["ppm"] = fmt.ppm
+templates.env.filters["share"] = views.share
 templates.env.filters["dshort"] = fmt.date_short
 templates.env.filters["dwords"] = fmt.date_words
 templates.env.filters["thousands"] = lambda v: (
     fmt.group_thousands(round(v)) if v is not None else "—"
 )
 
-app = FastAPI(title="Хроника", docs_url=None, redoc_url=None)
+log = logging.getLogger(__name__)
+# Как часто фон проверяет, не изменились ли данные (тогда срез и страницы считаются заново
+# в фоне, а не пока человек ждёт открытия страницы).
+WARM_SECONDS = 30
+
+
+def _warm_loop(stop: threading.Event) -> None:
+    while True:
+        try:
+            with _factory()() as session:
+                views.warm(_snapshot(session))
+        except Exception:  # прогрев не должен ронять кабинет
+            log.exception("фоновый прогрев кабинета не удался")
+        if stop.wait(WARM_SECONDS):
+            return
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    stop = threading.Event()
+    if os.environ.get("KHRONIKA_WARM", "1") != "0":
+        threading.Thread(target=_warm_loop, args=(stop,), daemon=True, name="warm").start()
+    yield
+    stop.set()
+
+
+app = FastAPI(title="Хроника", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 
@@ -88,24 +118,29 @@ def summary(
     session: SessionDep,
     kind: str = Query("all"),
     days: int = Query(7, ge=1, le=60),
+    limit: int = Query(views.FEED_PAGE, ge=1, le=5000),
 ):
     snap = _snapshot(session)
     if kind not in dict(views.FILTERS):
         kind = "all"
-    feed, counts = views.build_feed(snap, days=days, kind=kind)
-    overview = compute_overview(snap.data, snap.now, top=5)
+    feed = views.build_feed(snap, days=days, kind=kind, limit=limit)
     return _page(
         request,
         "summary.html",
         snap,
         session,
-        feed=feed,
-        counts=counts,
+        feed=feed.days,
+        counts=feed.counts,
+        total=feed.total,
+        shown=feed.shown,
+        limit=limit,
+        page_size=views.FEED_PAGE,
         filters=views.FILTERS,
         kind=kind,
         days=days,
-        overview=overview,
+        overview=views.overview(snap, 5),
         series=views.city_series(snap),
+        progress=views.observation(snap, session),
     )
 
 
@@ -128,17 +163,26 @@ def objects(
     sort: str = Query("days"),
     district: str = Query(""),
     missing: str = Query(""),
+    page: int = Query(1, ge=1),
 ):
     snap = _snapshot(session)
-    rows = views.object_rows(snap, district=district or None)
-    rows = views.sort_rows(rows, sort)
-    districts = sorted({r.district_raw for r in views.object_rows(snap) if r.district_raw})
+    rows = views.sort_rows(views.object_rows(snap, district=district or None), sort)
+    pages = max(1, -(-len(rows) // views.OBJECTS_PAGE))
+    page = min(page, pages)
+    start = (page - 1) * views.OBJECTS_PAGE
+    active = sum(1 for r in rows if r.state == "active")
+    districts = sorted({r.district_raw for r in views.all_object_rows(snap) if r.district_raw})
     return _page(
         request,
         "objects.html",
         snap,
         session,
-        rows=rows,
+        rows=rows[start : start + views.OBJECTS_PAGE],
+        total=len(rows),
+        active=active,
+        page=page,
+        pages=pages,
+        first=start + 1,
         sort=sort,
         district=district,
         districts=districts,
@@ -182,7 +226,7 @@ def _report_page(request: Request, session: Session, snap: views.Snapshot, ref: 
 @app.get("/market", response_class=HTMLResponse)
 def market(request: Request, session: SessionDep):
     snap = _snapshot(session)
-    overview = compute_overview(snap.data, snap.now, top=10)
+    overview = views.overview(snap, 10)
     return _page(
         request, "market.html", snap, session, overview=overview, series=views.city_series(snap, 12)
     )

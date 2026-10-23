@@ -12,7 +12,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from minsk_realty.collector.run import MAX_PARSE_ERROR_SHARE
+from minsk_realty.collector.run import INTERRUPTED, MAX_PARSE_ERROR_SHARE
 from minsk_realty.db.models import SourceRun
 
 log = logging.getLogger(__name__)
@@ -37,7 +37,12 @@ def check_sources(
     for source in sources:
         recent = session.scalars(
             select(SourceRun)
-            .where(SourceRun.source == source, SourceRun.finished_at.is_not(None))
+            .where(
+                SourceRun.source == source,
+                SourceRun.finished_at.is_not(None),
+                # Прерванный проход (выключили компьютер) — не вина площадки.
+                SourceRun.error.is_distinct_from(INTERRUPTED),
+            )
             .order_by(SourceRun.started_at.desc())
             .limit(FAILURES_IN_A_ROW)
         ).all()

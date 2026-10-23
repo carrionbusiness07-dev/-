@@ -7,19 +7,46 @@
     <header class="page-head">
       <div>
         <h1>Что изменилось</h1>
-        <p class="page-dek">{{ snap.now | dwords }} · {{ counts.all }} {{ fmt.plural(counts.all, "квартира", "квартиры", "квартир") }} за {{ days }} {{ fmt.plural(days, "день", "дня", "дней") }}</p>
+        <p class="page-dek">{{ snap.now | dwords }} · изменения у {{ counts.all }} {{ fmt.plural(counts.all, "квартиры", "квартир", "квартир") }} за {{ days }} {{ fmt.plural(days, "день", "дня", "дней") }}</p>
       </div>
       <form class="check-form" action="/check" method="get" role="search">
-        <label class="visually-hidden" for="check-url">Ссылка на объявление</label>
-        <input id="check-url" name="url" type="url" placeholder="Ссылка Kufar или Realt" required>
-        <button type="submit">Проверить</button>
+        <label class="check-label" for="check-url">Проверить квартиру по ссылке</label>
+        <div class="check-row">
+          <input id="check-url" name="url" type="url" placeholder="Вставьте ссылку Kufar или Realt" required>
+          <button type="submit">Проверить</button>
+        </div>
       </form>
     </header>
+
+    {% if progress.day %}
+    <section class="progress" aria-labelledby="progress-title">
+      <h2 class="progress-title" id="progress-title">Ход наблюдения</h2>
+      <div class="progress-cell">
+        <span class="progress-label">Проверка идеи</span>
+        <span class="progress-value">День {{ progress.day }} <small>{% if progress.day <= progress.total_days %}из {{ progress.total_days }}{% else %}срок проверки прошёл{% endif %}</small></span>
+        <span class="progress-bar" aria-hidden="true"><span style="--p: {{ [progress.day / progress.total_days, 1] | min | round(3) }}"></span></span>
+      </div>
+      {% for g in progress.gauges %}
+      <div class="progress-cell">
+        <span class="progress-label">{{ g.label }}</span>
+        <span class="progress-value{% if g.passed %} is-passed{% endif %}">{{ g.value | share }} <small>цель ≥ {{ g.threshold | share }}</small></span>
+      </div>
+      {% endfor %}
+      <div class="progress-cell">
+        <span class="progress-label">Адрес найден</span>
+        <span class="progress-list">{% for name, value in progress.address %}<span>{{ name }} <b>{{ value | share }}</b></span>{% endfor %}</span>
+      </div>
+      <div class="progress-cell">
+        <span class="progress-label">Полных проходов за сутки</span>
+        <span class="progress-list">{% for name, n in progress.full_passes %}<span>{{ name }} <b{% if not n %} class="warn"{% endif %}>{{ n }}</b></span>{% endfor %}</span>
+      </div>
+    </section>
+    {% endif %}
 
     <div class="feed-controls">
       <nav class="tabs" aria-label="Тип изменений">
         {% for key, label in filters %}
-        <a href="?kind={{ key }}&days={{ days }}" {% if kind == key %}aria-current="true"{% endif %}>{{ label }} <span class="count">{{ counts[key] }}</span></a>
+        <a href="?kind={{ key }}&days={{ days }}" {% if kind == key %}aria-current="true"{% endif %}{% if not counts[key] and kind != key %} class="is-empty"{% endif %}>{{ label }} <span class="count">{{ counts[key] }}</span></a>
         {% endfor %}
       </nav>
       <nav class="period" aria-label="Период">
@@ -47,6 +74,12 @@
       </details>
       {% endif %}
       {% endfor %}
+      {% if shown < total %}
+      <p class="more">
+        <span>Показаны {{ shown }} из {{ total }}</span>
+        <a href="?kind={{ kind }}&days={{ days }}&limit={{ limit + page_size }}">Показать ещё {{ [page_size, total - shown] | min }}</a>
+      </p>
+      {% endif %}
     {% else %}
       <div class="empty">
         <p class="empty-title">За этот период таких изменений нет</p>

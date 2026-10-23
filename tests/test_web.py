@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,9 @@ def client(tmp_path_factory):
     "path",
     [
         "/",
+        "/?limit=3",
+        "/objects?page=2",
+        "/objects?page=999&sort=price",
         "/?kind=price_drop&days=30",
         "/?kind=bogus",
         "/objects",
@@ -62,3 +66,43 @@ def test_object_page_and_check_redirect(client):
 def test_unknown_object_redirects(client):
     response = client.get("/objects/999999", follow_redirects=False)
     assert response.status_code == 303
+
+
+def test_feed_is_paged(client):
+    page = client.get("/?kind=all&days=30&limit=3")
+    assert page.text.count('class="entry entry-') == 3
+    assert "Показать ещё" in page.text and "limit=53" in page.text
+
+
+def test_summary_shows_observation_progress(client):
+    page = client.get("/")
+    assert "Ход наблюдения" in page.text and "Полных проходов за сутки" in page.text
+
+
+def test_objects_are_paged(client):
+    from minsk_realty.web import views
+
+    first = client.get("/objects?sort=price").text
+    rows = first.count('<th scope="row">')
+    assert 0 < rows <= views.OBJECTS_PAGE
+
+
+def test_stale_running_pass_shows_as_interrupted(client):
+    from minsk_realty.db.models import SourceRun
+    from minsk_realty.web import app as web_app
+    from minsk_realty.web import views
+
+    with web_app._factory()() as session:
+        now = views.market_snapshot(session, "probe").now
+        session.add(
+            SourceRun(source="realt", started_at=now - timedelta(hours=3), status="running")
+        )
+        session.commit()
+    page = client.get("/sources").text
+    assert "прерван" in page and "сборщик остановили посреди прохода" in page
+
+
+def test_share_format():
+    from minsk_realty.web.views import share
+
+    assert (share(None), share(0.004), share(0.1), share(0.123)) == ("—", "0,4%", "10%", "12%")
