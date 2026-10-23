@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from aiogram.types import InlineKeyboardMarkup
-from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from minsk_realty.analytics import (
@@ -42,6 +41,7 @@ from minsk_realty.bot.watchlist import (
     watchable_object,
 )
 from minsk_realty.db.models import Check, Listing
+from minsk_realty.db.repository import find_listing
 
 log = logging.getLogger(__name__)
 
@@ -263,11 +263,7 @@ class BotService:
             return Reply(texts.forgotten_text(ok))
 
     def _listing(self, session: Session, link: links.Link) -> Listing | None:
-        return session.scalar(
-            select(Listing).where(
-                Listing.source == link.source, Listing.external_id == link.external_id
-            )
-        )
+        return find_listing(session, link.source, link.external_id)
 
     def _name(self, session: Session, object_id: int | None):
         if object_id is None:

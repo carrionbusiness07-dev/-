@@ -20,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from minsk_realty.db.models import Event, Listing, RealtyObject
+from minsk_realty.db.repository import find_listing
 from minsk_realty.matching.config import DEFAULT_CONFIG, MatchingConfig
 from minsk_realty.matching.features import FeatureCache, ListingFeatures
 from minsk_realty.matching.matcher import (
@@ -29,9 +30,7 @@ from minsk_realty.matching.matcher import (
     is_founder,
     linked_features,
 )
-from minsk_realty.sources import kufar, realt
-
-_URL_PATTERNS = {"kufar": kufar.URL_RE, "realt": realt.URL_RE}
+from minsk_realty.sources import url_adapters
 
 
 def explain(
@@ -57,14 +56,10 @@ def explain(
 
 
 def find_listing_by_url(session: Session, url: str) -> Listing | None:
-    for source, pattern in _URL_PATTERNS.items():
-        match = pattern.search(url)
-        if match:
-            return session.scalar(
-                select(Listing).where(
-                    Listing.source == source, Listing.external_id == match.group(1)
-                )
-            )
+    for adapter in url_adapters():
+        ref = adapter.resolve_url(url)
+        if ref:
+            return find_listing(session, adapter.source, ref)
     return None
 
 

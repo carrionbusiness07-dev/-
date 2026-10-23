@@ -117,6 +117,25 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
     return listing, snapshot
 
 
+def find_listing(session: Session, source: str, ref: str) -> Listing | None:
+    """Объявление по тому, что вернул `resolve_url` адаптера.
+
+    Обычно это id объявления. У Domovita id в ссылке нет: пользователь присылает адрес
+    страницы, а объявление хранится под числовым id, поэтому ищем и по концу адреса.
+    """
+    listing = session.scalar(
+        select(Listing).where(Listing.source == source, Listing.external_id == ref)
+    )
+    if listing is None and not ref.isdigit():
+        listing = session.scalar(
+            select(Listing)
+            .where(Listing.source == source, Listing.url.endswith("/" + ref, autoescape=True))
+            .order_by(Listing.last_seen.desc())
+            .limit(1)
+        )
+    return listing
+
+
 def touch_listing(session: Session, source: str, external_id: str, seen_at) -> None:
     """Отметить, что объявление есть в выдаче, даже если его не удалось разобрать.
 

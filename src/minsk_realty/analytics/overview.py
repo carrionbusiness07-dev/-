@@ -21,6 +21,7 @@ from minsk_realty.analytics.medians import MarketBaseline, MedianCell, compute_b
 from minsk_realty.analytics.weekly import WEEK, PeriodCounts, TopDrop, period_counts, top_drops
 from minsk_realty.db.models import SOURCES, Listing, SourceRun
 from minsk_realty.health.check import check_sources
+from minsk_realty.sources import min_interval
 
 
 @dataclass(frozen=True)
@@ -140,7 +141,11 @@ def source_health_summary(
             state = "blocked"
         elif source_alerts and any("подряд" in a or "0 записанных" in a for a in source_alerts):
             state = "failing"
-        elif source_alerts or last_ok_at is None or now - last_ok_at > STALE_AFTER:
+        elif (
+            source_alerts
+            or last_ok_at is None
+            or now - last_ok_at > STALE_AFTER + min_interval(source)
+        ):
             state = "warning"
         else:
             state = "ok"

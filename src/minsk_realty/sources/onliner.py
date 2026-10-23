@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 import re
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -22,6 +23,8 @@ from urllib.parse import urlsplit
 from minsk_realty.models import ListingSnapshot, RawListing
 from minsk_realty.privacy import scrub, seller_key
 from minsk_realty.sources.base import PoliteClient
+
+log = logging.getLogger(__name__)
 
 SEARCH_URL = "https://pk.api.onliner.by/search/apartments"
 # Прямоугольник вокруг Минска; пригороды из выдачи отсекаются по адресу (`is_minsk`).
@@ -52,21 +55,39 @@ class OnlinerAdapter:
     def search(self, *, max_pages: int = 500) -> Iterator[RawListing]:
         self.last_search_complete = False
         self.mirrors_skipped = 0
+        native = 0
         for page in range(1, max_pages + 1):
             if page > 1:
                 self._client.pause()
             data = self._client.get(SEARCH_URL, params={**SEARCH_PARAMS, "page": page}).json()
-            for item in data.get("apartments") or []:
+            items = data.get("apartments") or []
+            for item in items:
                 if not is_minsk(item):
                     continue
                 if mirror_of(item):
                     self.mirrors_skipped += 1
                     continue
+                native += 1
                 yield to_raw(item)
-            pages = data.get("page") or {}
-            if not data.get("apartments") or page >= int(pages.get("last") or 0):
-                self.last_search_complete = True
-                return
+            last = int((data.get("page") or {}).get("last") or 0)
+            if page >= last or not items:
+                # Полный проход — только дошли до последней страницы, которую назвала площадка.
+                # Пустая страница раньше неё (сбой, мягкая блокировка) — обрыв: иначе все
+                # объявления дальше погасли бы как снятые.
+                self.last_search_complete = last > 0 and page >= last
+                break
+        share = self.mirrors_skipped / (self.mirrors_skipped + native or 1)
+        log.info(
+            "onliner: своих %d, копий Realt пропущено %d (%.0f%%), полный проход: %s",
+            native,
+            self.mirrors_skipped,
+            share * 100,
+            self.last_search_complete,
+        )
+        if self.last_search_complete and native > 500 and not self.mirrors_skipped:
+            # Обычно копий около половины. Ноль — скорее всего, изменился формат ссылок на фото,
+            # и копии Realt пошли в базу как объявления Onliner (ложные «дубли»).
+            log.warning("onliner: ни одной копии Realt — проверьте разбор фото (mirror_of)")
 
     def parse(self, raw: RawListing, *, seen_at: datetime | None = None) -> ListingSnapshot:
         item = raw.payload

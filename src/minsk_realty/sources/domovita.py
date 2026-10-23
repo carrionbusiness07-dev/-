@@ -14,11 +14,20 @@ docs/recon/sources.md):
 
 Domovita сама отдаёт историю цены объявления (`price_history`, в долларах), поэтому
 частый опрос ей не нужен: площадка обходится не чаще раза в `min_interval`.
+
+id объявления — числовой `id` карточки. В ссылке его нет, только адрес страницы
+(«1-komnatnaa-kvartira-ul-bratskaa-42-114»), который может измениться при правке объявления.
+Поэтому `resolve_url` возвращает адрес страницы, а объявление по нему ищет
+`db.repository.find_listing` (по концу сохранённой ссылки).
+
+Название агентства не сохраняем: карточку агентства живьём ещё не видели, и в `agency`
+может оказаться риелтор-ИП, то есть имя человека. Хватает признака «агентство».
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from collections.abc import Iterator
@@ -33,6 +42,8 @@ from minsk_realty.models import ListingSnapshot, RawListing
 from minsk_realty.privacy import scrub, seller_key
 from minsk_realty.sources.base import PoliteClient
 
+log = logging.getLogger(__name__)
+
 LIST_URL = "https://domovita.by/minsk/flats/sale"
 DATA_URL = "https://domovita.by/_next/data/{build}/minsk/flats/sale.json"
 DATA_PARAMS = {"city": "minsk", "real_estate_type": "flats"}
@@ -40,27 +51,38 @@ URL_RE = re.compile(r"domovita\.by/[a-z-]+/flats/sale/([a-z0-9-]+)")
 # Беларусь живёт по UTC+3 без перехода на летнее время; даты площадки — местные.
 MINSK_TZ = timezone(timedelta(hours=3))
 # Цена в валюте продавца — та, в которой сумма круглая: остальные — пересчёт по курсу.
-# При ничьей (редкое совпадение) — BYN, валюта площадки по умолчанию.
-CURRENCY_ORDER = ("BYN", "USD", "EUR")
+# Ничья бывает у долларовых цен: BYN = USD × курс с 4 знаками, и «220 000 $» даёт круглые
+# «649 946 BYN». Обратный пересчёт BYN → USD круглым почти не бывает, поэтому при ничьей
+# побеждает USD, затем EUR.
+CURRENCY_ORDER = ("USD", "EUR", "BYN")
+# Платные объявления и выдача, сдвинувшаяся за время обхода, дают повторы и пропуски на
+# стыках страниц. Проход полный, только если увидели почти всю выдачу: иначе пропущенные
+# объявления погасли бы как снятые.
+MIN_COVERAGE = 0.95
+# «9/а» → «9а»: литера через дробь (корпус через дробь — цифра, «10/1» не трогаем).
+HOUSE_LETTER_RE = re.compile(r"^(\d+)\s*/\s*([а-яa-z])$", re.IGNORECASE)
 
 
 class DomovitaAdapter:
     source = "domovita"
-    min_interval = timedelta(hours=3)
+    min_interval = timedelta(hours=6)
 
     def __init__(self, client: PoliteClient | None = None, *, town: str = "Минск") -> None:
         self._client = client or PoliteClient()
         self._town = town
         self._build: str | None = None
-        # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
+        self._html_only = False
+        # True, если последний search() дошёл до конца выдачи и увидел почти всю её.
         self.last_search_complete = False
 
     def search(self, *, max_pages: int = 500) -> Iterator[RawListing]:
         self.last_search_complete = False
+        self._html_only = False
         seen: set[str] = set()
         cards = self._html_page(1)
+        total = cards.get("totalCount") or 0
         page_size = len(cards.get("items") or []) or 1
-        pages = math.ceil((cards.get("totalCount") or 0) / page_size)
+        pages = math.ceil(total / page_size)
         for page in range(1, max_pages + 1):
             if page > 1:
                 self._client.pause()
@@ -69,14 +91,24 @@ class DomovitaAdapter:
             for item in items:
                 raw = to_raw(item)
                 town = raw.payload.get("town")
-                # Платные объявления повторяются на нескольких страницах — берём один раз.
+                # Одно объявление может попасть на две соседние страницы — берём один раз.
                 if raw.external_id in seen or (town and town != self._town):
                     continue
                 seen.add(raw.external_id)
                 yield raw
             if not items or page >= pages:
-                self.last_search_complete = True
-                return
+                break
+        coverage = len(seen) / total if total else 0.0
+        self.last_search_complete = page >= pages and coverage >= MIN_COVERAGE
+        log.info(
+            "domovita: уникальных %d из %d (%.0f%%), страниц %d из %d, полный проход: %s",
+            len(seen),
+            total,
+            coverage * 100,
+            page,
+            pages,
+            self.last_search_complete,
+        )
 
     def _html_page(self, page: int) -> dict[str, Any]:
         params = {"page": page} if page > 1 else None
@@ -85,15 +117,24 @@ class DomovitaAdapter:
         return listing_cards(data["props"]["pageProps"])
 
     def _data_page(self, page: int) -> dict[str, Any]:
-        if self._build:
-            url = DATA_URL.format(build=self._build)
+        if self._build and not self._html_only:
+            build = self._build
+            url = DATA_URL.format(build=build)
             try:
                 response = self._client.get(url, params={**DATA_PARAMS, "page": page})
                 return listing_cards(response.json()["pageProps"])
             except httpx.HTTPStatusError as exc:
                 if exc.response.status_code != 404:
                     raise
-                # Сайт выложили заново, старый buildId больше не отвечает.
+            # Сайт выложили заново, старый buildId больше не отвечает: берём страницу HTML-ом.
+            self._client.pause()
+            cards = self._html_page(page)
+            if self._build == build:
+                # buildId тот же, а лёгкий адрес не отвечает — до конца прохода только HTML,
+                # без лишнего запроса-неудачи на каждую страницу.
+                log.warning("domovita: /_next/data не отвечает, обход HTML-страницами")
+                self._html_only = True
+            return cards
         return self._html_page(page)
 
     def parse(self, raw: RawListing, *, seen_at: datetime | None = None) -> ListingSnapshot:
@@ -101,7 +142,7 @@ class DomovitaAdapter:
         currency, amount = original_price(item.get("price") or {})
         usd = _decimal((item.get("price") or {}).get("USD"))
         owner = str(item.get("owner_type") or "").lower()
-        if item.get("agency_name") or "агент" in owner:
+        if item.get("agency") or "агент" in owner:
             seller_type = "agency"
         elif "собствен" in owner:
             seller_type = "owner"
@@ -117,7 +158,6 @@ class DomovitaAdapter:
             price_currency=currency,
             price_usd=usd.quantize(Decimal("0.01")) if usd else None,
             seller_type=seller_type,
-            agency_name=item.get("agency_name"),
             seller_key=item.get("_seller_key"),
             # Студию Domovita записывает как 0 комнат, остальные площадки — как 1-комнатную.
             rooms=1 if item.get("rooms") == 0 else item.get("rooms"),
@@ -125,7 +165,7 @@ class DomovitaAdapter:
             floor=item.get("storey"),
             floors_total=item.get("storeys"),
             street=street,
-            house=house,
+            house=HOUSE_LETTER_RE.sub(r"\1\2", house) if house else None,
             address_raw=", ".join(p for p in (item.get("town"), street, house) if p) or None,
             district=item.get("district"),
             town=item.get("town"),
@@ -185,7 +225,7 @@ def compact(item: dict[str, Any]) -> dict[str, Any]:
     for row in item.get("price_history") or []:
         usd, when = (row.get("price") or {}).get("USD"), row.get("date")
         if usd is not None and isinstance(when, int | float):
-            history.append([datetime.fromtimestamp(when, UTC).date().isoformat(), usd])
+            history.append([datetime.fromtimestamp(when, MINSK_TZ).date().isoformat(), usd])
     return {
         "domovita_id": item.get("id"),
         "url": item.get("url"),
@@ -204,7 +244,7 @@ def compact(item: dict[str, Any]) -> dict[str, Any]:
         "price": {k: v for k, v in (item.get("price") or {}).items() if k in CURRENCY_ORDER},
         "price_history": history or None,
         "owner_type": item.get("owner_type"),
-        "agency_name": agency.get("name") or agency.get("title"),
+        "agency": bool(agency),
         "residential_complex": complex_.get("name"),
         "building_year": item.get("building_year"),
         "is_new": item.get("is_new"),
@@ -217,11 +257,8 @@ def compact(item: dict[str, Any]) -> dict[str, Any]:
 def to_raw(item: dict[str, Any]) -> RawListing:
     payload = compact(item)
     payload["_seller_key"] = seller_key("domovita", item.get("user_id"))
-    url = payload.get("url") or ""
-    match = URL_RE.search(url)
-    # id в ссылке Domovita нет, есть только адрес страницы: по нему пользователь и присылает
-    # объявление, поэтому он и служит id.
-    external_id = match.group(1) if match else str(item.get("id"))
+    # Числовой id карточки, а не адрес страницы: адрес меняется при правке объявления.
+    external_id = str(item["id"])
     return RawListing(source="domovita", external_id=external_id, payload=scrub(payload))
 
 

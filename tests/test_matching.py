@@ -1013,3 +1013,24 @@ def test_same_flat_on_realt_onliner_and_domovita_is_one_object(session):
     assert o.object_id == d.object_id == r.object_id
     assert (o.match_confidence, d.match_confidence) == ("medium", "medium")
     assert objects_count(session) == 1
+
+
+def test_cross_listing_found_on_new_platform_day_one_is_quiet(session):
+    """Первая неделя новой площадки находит пары к давно висящим квартирам: событие пишется
+    в историю, но не уходит подписчикам уведомлением."""
+    observe(session, "realt", T0, realt("101"))
+    session.add(SourceRun(source="onliner", started_at=T0 + DAY, status="ok", complete=True))
+    onliner = kufar(
+        "301",
+        source="onliner",
+        url="https://r.onliner.by/pk/apartments/301",
+        seller_key="onliner-seller",
+        address_raw="Минск, Притыцкого ул. 10",
+        floor=5,
+        floors_total=9,
+    )
+    observe(session, "onliner", T0 + DAY, onliner)
+    object_id = listing(session, "realt", "101").object_id
+    [new, cross] = events(session, object_id, with_payload=True)
+    assert (new.type, cross.type) == ("new", "cross_listed")
+    assert not cross.notify and new.notify

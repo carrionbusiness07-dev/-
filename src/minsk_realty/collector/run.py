@@ -20,6 +20,12 @@ COMMIT_EVERY = 100
 # Если не разобралась заметная доля объявлений, площадка, скорее всего, поменяла формат.
 # Такой проход не считается полным, чтобы не погасить объявления по ошибке.
 MAX_PARSE_ERROR_SHARE = 0.2
+# Выдача за проход не может вдруг уменьшиться в разы: рынок меняется на проценты в сутки.
+# Если увидели меньше этой доли от прошлого полного прохода, площадка, скорее всего, отдала
+# неполную выдачу — такой проход не гасит объявления.
+MIN_SHARE_OF_PREVIOUS = 0.8
+# На маленькой выдаче (новая площадка, тесты) доли скачут — проверка только от этого объёма.
+SHRINK_CHECK_FROM = 100
 # Проход идёт 5–20 минут. Запись «running» старше этого — от процесса, который убили
 # (выключили компьютер, Docker Desktop закрылся), и закрыть её он уже не сможет.
 STALE_RUN_AFTER = timedelta(hours=2)
@@ -73,7 +79,9 @@ def collect(
         else:
             run.status = "ok"
             run.error = None  # мог пометить «прерван» соседний процесс, пока проход шёл
-            run.complete = adapter.last_search_complete and _few_errors(run)
+            run.complete = (
+                adapter.last_search_complete and _few_errors(run) and _not_shrunk(session, run)
+            )
             deactivated = mark_unseen_inactive(session, run)
             log.info(
                 "%s: просмотрено %d, ошибок %d, полный проход: %s, погашено %d",
@@ -113,11 +121,15 @@ def close_stale_runs(
     return closed or 0
 
 
-def last_full_pass(session: Session, source: str) -> datetime | None:
-    """Начало последнего полного успешного прохода площадки."""
+def last_pass_started(session: Session, source: str) -> datetime | None:
+    """Начало последнего прохода площадки — любого: удачного, упавшего, неполного.
+
+    Для `min_interval`: упавший проход тоже нагрузил площадку, поэтому интервал считается
+    от него, а не только от удачного.
+    """
     value = session.scalar(
         select(SourceRun.started_at)
-        .where(SourceRun.source == source, SourceRun.status == "ok", SourceRun.complete.is_(True))
+        .where(SourceRun.source == source)
         .order_by(SourceRun.started_at.desc())
         .limit(1)
     )
@@ -136,6 +148,33 @@ def is_blocked(session: Session, source: str) -> bool:
         .limit(1)
     )
     return status == "blocked"
+
+
+def _not_shrunk(session: Session, run: SourceRun) -> bool:
+    previous = session.scalar(
+        select(SourceRun.listings_seen)
+        .where(
+            SourceRun.source == run.source,
+            SourceRun.status == "ok",
+            SourceRun.complete.is_(True),
+            SourceRun.id != run.id,
+        )
+        .order_by(SourceRun.started_at.desc())
+        .limit(1)
+    )
+    if (
+        previous
+        and previous >= SHRINK_CHECK_FROM
+        and run.listings_seen < previous * MIN_SHARE_OF_PREVIOUS
+    ):
+        log.warning(
+            "%s: в проходе %d объявлений, в прошлом полном было %d — проход считаю неполным",
+            run.source,
+            run.listings_seen,
+            previous,
+        )
+        return False
+    return True
 
 
 def _few_errors(run: SourceRun) -> bool:

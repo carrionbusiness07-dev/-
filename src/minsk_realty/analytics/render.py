@@ -26,7 +26,7 @@ from minsk_realty.analytics.hypothesis import HypothesisReport
 from minsk_realty.analytics.medians import MedianCell
 from minsk_realty.analytics.report import CheckReport, OtherListing
 from minsk_realty.analytics.weekly import WeeklySummary
-from minsk_realty.sources import names_text
+from minsk_realty.sources import NOT_COLLECTED_NOTE, names_text, poll_text
 
 _ICONS = {
     "flat": "🏠",
@@ -72,10 +72,12 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
             f"с {SUPPORTED_TEXT}."
         )
     if report.status == "not_found":
+        source = report.source or ""
+        note = NOT_COLLECTED_NOTE.get(source)
         return (
             f"{_icon('info', icons)}Этого объявления пока нет в нашей базе. Сборщик обходит "
-            f"{_source(report.source or '')} раз в 30–60 минут, и свежие объявления появляются "
-            "с задержкой. Попробуйте позже.\n" + obs
+            f"{_source(source)} {poll_text(source)}, и свежие объявления появляются "
+            "с задержкой. Попробуйте позже.\n" + (f"{note}\n" if note else "") + obs
         )
 
     lines = [_header(report, icons), _now_line(report)]

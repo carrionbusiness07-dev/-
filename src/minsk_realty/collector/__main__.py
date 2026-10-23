@@ -20,7 +20,7 @@ import sys
 import time
 from datetime import UTC, datetime
 
-from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, last_full_pass
+from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, last_pass_started
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import AlertThrottle, check_sources, notify
 from minsk_realty.matching import process_after_run
@@ -95,10 +95,12 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                     continue
                 # Площадкам, которые сами отдают историю цены, частый опрос не нужен.
                 interval = getattr(ADAPTERS[source], "min_interval", None)
-                last = last_full_pass(session, source) if interval else None
-                if last is not None and datetime.now(UTC) - last < interval:
+                last = last_pass_started(session, source) if interval else None
+                now = datetime.now(UTC)
+                # Время прохода из будущего (часы компьютера убегали) не должно блокировать.
+                if last is not None and last <= now and now - last < interval:
                     log.info(
-                        "%s: полный проход был в %s, следующий не раньше чем через %s",
+                        "%s: прошлый проход в %s, следующий не раньше чем через %s",
                         source,
                         last.isoformat(timespec="minutes"),
                         interval,

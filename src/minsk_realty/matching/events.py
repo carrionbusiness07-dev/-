@@ -179,6 +179,7 @@ class _Emitter:
         payload: dict[str, Any],
         *,
         trusted: bool = True,
+        quiet: bool = False,
     ) -> None:
         existing = self.by_key.get(key)
         if existing is not None:
@@ -198,7 +199,7 @@ class _Emitter:
             payload=payload,
             dedup_key=key,
             trusted=trusted,
-            notify=trusted and self.fresh(type_, at),
+            notify=trusted and not quiet and self.fresh(type_, at),
             created_at=self.now,
         )
         self.session.add(event)
@@ -321,8 +322,8 @@ def _object_events(
             em.emit("new", "new", first.first_seen, first.id, {"source": first.source})
     for item in listings:
         _listing_prices(em, item, priced.get(item.id, []), cfg)
-    _relisted(em, trusted, priced, cfg)
-    _cross_listed(em, trusted)
+    _relisted(em, trusted, priced, cfg, ends)
+    _cross_listed(em, trusted, ends)
     _removed_returned(em, listings, trusted, cfg, now)
 
 
@@ -351,7 +352,11 @@ def _listing_prices(em: _Emitter, item: Listing, snaps: list[Any], cfg: Matching
 
 
 def _relisted(
-    em: _Emitter, trusted: list[Listing], priced: dict[int, list[Any]], cfg: MatchingConfig
+    em: _Emitter,
+    trusted: list[Listing],
+    priced: dict[int, list[Any]],
+    cfg: MatchingConfig,
+    ends: dict[str, datetime],
 ) -> None:
     for new in trusted:
         previous = [
@@ -380,6 +385,7 @@ def _relisted(
                 "source": new.source,
                 "gap_days": round(gap.total_seconds() / 86400, 1),
             },
+            quiet=in_baseline(new, ends),  # см. _cross_listed
         )
         old_prices, new_prices = priced.get(old.id, []), priced.get(new.id, [])
         if not (old_prices and new_prices):
@@ -399,10 +405,11 @@ def _relisted(
                 after.seen_at,
                 new.id,
                 payload,
+                quiet=in_baseline(new, ends),
             )
 
 
-def _cross_listed(em: _Emitter, trusted: list[Listing]) -> None:
+def _cross_listed(em: _Emitter, trusted: list[Listing], ends: dict[str, datetime]) -> None:
     active = [item for item in trusted if item.status == "active"]
     for j, later in enumerate(active):
         partner = next((a for a in active[:j] if different_sellers(a, later)), None)
@@ -418,6 +425,9 @@ def _cross_listed(em: _Emitter, trusted: list[Listing]) -> None:
                 "sources": sorted({partner.source, later.source}),
                 "same_source": partner.source == later.source,
             },
+            # Новая площадка в первые сутки находит пары к квартирам, которые давно на ней
+            # висят: это не новость, рассылать её не нужно (в историю событие пишется).
+            quiet=in_baseline(later, ends),
         )
 
 

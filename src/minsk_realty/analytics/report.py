@@ -23,7 +23,6 @@ from decimal import Decimal
 from functools import cache
 from typing import Literal
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.bargaining import (
@@ -39,6 +38,7 @@ from minsk_realty.analytics.fmt import normalize_district, plural, street_label
 from minsk_realty.analytics.history import PriceMoves, PricePoint, build_price_history, price_moves
 from minsk_realty.analytics.medians import MarketBaseline, MedianCell, compute_baseline
 from minsk_realty.db.models import Listing
+from minsk_realty.db.repository import find_listing
 from minsk_realty.matching.address import normalize_street
 from minsk_realty.matching.config import DEFAULT_CONFIG
 from minsk_realty.matching.features import FeatureCache
@@ -202,12 +202,7 @@ def resolve_ref(session: Session, ref: int | str) -> tuple[Listing | None, str |
     for adapter in _adapters():
         external_id = adapter.resolve_url(text)
         if external_id:
-            listing = session.scalar(
-                select(Listing).where(
-                    Listing.source == adapter.source, Listing.external_id == external_id
-                )
-            )
-            return listing, adapter.source, True
+            return find_listing(session, adapter.source, external_id), adapter.source, True
     return None, None, False
 
 
