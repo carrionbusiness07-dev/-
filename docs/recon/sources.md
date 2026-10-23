@@ -69,14 +69,35 @@ Realt.by из-за рубежа отвечает `200`.
 - входят ли в `/sale/flats/` объекты Минского района (адаптер оставляет только `townName == "Минск"`);
 - поле городского района, в образце его не было.
 
-## Onliner и Domovita (следующий этап)
+## Onliner (проверено 23.10.2026)
 
-- Onliner: в рабочем коде используется `https://ak.api.onliner.by/search/apartments`, объекты — `https://r.onliner.by/ak/apartments/<id>` ([kufar-parser-bot][kpb], [room-rental-parser][rrp]). В коде это аренда (`ak`). Для продажи (`pk`) эндпоинт не проверен.
-- Domovita: не исследовалась.
+| Что | Значение |
+|---|---|
+| Поиск | `GET https://pk.api.onliner.by/search/apartments` (`pk` — продажа, `ak` — аренда), JSON |
+| Параметры | прямоугольник `bounds[lb][lat]=53.7`, `bounds[lb][long]=27.3`, `bounds[rt][lat]=54.1`, `bounds[rt][long]=27.8`, `page=N` |
+| Пагинация | `page: {limit: 96, items, current, last}`; в прямоугольнике 3 620 объявлений, 38 страниц |
+| Объявление | `id`, `author_id` (аккаунт продавца → `seller_key`, вырезается), `location {address, latitude, longitude}`, `price {amount, currency, converted.USD}`, `number_of_rooms`, `floor`, `number_of_floors`, `area {total, living, kitchen}`, `seller.type` (`agent`/`owner`), `resale`, `created_at`, `last_time_up` (поднятие), `photo` (одно, через imgproxy), `url` |
+| Ссылка | `https://r.onliner.by/pk/apartments/<id>` |
+| Город | 80 из 96 — Минск (`Минск, …`, `Беларусь, Минск, …`, `Minsk, …`), остальное — пригороды: фильтр по адресу |
+
+**Главная находка: Onliner показывает у себя объявления Realt.** Из 80 минских объявлений первой страницы у 47 фото лежит на `files.realt.by`. Это та же квартира с тем же идентификатором снимка, той же ценой и тем же адресом, что на Realt. Такие копии **не собираем**: они ничего не добавляют к истории, а каждая дала бы ложный `cross_listed` и раздула бы главную метрику гипотезы. Собственных объявлений Onliner — около 40%, у них фото на `content.onliner.by` или в CRM агентств.
+
+## Domovita (проверено 23.10.2026)
+
+| Что | Значение |
+|---|---|
+| Выдача | `GET https://domovita.by/minsk/flats/sale?page=N`, Next.js: `__NEXT_DATA__` → `props.pageProps.listingCardsFromSSR {totalCount, items}`, 20 объявлений на страницу, 3 063 в Минске |
+| Лёгкие страницы | `GET https://domovita.by/_next/data/<buildId>/minsk/flats/sale.json?city=minsk&real_estate_type=flats&page=N` — те же `pageProps` без разметки (≈250 КБ вместо 1,3 МБ). `buildId` берётся из первой страницы; после выкладки сайта старый отвечает 404 → HTML |
+| Объявление | `id`, `url` (id в ссылке нет, только адрес страницы), `address {town, district{name, subDistrict}, street_name, house_number, coords{position_x=lat, position_y=lon}, metro}`, `rooms` (студия — 0), `area.total`, `storey`, `storeys`, `price {USD, BYN, EUR, RUB}`, **`price_history [{price, date, changePrice, isUp}]`**, `owner_type`, `agency`, `user_id`, `date_reception`, `date_revision`, `residential_complex`, `photos[]` |
+| Персональные данные | **`contacts {phones, contact_name, email, viber_phone}` прямо в карточке**, `user_id`. Адаптер берёт поля по белому списку (`domovita.compact`) |
+| Валюта | Сумма отдаётся сразу во всех валютах. Валюта продавца — та, где сумма круглая (`59208 EUR` против `66424.87 USD`) |
+| Платные объявления | повторяются на соседних страницах (2 из 20) — адаптер берёт каждое один раз |
+
+Domovita сама отдаёт историю цены объявления, поэтому частый опрос не нужен: площадка обходится не чаще раза в 3 часа (`DomovitaAdapter.min_interval`).
 
 ## Решение по продавцу: псевдоним вместо id
 
-Для события `relisted` («перевыложил тот же продавец») нужен признак «тот же продавец». Поэтому `account_id` (Kufar) и `userUuid` (Realt) хранятся только как `seller_key = sha256(соль + площадка + id)[:32]`. Соль задаётся переменной окружения `SELLER_KEY_SALT`. Исходный id в БД не попадает.
+Для события `relisted` («перевыложил тот же продавец») нужен признак «тот же продавец». Поэтому `account_id` (Kufar), `userUuid` (Realt), `author_id` (Onliner) и `user_id` (Domovita) хранятся только как `seller_key = sha256(соль + площадка + id)[:32]`. Соль задаётся переменной окружения `SELLER_KEY_SALT`. Исходный id в БД не попадает.
 
 ## Что сделано в коде
 

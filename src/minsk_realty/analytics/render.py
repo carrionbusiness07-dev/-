@@ -26,6 +26,7 @@ from minsk_realty.analytics.hypothesis import HypothesisReport
 from minsk_realty.analytics.medians import MedianCell
 from minsk_realty.analytics.report import CheckReport, OtherListing
 from minsk_realty.analytics.weekly import WeeklySummary
+from minsk_realty.sources import names_text
 
 _ICONS = {
     "flat": "🏠",
@@ -41,7 +42,7 @@ _ICONS = {
 }
 
 DEALS_NOTE = "Это цены объявлений, не сделок. Сделки — статистика НКА на realt.by/statistics"
-SUPPORTED_TEXT = "Kufar или Realt"
+SUPPORTED_TEXT = names_text("или")
 
 
 def _icon(name: str, icons: bool) -> str:

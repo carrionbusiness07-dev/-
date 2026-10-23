@@ -18,17 +18,16 @@ import random
 import signal
 import sys
 import time
+from datetime import UTC, datetime
 
-from minsk_realty.collector.run import close_stale_runs, collect, is_blocked
+from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, last_full_pass
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import AlertThrottle, check_sources, notify
 from minsk_realty.matching import process_after_run
-from minsk_realty.sources.kufar import KufarAdapter
-from minsk_realty.sources.realt import RealtAdapter
+from minsk_realty.sources import ADAPTERS
 
 log = logging.getLogger("minsk_realty.collector")
 
-ADAPTERS = {"kufar": KufarAdapter, "realt": RealtAdapter}
 INTERVAL_MINUTES = (30, 60)
 
 
@@ -93,6 +92,17 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
             with factory() as session:
                 if is_blocked(session, source) and source not in unblocked:
                     log.warning("%s: остановлена после 403/429, пропускаю", source)
+                    continue
+                # Площадкам, которые сами отдают историю цены, частый опрос не нужен.
+                interval = getattr(ADAPTERS[source], "min_interval", None)
+                last = last_full_pass(session, source) if interval else None
+                if last is not None and datetime.now(UTC) - last < interval:
+                    log.info(
+                        "%s: полный проход был в %s, следующий не раньше чем через %s",
+                        source,
+                        last.isoformat(timespec="minutes"),
+                        interval,
+                    )
                     continue
             adapter = ADAPTERS[source]()
             try:

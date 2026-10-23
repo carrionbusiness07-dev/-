@@ -113,6 +113,17 @@ def close_stale_runs(
     return closed or 0
 
 
+def last_full_pass(session: Session, source: str) -> datetime | None:
+    """Начало последнего полного успешного прохода площадки."""
+    value = session.scalar(
+        select(SourceRun.started_at)
+        .where(SourceRun.source == source, SourceRun.status == "ok", SourceRun.complete.is_(True))
+        .order_by(SourceRun.started_at.desc())
+        .limit(1)
+    )
+    return value if value is None or value.tzinfo else value.replace(tzinfo=UTC)
+
+
 def is_blocked(session: Session, source: str) -> bool:
     """Последний завершённый проход площадки закончился блокировкой (403/429).
 

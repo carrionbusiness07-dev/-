@@ -1,0 +1,4083 @@
+{
+ "apartments": [
+  {
+   "id": 1285000,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Независимости просп. 153к1",
+    "user_address": "Минск, Независимости просп. 153к1",
+    "latitude": 53.9364,
+    "longitude": 27.6503
+   },
+   "price": {
+    "amount": "354000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "354000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "119825.34",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/vIexqZVYih0vcZyzkyk0ocgzM_s4iTt8aIkVgLKrtEU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvY2QxODg3/YmMtYjgyZi0xMWYx/LThhZmQtMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 5,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 6.2,
+    "living": 41.8,
+    "total": 60.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-24T19:05:00+03:00",
+   "last_time_up": "2026-10-22T19:05:10+03:00",
+   "up_available_in": 163315,
+   "url": "https://r.onliner.by/pk/apartments/1285000",
+   "auction_bid": {
+    "amount": "3.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1284333,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Обойная ул. 4к1",
+    "user_address": "Минск, Обойная ул. 4к1",
+    "latitude": 53.9075,
+    "longitude": 27.5459
+   },
+   "price": {
+    "amount": "986000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "986000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "333750.80",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/NL8BFRuizLAGPbTA4Ca4-XT8rR8lOa3mbVOEglc6jFQ/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYzE1Njcz/ZDQtYjcyMi0xMWYx/LTgxZDItOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 5,
+   "number_of_floors": 10,
+   "area": {
+    "kitchen": 21.8,
+    "living": 70.3,
+    "total": 122.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-17T18:35:02+03:00",
+   "last_time_up": "2026-10-19T11:34:57+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1284333",
+   "auction_bid": {
+    "amount": "3.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1281935,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Братская ул. 8",
+    "user_address": "Минск, Братская ул. 8",
+    "latitude": 53.8697,
+    "longitude": 27.5526
+   },
+   "price": {
+    "amount": "277816.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "277816.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "94037.84",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/6O25G2jS5TL6KTcsOAQGetHxiqGZ2EvdylLj0056-4s/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMmIyODkz/MjgtOWUxNC0xMWYx/LTkwNTMtZWFlZDdh/YWI2ZDFjLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 3,
+   "number_of_floors": 22,
+   "area": {
+    "living": 24.2,
+    "total": 31.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-22T14:55:00+03:00",
+   "last_time_up": "2026-10-20T16:13:32+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1281935",
+   "auction_bid": {
+    "amount": "3.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1287048,
+   "author_id": 1001,
+   "location": {
+    "address": "Минск, улица Розы Люксембург, 151",
+    "user_address": "Минск, улица Розы Люксембург, 151",
+    "latitude": 53.8893649,
+    "longitude": 27.5072889
+   },
+   "price": {
+    "amount": "169000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "499276.70",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "169000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/-5a-MrckoHCqVUJZOlkcFKJp4bNg5u5D_JbitaEu-pA/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8xMTE4/MTM1L29yaWdpbmFs/LzA5NGRiYzYyNWIz/ZTI3NWJmMTY3NjIw/NjU0ZGViYzRhLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 3,
+   "number_of_floors": 9,
+   "area": {
+    "living": 41.1,
+    "total": 49.4
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-10-16T13:12:51+03:00",
+   "last_time_up": "2026-10-23T18:22:00+03:00",
+   "up_available_in": 247125,
+   "url": "https://r.onliner.by/pk/apartments/1287048",
+   "auction_bid": {
+    "amount": "3.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1285922,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Одесская ул. 20кБ",
+    "user_address": "Минск, Одесская ул. 20кБ",
+    "latitude": 53.873,
+    "longitude": 27.6584
+   },
+   "price": {
+    "amount": "511600.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "511600.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "173171.31",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/PHTagQ34x7n3tRfOr1CH6u5fT9892OZ3ukqRHGLNjsM/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZWJhMzUw/N2EtYzBjNC0xMWYx/LTg2ZmQtYTI3NzNi/YWM5N2JkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 9,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 9.5,
+    "living": 45.2,
+    "total": 74.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-05T16:55:00+03:00",
+   "last_time_up": "2026-10-20T10:24:06+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1285922",
+   "auction_bid": {
+    "amount": "2.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1286035,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Жореса Алфёрова ул. 14",
+    "user_address": "Минск, Жореса Алфёрова ул. 14",
+    "latitude": 53.862,
+    "longitude": 27.5494
+   },
+   "price": {
+    "amount": "335000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "335000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "113394.04",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/aigPWHidu5ySNqVkoHujbZMR1PUC3XWqszU6TxV3WMs/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZWFjYTQ1/NGEtYzE3ZS0xMWYx/LTkxYjItOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 11,
+   "number_of_floors": 25,
+   "area": {
+    "living": 41.5,
+    "total": 48
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-06T15:15:01+03:00",
+   "last_time_up": "2026-10-23T15:35:11+03:00",
+   "up_available_in": 237116,
+   "url": "https://r.onliner.by/pk/apartments/1286035",
+   "auction_bid": {
+    "amount": "2.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1284741,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Пушкина просп. 44",
+    "user_address": "Минск, Пушкина просп. 44",
+    "latitude": 53.9149,
+    "longitude": 27.4958
+   },
+   "price": {
+    "amount": "309900.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "309900.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "104897.95",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/sMluIB30f2QHNY_s_1OV_GUPFPo769MOzrnzzeS145Y/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZWQ1NzRm/MGEtYjY1ZC0xMWYx/LWJmMGEtMTYwOTgy/MGUyOWJjLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 1,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 9.8,
+    "living": 33.9,
+    "total": 56.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-22T11:25:00+03:00",
+   "last_time_up": "2026-10-23T12:25:09+03:00",
+   "up_available_in": 225714,
+   "url": "https://r.onliner.by/pk/apartments/1284741",
+   "auction_bid": {
+    "amount": "2.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1286805,
+   "author_id": 1003,
+   "location": {
+    "address": "Минск, улица Матусевича, 76",
+    "user_address": "Минск, улица Матусевича, 76",
+    "latitude": 53.9179506,
+    "longitude": 27.4473025
+   },
+   "price": {
+    "amount": "100000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "295430.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "100000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/lEsINHa8YVfePB934SluAvayM7osZu1dV8jAvkAT7TM/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zODA0/MTg3L29yaWdpbmFs/L2JjNzk2MjEwZWZh/MGIxNWU0MmJiYzky/MDU0MDJhMjVhLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 2,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 10,
+    "living": 16.5,
+    "total": 42
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-10-14T12:53:55+03:00",
+   "last_time_up": "2026-10-20T15:53:02+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1286805",
+   "auction_bid": {
+    "amount": "2.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1287462,
+   "author_id": 1004,
+   "location": {
+    "address": "Минск, улица Одинцова, 57",
+    "user_address": "Минск, улица Одинцова, 57",
+    "latitude": 53.89591535,
+    "longitude": 27.4454571
+   },
+   "price": {
+    "amount": "86900.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "256728.67",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "86900.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/TGnpC53PxrxSHsq6jceCDgCIQ53uoxWeHJIHD5s2ymE/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by85NTg4/MC9vcmlnaW5hbC9h/OTQwNGI2OWUxMmJi/Mjc1MDkwZWViOTIx/NmQzOGI1Yy5qcGc",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 3,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 9.3,
+    "living": 17.8,
+    "total": 34.4
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-10-21T11:34:45+03:00",
+   "last_time_up": "2026-10-21T11:34:45+03:00",
+   "up_available_in": 49890,
+   "url": "https://r.onliner.by/pk/apartments/1287462",
+   "auction_bid": {
+    "amount": "2.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1285103,
+   "author_id": 1005,
+   "location": {
+    "address": "Minsk, вуліца Жылуновіча, 43",
+    "user_address": "Минск, улица Жилуновича, дом 43",
+    "latitude": 53.869458432079,
+    "longitude": 27.628187835217
+   },
+   "price": {
+    "amount": "75000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "221572.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "75000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ch9Zv_MyoBkVzO5HH0a_XW38nWuE8ynAwsDBNB4b4Iw/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8xMTU1/MTAwL29yaWdpbmFs/LzgxYjU4MTYwNWFm/NjExNzRkZWE1MTFh/ZWFmNzE2NmIwLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 3,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 5.7,
+    "living": 17.7,
+    "total": 29.9
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-25T18:07:52+03:00",
+   "last_time_up": "2026-10-03T19:57:16+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1285103",
+   "auction_bid": {
+    "amount": "1.50",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1276975,
+   "author_id": 1006,
+   "location": {
+    "address": "Минск, улица Мирошниченко, 16 к2",
+    "user_address": "Минск, улица Мирошниченко, 16 к2",
+    "latitude": 53.96043295,
+    "longitude": 27.61984588147533
+   },
+   "price": {
+    "amount": "73000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "215663.90",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "73000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/M18OG9nW10Z9WLt_kwnNpl7IbvX94VyMCjNZCwqlpWQ/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by85Mjc1/MC9vcmlnaW5hbC9i/YTVmMzY4MWU5ZTA4/YzE4MDljNTM2YjI2/YTE3NGZkNC5qcGc",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 2,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7,
+    "living": 17,
+    "total": 34
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-07-07T10:05:08+03:00",
+   "last_time_up": "2026-10-20T14:34:55+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1276975",
+   "auction_bid": {
+    "amount": "1.50",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1285302,
+   "author_id": 1007,
+   "location": {
+    "address": "Колодищи, Березовая Аллея ул. 37",
+    "user_address": "Колодищи, Березовая Аллея ул. 37",
+    "latitude": 53.89068,
+    "longitude": 27.74277
+   },
+   "price": {
+    "amount": "586000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "586000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "198354.94",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ou4YhKZ_sz9OAuWoxhBsKvyG_FUVbLSA7SZs0wSKPGI/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYzNlZTA3/MjgtYjllOS0xMWYx/LTg5YWItMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 4,
+   "number_of_floors": 5,
+   "area": {
+    "living": 95.2,
+    "total": 103.5
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-28T23:55:01+03:00",
+   "last_time_up": "2026-10-22T01:55:09+03:00",
+   "up_available_in": 101514,
+   "url": "https://r.onliner.by/pk/apartments/1285302",
+   "auction_bid": {
+    "amount": "1.50",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1272665,
+   "author_id": 1008,
+   "location": {
+    "address": "Ждановичский сельский Совет, Ждановичи, 1-я Дачная улица",
+    "user_address": "Ждановичский сельский Совет, Ждановичи, 1-я Дачная улица",
+    "latitude": 53.971513,
+    "longitude": 27.4294207
+   },
+   "price": {
+    "amount": "1700000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "5022310.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "1700000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/b0O60eZw3qwRCV-p1xGBBZ-4Li9jt1mf42owLDWm1CA/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yNDY0/OTcxL29yaWdpbmFs/LzVkZDVkOWQwMzc1/NDRlZDVhNThhZTI1/MWVjNzE0MTlmLmpw/Zw",
+   "resale": false,
+   "number_of_rooms": 6,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "living": 469,
+    "total": 657
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-25T10:04:04+03:00",
+   "last_time_up": "2026-10-22T15:01:43+03:00",
+   "up_available_in": 148708,
+   "url": "https://r.onliner.by/pk/apartments/1272665",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1274601,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Виталия Цвирко ул. 78",
+    "user_address": "Минск, Виталия Цвирко ул. 78",
+    "latitude": 53.962,
+    "longitude": 27.5661
+   },
+   "price": {
+    "amount": "700000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "700000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "236942.76",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/523Irw8ZlPLbWigtK9KjKBzoXZ7IY373p8ek-jS4p1c/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjFiMjNj/ZjYtNjU4Yy0xMWYx/LWEwOGQtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 7,
+   "number_of_floors": 7,
+   "area": {
+    "living": 43.2,
+    "total": 51.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-11T18:55:34+03:00",
+   "last_time_up": "2026-10-21T12:05:10+03:00",
+   "up_available_in": 51715,
+   "url": "https://r.onliner.by/pk/apartments/1274601",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1284037,
+   "author_id": 1006,
+   "location": {
+    "address": "Папернянский сельский Совет, Лапоровичи",
+    "user_address": "Папернянский сельский Совет, Лапоровичи",
+    "latitude": 54.00209,
+    "longitude": 27.382219
+   },
+   "price": {
+    "amount": "25000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "73857.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "25000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/8EcwSE1Mk6Bnl7MNwsfdLEP6t1Rf1qLw06Aeg9lvCvg/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by85Mjc1/MC9vcmlnaW5hbC85/NmRkOWRiYzY5OGEy/MTgyMmEzMzFiZDNl/M2VmOGI3Mi5qcGc",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 1,
+   "number_of_floors": 1,
+   "area": {
+    "kitchen": 10,
+    "living": 20,
+    "total": 50
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-15T11:17:06+03:00",
+   "last_time_up": "2026-10-14T14:59:28+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1284037",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1286715,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Мавра ул. 68",
+    "user_address": "Минск, Мавра ул. 68",
+    "latitude": 53.8971,
+    "longitude": 27.4893
+   },
+   "price": {
+    "amount": "94000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "277704.20",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "94000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/hrUXcBTNnVfz0uHrhaIkTh5Son22843syrzBbS70Mrg/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZGI4Njg2/ZDItYzZmZC0xMWYx/LTg1ZTYtOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 1,
+   "number_of_floors": 5,
+   "area": {
+    "living": 31.9,
+    "total": 63.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-13T15:05:00+03:00",
+   "last_time_up": "2026-10-23T10:45:09+03:00",
+   "up_available_in": 219714,
+   "url": "https://r.onliner.by/pk/apartments/1286715",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1287171,
+   "author_id": 1009,
+   "location": {
+    "address": "Минск, проспект Газеты Правда, 3",
+    "user_address": "Минск, проспект Газеты Правда, 3",
+    "latitude": 53.87038245,
+    "longitude": 27.48672641107163
+   },
+   "price": {
+    "amount": "520700.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "520700.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "176251.57",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/xZ9JHsik78v5JmFRv3nNUm717IrZD7MKoAQtCAEZTyQ/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yMDY4/NDY3L29yaWdpbmFs/LzQ2YmRiNmViNTA0/M2QzOGNhMGZjY2Yx/ODY1YTFmOTA0Lmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 5,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 10.1,
+    "living": 39,
+    "total": 72.1
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-18T18:03:13+03:00",
+   "last_time_up": "2026-10-23T19:26:52+03:00",
+   "up_available_in": 251017,
+   "url": "https://r.onliner.by/pk/apartments/1287171",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1283062,
+   "author_id": 1010,
+   "location": {
+    "address": "Minsk, вуліца Міхаіла Савіцкага",
+    "user_address": "Минск, улица Михаила Савицкого",
+    "latitude": 53.863018007554,
+    "longitude": 27.54394903779
+   },
+   "price": {
+    "amount": "93000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "274749.90",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "93000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/mlG70iy43iOdjZ2yvUbGbIFIdtIQxxwzpjXBCcCHkOQ/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by82NzY1/MTIvb3JpZ2luYWwv/YWZiY2FlNDFmZjIy/Y2VmNWY3NTI1Mjdj/NTAzMzViYWIuanBn",
+   "resale": false,
+   "number_of_rooms": 2,
+   "floor": 10,
+   "number_of_floors": 15,
+   "area": {
+    "living": 40.2,
+    "total": 44.2
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-03T16:41:48+03:00",
+   "last_time_up": "2026-10-19T18:00:27+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1283062",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1186579,
+   "author_id": 1006,
+   "location": {
+    "address": "Острошицкогородокский сельский Совет, Губичи",
+    "user_address": "Острошицкогородокский сельский Совет, Губичи",
+    "latitude": 54.074619,
+    "longitude": 27.77112
+   },
+   "price": {
+    "amount": "65000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "192029.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "65000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/RQWw7IAh7CUbhCq2_KIOsXNV7Clut-aTntfZvHOGBW4/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by85Mjc1/MC9vcmlnaW5hbC81/NzE4NDY1ZjFiYTM4/MjI5MzVhMmNhMTRj/NjVmMDllNy5qcGc",
+   "resale": true,
+   "number_of_rooms": 6,
+   "floor": 2,
+   "number_of_floors": 2,
+   "area": {
+    "total": 600,
+    "living": 500,
+    "kitchen": 0
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2025-04-07T14:07:58+03:00",
+   "last_time_up": "2026-10-20T14:34:39+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1186579",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1284814,
+   "author_id": 1011,
+   "location": {
+    "address": "Минск, улица Макаёнка, 12Б",
+    "user_address": "Минск, улица Макаёнка, 12Б",
+    "latitude": 53.9228446,
+    "longitude": 27.625442
+   },
+   "price": {
+    "amount": "148999.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "440187.75",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "148999.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/x4bhd8qd6koplXOobq9OzIc_p4uFS5ZZLpycLAFgcFY/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by80MTI3/NTY5L29yaWdpbmFs/LzhlNjM5OTZmOTJm/MGU1ZjI3NjNmMzE1/NTIzNmFmMWMzLnBu/Zw",
+   "resale": false,
+   "number_of_rooms": 2,
+   "floor": 13,
+   "number_of_floors": 16,
+   "area": {
+    "living": 37,
+    "total": 46.6
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-22T19:32:41+03:00",
+   "last_time_up": "2026-10-20T21:37:40+03:00",
+   "up_available_in": 0,
+   "url": "https://r.onliner.by/pk/apartments/1284814",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1286557,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Братская ул. 4",
+    "user_address": "Минск, Братская ул. 4",
+    "latitude": 53.8707,
+    "longitude": 27.5533
+   },
+   "price": {
+    "amount": "99000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "292475.70",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "99000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/F3fULf3pHWmSTBqE60Zg-kXRXynR4l4teoqJ2JEdz8Y/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMzQ3Y2I0/MTAtYzYzMC0xMWYx/LTlmMDEtYTI3NzNi/YWM5N2JkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 16,
+   "number_of_floors": 16,
+   "area": {
+    "living": 24.7,
+    "total": 31.5
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-12T14:35:00+03:00",
+   "last_time_up": "2026-10-23T13:05:10+03:00",
+   "up_available_in": 228115,
+   "url": "https://r.onliner.by/pk/apartments/1286557",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1277884,
+   "author_id": 1002,
+   "location": {
+    "address": "Лесной, Троицкая ул. 22",
+    "user_address": "Лесной, Троицкая ул. 22",
+    "latitude": 54.0029,
+    "longitude": 27.6832
+   },
+   "price": {
+    "amount": "120000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "354516.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "120000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/7e-KBKOHlaWbjlg4Br_HmeYDZKllMVDd0xpAsdiNg4E/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvY2RkMTgw/Y2MtODE5OS0xMWYx/LWFmZGUtMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 8,
+    "living": 47.3,
+    "total": 74.5
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-07-15T13:30:34+03:00",
+   "last_time_up": "2026-10-23T15:35:11+03:00",
+   "up_available_in": 237116,
+   "url": "https://r.onliner.by/pk/apartments/1277884",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1283821,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Мира просп. 14",
+    "user_address": "Минск, Мира просп. 14",
+    "latitude": 53.8633,
+    "longitude": 27.5385
+   },
+   "price": {
+    "amount": "430220.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "430220.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "145625.02",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/OWTghm701crKdw6khk64rk7pmx4Aaoq4gNIn-WzkPIU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMzhiZTMz/YmUtYWRkZi0xMWYx/LWE0ODUtZDJkNjY0/YzU5NTA2LmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 19,
+   "number_of_floors": 25,
+   "area": {
+    "living": 29.6,
+    "total": 42.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-11T15:55:01+03:00",
+   "last_time_up": "2026-10-23T11:45:09+03:00",
+   "up_available_in": 223314,
+   "url": "https://r.onliner.by/pk/apartments/1283821",
+   "auction_bid": {
+    "amount": "1.00",
+    "currency": "BYN"
+   }
+  },
+  {
+   "id": 1285091,
+   "author_id": 1012,
+   "location": {
+    "address": "Беларусь, Минск, Щербакова ул., 28",
+    "user_address": "Беларусь, Минск, Щербакова ул., 28",
+    "latitude": 53.887433,
+    "longitude": 27.604384
+   },
+   "price": {
+    "amount": "87668.82",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "258999.99",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "87668.82",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/R1lMJaiDrglat14DOc9enztpApplaJdPI5gsxxloHR4/w:600/h:400/aHR0cHM6Ly9tbWVk/aWEuYW43LmJ5L3Vw/bG9hZC9jcm0vMjMw/NTcvNmFkYTA0YTFi/MzQ1ZjlkMDQyZTk3/MWNhXzE3OTI2NzM1/ODMuanBn",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 4,
+   "number_of_floors": 4,
+   "area": {
+    "kitchen": 6.3,
+    "living": 28.8,
+    "total": 42
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-25T16:40:30+03:00",
+   "last_time_up": "2026-10-23T20:51:57+03:00",
+   "up_available_in": 256122,
+   "url": "https://r.onliner.by/pk/apartments/1285091",
+   "auction_bid": null
+  },
+  {
+   "id": 1287815,
+   "author_id": 1013,
+   "location": {
+    "address": "",
+    "user_address": "Минск, Дзержинского, 123",
+    "latitude": 53.848152,
+    "longitude": 27.475933
+   },
+   "price": {
+    "amount": "369000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "369000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "124902.68",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/cIwBiBs9R7mIl3hBLN_Bv4uD2JDW1Buhg5OeOgZsesg/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zMzIw/MTczL29yaWdpbmFs/L2JjYzE3MGQxYjI4/MmJmNzY2ZjQ2Njlj/ODc2ZTY2ZDg1Lmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 6,
+   "number_of_floors": 14,
+   "area": {
+    "living": 36.5,
+    "total": 41.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T20:37:27+03:00",
+   "last_time_up": "2026-10-23T20:37:27+03:00",
+   "up_available_in": 255252,
+   "url": "https://r.onliner.by/pk/apartments/1287815",
+   "auction_bid": null
+  },
+  {
+   "id": 1287814,
+   "author_id": 1014,
+   "location": {
+    "address": "Минск, проезд Голодеда, 3",
+    "user_address": "Минск, проезд Голодеда, 3",
+    "latitude": 53.8353981,
+    "longitude": 27.6167772
+   },
+   "price": {
+    "amount": "259900.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "259900.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "87973.46",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/9TPqFsyyXNdBC_3eCiExR17YkdytNb5ziIEiUL7defE/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by80MTQ2/NjY4L29yaWdpbmFs/LzY0OWNjZDliNjg1/NDljODMyNjQ5ZTM1/MzUxYmNjMmYxLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 1,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 6.2,
+    "living": 34.4,
+    "total": 50.8
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-10-23T20:30:19+03:00",
+   "last_time_up": "2026-10-23T20:30:19+03:00",
+   "up_available_in": 254824,
+   "url": "https://r.onliner.by/pk/apartments/1287814",
+   "auction_bid": null
+  },
+  {
+   "id": 1282137,
+   "author_id": 1015,
+   "location": {
+    "address": "Минск, Коласа ул. 52",
+    "user_address": "Минск, Коласа ул. 52",
+    "latitude": 53.9375,
+    "longitude": 27.6061
+   },
+   "price": {
+    "amount": "288800.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "288800.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "97755.81",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/hvxqi3GPAAM2rtuM0laHspjbsQorUK38ClPg-re4k1A/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZWMzMDc4/OTQtOWZkZS0xMWYx/LWJlNTktOTJlMmFl/ODRiMjM5LmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 2,
+   "number_of_floors": 8,
+   "area": {
+    "kitchen": 7.7,
+    "living": 31,
+    "total": 46.6
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-24T20:25:00+03:00",
+   "last_time_up": "2026-10-23T20:25:09+03:00",
+   "up_available_in": 254514,
+   "url": "https://r.onliner.by/pk/apartments/1282137",
+   "auction_bid": null
+  },
+  {
+   "id": 1287813,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Чайлытко ул. 9",
+    "user_address": "Минск, Чайлытко ул. 9",
+    "latitude": 53.8872,
+    "longitude": 27.4407
+   },
+   "price": {
+    "amount": "326546.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "326546.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "110532.44",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/krp6DpuJ02BWHXgALPAGKA6e5AZbjTFZNJam-UYjbJQ/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjA2N2My/MTItY2YwNC0xMWYx/LWI0NmItYmVlMDhl/OWE4NmIxLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 5,
+   "number_of_floors": 12,
+   "area": {
+    "kitchen": 8.9,
+    "living": 29.3,
+    "total": 52.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T20:25:00+03:00",
+   "last_time_up": "2026-10-23T20:25:00+03:00",
+   "up_available_in": 254505,
+   "url": "https://r.onliner.by/pk/apartments/1287813",
+   "auction_bid": null
+  },
+  {
+   "id": 1287208,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Руссиянова ул. 56",
+    "user_address": "Минск, Руссиянова ул. 56",
+    "latitude": 53.9343,
+    "longitude": 27.6946
+   },
+   "price": {
+    "amount": "325000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "325000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "110009.14",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/yAG8I4CVLNZFc0fSrVwPjbrE37PvBaTdmuXZ87f00ms/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZDZkNDky/ZDYtY2I5YS0xMWYx/LTg4ZmQtOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 11,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 9.1,
+    "living": 18,
+    "total": 42.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-19T12:05:00+03:00",
+   "last_time_up": "2026-10-23T20:05:09+03:00",
+   "up_available_in": 253314,
+   "url": "https://r.onliner.by/pk/apartments/1287208",
+   "auction_bid": null
+  },
+  {
+   "id": 1287187,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Войсковый пер. 10",
+    "user_address": "Минск, Войсковый пер. 10",
+    "latitude": 53.9066,
+    "longitude": 27.5799
+   },
+   "price": {
+    "amount": "1865000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "1865000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "631283.21",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/s3E89tK4MAJP0BWAGRvu8baHIWzinf3SJUpoAWqwMM0/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMTExYjM3/NTgtY2I4Zi0xMWYx/LWFiYTItOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 5,
+   "number_of_floors": 7,
+   "area": {
+    "kitchen": 11.1,
+    "living": 94.2,
+    "total": 161.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-19T10:35:00+03:00",
+   "last_time_up": "2026-10-23T20:05:08+03:00",
+   "up_available_in": 253313,
+   "url": "https://r.onliner.by/pk/apartments/1287187",
+   "auction_bid": null
+  },
+  {
+   "id": 1284561,
+   "author_id": 1016,
+   "location": {
+    "address": "Minsk, вуліца Міхаіла Савіцкага",
+    "user_address": "Минск, улица Михаила Савицкого",
+    "latitude": 53.863018056983,
+    "longitude": 27.543872594833
+   },
+   "price": {
+    "amount": "297968.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "297968.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "100859.09",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/Ig6pDGUWk_PuKzepXp1D_edZJQjp1PfNbxdIbqj3TRM/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yOTE3/ODk0L29yaWdpbmFs/LzZlNmQ0NWNhODcw/N2MyMTk5NWRhNTE0/ODg0MDUwODc1Lmpw/Zw",
+   "resale": false,
+   "number_of_rooms": 3,
+   "floor": 2,
+   "number_of_floors": 15,
+   "area": {
+    "living": 48,
+    "total": 66.3
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-19T11:35:17+03:00",
+   "last_time_up": "2026-10-23T20:02:30+03:00",
+   "up_available_in": 253155,
+   "url": "https://r.onliner.by/pk/apartments/1284561",
+   "auction_bid": null
+  },
+  {
+   "id": 1285952,
+   "author_id": 1017,
+   "location": {
+    "address": "Минск, Игоря Лученка ул. 32",
+    "user_address": "Минск, Игоря Лученка ул. 32",
+    "latitude": 53.8609,
+    "longitude": 27.5553
+   },
+   "price": {
+    "amount": "450000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "450000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "152320.35",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/SMYLI5Momvh-7E0g9h7biKaFdCjpjV2ojCFhRHtHpvU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvODhmMGNi/YjYtYzBkYy0xMWYx/LTk2MjItOWU1NThm/ZWMxNGZkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 3,
+   "number_of_floors": 25,
+   "area": {
+    "living": 54.2,
+    "total": 60.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-05T20:15:00+03:00",
+   "last_time_up": "2026-10-23T19:55:09+03:00",
+   "up_available_in": 252714,
+   "url": "https://r.onliner.by/pk/apartments/1285952",
+   "auction_bid": null
+  },
+  {
+   "id": 1285718,
+   "author_id": 1018,
+   "location": {
+    "address": "Минск, проспект Рокоссовского, 107",
+    "user_address": "Минск, проспект Рокоссовского, 107",
+    "latitude": 53.858737700000006,
+    "longitude": 27.611695125657633
+   },
+   "price": {
+    "amount": "245000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "245000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "82929.97",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/4T-ea7WLZg2-yKDwthzLlwkSLFV-ip7JTM0Qrz352q4/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yMTc1/NzY2L29yaWdpbmFs/LzQ1MjJhZjBjOTFj/ZDI3YzljNWIzOWY1/ZGMyYTljYmYzLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 3,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 6,
+    "living": 23.5,
+    "total": 37.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-02T16:18:21+03:00",
+   "last_time_up": "2026-10-23T19:53:04+03:00",
+   "up_available_in": 252589,
+   "url": "https://r.onliner.by/pk/apartments/1285718",
+   "auction_bid": null
+  },
+  {
+   "id": 1284264,
+   "author_id": 1015,
+   "location": {
+    "address": "Минск, Семенова ул. 31",
+    "user_address": "Минск, Семенова ул. 31",
+    "latitude": 53.8712,
+    "longitude": 27.5756
+   },
+   "price": {
+    "amount": "292475.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "292475.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "98999.76",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/jO_dFEs5OzzLRNc9hSNIQE7X1_StLptB-Yw6jabDyfs/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYjE4NjA3/OWUtYjI3Mi0xMWYx/LWExNDMtYzJmNDVh/OWExN2M4LmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 2,
+   "number_of_floors": 2,
+   "area": {
+    "kitchen": 7.4,
+    "living": 28.1,
+    "total": 42.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-17T11:45:00+03:00",
+   "last_time_up": "2026-10-23T19:45:09+03:00",
+   "up_available_in": 252114,
+   "url": "https://r.onliner.by/pk/apartments/1284264",
+   "auction_bid": null
+  },
+  {
+   "id": 1287810,
+   "author_id": 1019,
+   "location": {
+    "address": "Минск, Любимова просп. 42к1",
+    "user_address": "Минск, Любимова просп. 42к1",
+    "latitude": 53.8643,
+    "longitude": 27.4574
+   },
+   "price": {
+    "amount": "416000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "416000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "140811.70",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/mvmD2t0LviBARPSo3-f5-b3RxkK-CBlRsyDm0LKrpYc/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYzI2YjNh/MTgtY2VmZS0xMWYx/LTg2MjktN2U2MzQx/ODYyNmRkLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 6,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.1,
+    "living": 43.4,
+    "total": 67.5
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T19:35:00+03:00",
+   "last_time_up": "2026-10-23T19:35:00+03:00",
+   "up_available_in": 251505,
+   "url": "https://r.onliner.by/pk/apartments/1287810",
+   "auction_bid": null
+  },
+  {
+   "id": 1287811,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Мира просп. 18",
+    "user_address": "Минск, Мира просп. 18",
+    "latitude": 53.8622,
+    "longitude": 27.5377
+   },
+   "price": {
+    "amount": "411812.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "411812.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "139394.10",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/JUNg11s5FjHLTFtdStbQpQbPpk5Ge_q5mDVjq1f3QJs/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMmNkZTM5/NWEtY2VmZS0xMWYx/LThmOTYtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 24,
+   "number_of_floors": 25,
+   "area": {
+    "living": 32.6,
+    "total": 38.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T19:35:00+03:00",
+   "last_time_up": "2026-10-23T19:35:00+03:00",
+   "up_available_in": 251505,
+   "url": "https://r.onliner.by/pk/apartments/1287811",
+   "auction_bid": null
+  },
+  {
+   "id": 1287809,
+   "author_id": 1009,
+   "location": {
+    "address": "Минск, проспект Независимости, 78А",
+    "user_address": "Минск, проспект Независимости, 78А",
+    "latitude": 53.9218197,
+    "longitude": 27.60666287453971
+   },
+   "price": {
+    "amount": "549842.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "549842.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "186115.83",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/tCEmzL3NKL2QCiFeLUIXiRpj2G5K4X6CbaJylsyj8DU/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yMDY4/NDY3L29yaWdpbmFs/LzM1MDMzOTQwNWZm/Yzg2MGI2YzlhMmI3/YmVkNDQxZjRiLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 4,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 8,
+    "living": 28.7,
+    "total": 47.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T19:30:35+03:00",
+   "last_time_up": "2026-10-23T19:30:35+03:00",
+   "up_available_in": 251240,
+   "url": "https://r.onliner.by/pk/apartments/1287809",
+   "auction_bid": null
+  },
+  {
+   "id": 1287808,
+   "author_id": 1020,
+   "location": {
+    "address": "Ждановичский сельский Совет",
+    "user_address": "Ждановичский сельский Совет",
+    "latitude": 53.9255294,
+    "longitude": 27.3600411
+   },
+   "price": {
+    "amount": "1078000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "1078000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "364891.85",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/Dh__0l8BkFgGlgjGL2CgcYD4nI-EAPC0t6dKvaLY4a0/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by80MDY1/NzU4L29yaWdpbmFs/LzE2MTZjZjFjNTE1/Yjk4ZDI3NTE5ODNm/OWU1YThlYWM1Lmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "kitchen": 54,
+    "living": 128,
+    "total": 254
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T19:28:11+03:00",
+   "last_time_up": "2026-10-23T19:28:11+03:00",
+   "up_available_in": 251096,
+   "url": "https://r.onliner.by/pk/apartments/1287808",
+   "auction_bid": null
+  },
+  {
+   "id": 1287176,
+   "author_id": 1009,
+   "location": {
+    "address": "Минск, улица Нестерова, 60",
+    "user_address": "Минск, улица Нестерова, 60",
+    "latitude": 53.884557900000004,
+    "longitude": 27.686266925000005
+   },
+   "price": {
+    "amount": "240500.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "240500.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "81406.76",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/XFPA9wAciIX99P4uyRaQwclft5B5LCo-QxxGmoHChE0/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yMDY4/NDY3L29yaWdpbmFs/LzM5ZTM0YTBkYzFm/ZTdmNmNhZTI4NzMx/YTM0ZjZmNDJiLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 5,
+   "number_of_floors": 9,
+   "area": {
+    "living": 16.9,
+    "total": 35
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-18T18:27:32+03:00",
+   "last_time_up": "2026-10-23T19:26:52+03:00",
+   "up_available_in": 251017,
+   "url": "https://r.onliner.by/pk/apartments/1287176",
+   "auction_bid": null
+  },
+  {
+   "id": 1282281,
+   "author_id": 1021,
+   "location": {
+    "address": "Минск, Горецкого ул. 27",
+    "user_address": "Минск, Горецкого ул. 27",
+    "latitude": 53.8842,
+    "longitude": 27.4457
+   },
+   "price": {
+    "amount": "268500.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "268500.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "90884.47",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/W1Yk1YUIWOvn25AnSSEIp0V0KuE1XZqVXugB4hj5Ok0/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYjc2ZWI1/NDQtYTEzMi0xMWYx/LWEwNjAtZDJkNjY0/YzU5NTA2LmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 10,
+   "number_of_floors": 14,
+   "area": {
+    "kitchen": 7.9,
+    "living": 15.6,
+    "total": 33.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-26T11:35:00+03:00",
+   "last_time_up": "2026-10-23T19:25:09+03:00",
+   "up_available_in": 250914,
+   "url": "https://r.onliner.by/pk/apartments/1282281",
+   "auction_bid": null
+  },
+  {
+   "id": 1287250,
+   "author_id": 1021,
+   "location": {
+    "address": "Минск, Лазо ул. 7",
+    "user_address": "Минск, Лазо ул. 7",
+    "latitude": 53.8719,
+    "longitude": 27.6595
+   },
+   "price": {
+    "amount": "380550.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "380550.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "128812.24",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/MRl4Z8AFqXufWvfuAYUzXaQOum3pjLd93HczO-18-hU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMGY5NmY4/MDAtY2JjMC0xMWYx/LTk5NDEtMTYwOTgy/MGUyOWJjLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 17,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 9.2,
+    "living": 31,
+    "total": 60.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-19T16:25:01+03:00",
+   "last_time_up": "2026-10-23T19:25:09+03:00",
+   "up_available_in": 250914,
+   "url": "https://r.onliner.by/pk/apartments/1287250",
+   "auction_bid": null
+  },
+  {
+   "id": 1287346,
+   "author_id": 1022,
+   "location": {
+    "address": "Беларусь, Минск, Мира просп., 16",
+    "user_address": "Беларусь, Минск, Мира просп., 16",
+    "latitude": 53.862802,
+    "longitude": 27.538071
+   },
+   "price": {
+    "amount": "139999.32",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "413599.99",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "139999.32",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/zvSYo04Y9FPg7JwYvsJc_46MuXRuVmDx5NKwWxG30fQ/w:600/h:400/aHR0cHM6Ly9tbWVk/aWEuYW5zZXZlbi5i/eS91cGxvYWQvY3Jt/LzIzMTY3LzZhZDcy/YzIzYjM0NWY5ZDA0/MmU5NmRkN18xNzky/NjgwNzcxLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 22,
+   "number_of_floors": 25,
+   "area": {
+    "living": 50.4,
+    "total": 57.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-20T13:23:28+03:00",
+   "last_time_up": "2026-10-23T19:15:12+03:00",
+   "up_available_in": 250317,
+   "url": "https://r.onliner.by/pk/apartments/1287346",
+   "auction_bid": null
+  },
+  {
+   "id": 1282128,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Люцинская ул. 27",
+    "user_address": "Минск, Люцинская ул. 27",
+    "latitude": 53.9334,
+    "longitude": 27.4335
+   },
+   "price": {
+    "amount": "334000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "334000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "113055.55",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/19toYRjzihvINJEKQT8ayN_-LIrSViFSQExcrZ5ghbI/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNWU5Njc4/ZDQtOWZkNS0xMWYx/LTk5OTAtZWFlZDdh/YWI2ZDFjLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 8,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 9.5,
+    "living": 17.9,
+    "total": 45.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-24T19:15:02+03:00",
+   "last_time_up": "2026-10-23T19:15:09+03:00",
+   "up_available_in": 250314,
+   "url": "https://r.onliner.by/pk/apartments/1282128",
+   "auction_bid": null
+  },
+  {
+   "id": 1286732,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Савицкого ул. 27",
+    "user_address": "Минск, Савицкого ул. 27",
+    "latitude": 53.8629,
+    "longitude": 27.5439
+   },
+   "price": {
+    "amount": "564000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "564000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "190908.17",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/QJW1tigwR27zXrpPOIURzwDDaCa0UBuSlukpvI4HfVE/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNjM4NjUy/ZWMtYzcxMi0xMWYx/LTlkNzMtZTY2NGUy/M2YwZWFhLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 4,
+   "number_of_floors": 16,
+   "area": {
+    "living": 81.2,
+    "total": 81.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-13T17:35:01+03:00",
+   "last_time_up": "2026-10-23T19:15:09+03:00",
+   "up_available_in": 250314,
+   "url": "https://r.onliner.by/pk/apartments/1286732",
+   "auction_bid": null
+  },
+  {
+   "id": 1287806,
+   "author_id": 1023,
+   "location": {
+    "address": "Минск, Беды ул. 45",
+    "user_address": "Минск, Беды ул. 45",
+    "latitude": 53.9424,
+    "longitude": 27.5971
+   },
+   "price": {
+    "amount": "605635.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "605635.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "205001.18",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/2SyoWocMZZqXkYocyi1BZbx_iRDqeB2pcfH3yMouyPE/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMGYwNmFi/ZWEtY2VmYi0xMWYx/LWEzMDMtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 4,
+   "number_of_floors": 10,
+   "area": {
+    "kitchen": 11.2,
+    "living": 52,
+    "total": 93.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T19:15:00+03:00",
+   "last_time_up": "2026-10-23T19:15:00+03:00",
+   "up_available_in": 250305,
+   "url": "https://r.onliner.by/pk/apartments/1287806",
+   "auction_bid": null
+  },
+  {
+   "id": 1286675,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Ротмистрова ул. 8",
+    "user_address": "Минск, Ротмистрова ул. 8",
+    "latitude": 53.8379,
+    "longitude": 27.6951
+   },
+   "price": {
+    "amount": "201500.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "201500.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "68205.67",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/z-93_PalEl96IlvGl4G7phim5e8iAr2JDL122o1JQFY/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYWViOWIz/ZjYtYzZkOC0xMWYx/LWI2ZjAtZTY2NGUy/M2YwZWFhLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 6,
+   "number_of_floors": 9,
+   "area": {
+    "living": 20,
+    "total": 34.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-13T10:45:01+03:00",
+   "last_time_up": "2026-10-23T19:05:09+03:00",
+   "up_available_in": 249714,
+   "url": "https://r.onliner.by/pk/apartments/1286675",
+   "auction_bid": null
+  },
+  {
+   "id": 1236843,
+   "author_id": 1024,
+   "location": {
+    "address": "Minsk, вуліца Шчорса, 42",
+    "user_address": "щорса 42",
+    "latitude": 53.887818811228,
+    "longitude": 27.514588236809
+   },
+   "price": {
+    "amount": "137000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "404739.10",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "137000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/vwH4Gh3OGrISp8Jqhu5065t5PZTLrFpKefkEA2noRCQ/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by81NDQ4/MjMvb3JpZ2luYWwv/MTRjNGExNDVmNGM1/OWRiNDAwNjk0OTg1/YzkxZThiMjguanBn",
+   "resale": false,
+   "number_of_rooms": 1,
+   "floor": 16,
+   "number_of_floors": 23,
+   "area": {
+    "total": 46.4,
+    "living": 16.5,
+    "kitchen": 11.2
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2025-09-05T15:10:21+03:00",
+   "last_time_up": "2026-10-23T18:57:45+03:00",
+   "up_available_in": 249270,
+   "url": "https://r.onliner.by/pk/apartments/1236843",
+   "auction_bid": null
+  },
+  {
+   "id": 1286087,
+   "author_id": 1025,
+   "location": {
+    "address": "Минск, улица Михаила Савицкого, 24",
+    "user_address": "Минск, улица Михаила Савицкого, 24",
+    "latitude": 53.8628623,
+    "longitude": 27.541824664020627
+   },
+   "price": {
+    "amount": "57000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "168395.10",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "57000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/-OjWt0PQOm1CdM82DztDPyWjj64fy4sth5x0vI8sxAU/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8xOTc1/Mjk0L29yaWdpbmFs/LzFiYzllNDAzMjhi/MjA1ZWQyMzhhYTYz/MDM3N2Y2ODkyLnBu/Zw",
+   "resale": false,
+   "number_of_rooms": 1,
+   "floor": 4,
+   "number_of_floors": 16,
+   "area": {
+    "living": 20.4,
+    "total": 24.6
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-10-07T10:53:00+03:00",
+   "last_time_up": "2026-10-23T18:50:16+03:00",
+   "up_available_in": 248821,
+   "url": "https://r.onliner.by/pk/apartments/1286087",
+   "auction_bid": null
+  },
+  {
+   "id": 1281169,
+   "author_id": 1026,
+   "location": {
+    "address": "Беларусь, Хатежино, Нижняя ул., 9",
+    "user_address": "Нижняя ул., 9",
+    "latitude": 53.9127,
+    "longitude": 27.3042
+   },
+   "price": {
+    "amount": "457916.50",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "457916.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "155000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/tIAwL6fi322VnC8WUU7MYghjJoqkUVaYEyEDBx3wnYc/w:600/h:400/aHR0cHM6Ly9tYW5h/Z2VyLnQtcy5ieS91/cGxvYWRzL2ZsYXRz/Lzk5MzYwOS9mbGF0/cy82YTgyZjI1ZTJh/Yzg3LmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 4,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 10.1,
+    "living": 43.5,
+    "total": 75.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-17T17:24:22+03:00",
+   "last_time_up": "2026-10-23T18:48:34+03:00",
+   "up_available_in": 248719,
+   "url": "https://r.onliner.by/pk/apartments/1281169",
+   "auction_bid": null
+  },
+  {
+   "id": 1283745,
+   "author_id": 1002,
+   "location": {
+    "address": "Минск, Краснозвездная ул. 6",
+    "user_address": "Минск, Краснозвездная ул. 6",
+    "latitude": 53.9096,
+    "longitude": 27.5848
+   },
+   "price": {
+    "amount": "276950.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "276950.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "93744.71",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/gcA9LCK0bKTzDKn6uYDzwjQSTLkJX4IkrsAtNEFjuN0/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjg3NDMw/NGMtY2VmNy0xMWYx/LWIyNzktYmVlMDhl/OWE4NmIxLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 5,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 4.9,
+    "living": 20.6,
+    "total": 30.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-10T19:35:01+03:00",
+   "last_time_up": "2026-10-23T18:45:09+03:00",
+   "up_available_in": 248514,
+   "url": "https://r.onliner.by/pk/apartments/1283745",
+   "auction_bid": null
+  },
+  {
+   "id": 1175113,
+   "author_id": 1027,
+   "location": {
+    "address": "Лошанский сельский Совет, Слобода",
+    "user_address": "Лошанский сельский Совет, Слобода",
+    "latitude": 54.05599,
+    "longitude": 27.33218
+   },
+   "price": {
+    "amount": "137000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "137000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "46373.08",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/WeeruGraR8N9ymVDrFbZYJ_pGNnFpApve2TXTpNbP7Y/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzMxYTBkMzk0N2M2/Yjc4ZTdkN2UyMTYy/MzQzYjdmYmY1LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 1,
+   "area": {
+    "total": 103.2,
+    "living": 62.9,
+    "kitchen": 0
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2025-02-10T15:47:16+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1175113",
+   "auction_bid": null
+  },
+  {
+   "id": 1200041,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Киселёва, 17",
+    "user_address": "Минск, улица Киселёва, 17",
+    "latitude": 53.9121466,
+    "longitude": 27.568184461495132
+   },
+   "price": {
+    "amount": "8747500.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "8747500.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "2960938.29",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/NiuiLCraBQOl_R1uCdBi4mvgH_IOPVDkVKG4bw-u2KE/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzY5YzQxODMxZTkz/Mzg5N2NmOGIzNGY4/NGE5YjQ3ODhmLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 6,
+   "number_of_floors": 8,
+   "area": {
+    "total": 282.7,
+    "living": 150,
+    "kitchen": 25
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2025-07-14T12:19:48+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1200041",
+   "auction_bid": null
+  },
+  {
+   "id": 1254743,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, Подлесная улица, 4",
+    "user_address": "Минск, Подлесная улица, 4",
+    "latitude": 53.92223845,
+    "longitude": 27.66161908918936
+   },
+   "price": {
+    "amount": "410000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "410000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "138780.76",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/bfqu1NtKvvPRE1v_mrmxtR35KstdvyQ1VMnhxsowC2g/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzY3YmIyZWUxMGEx/YjI5MjljOWNhZTIx/ZTQ3YTgyNjk1LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 5,
+   "number_of_floors": 14,
+   "area": {
+    "total": 37.8,
+    "living": 31.2,
+    "kitchen": 0
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2025-12-16T17:49:44+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1254743",
+   "auction_bid": null
+  },
+  {
+   "id": 1274014,
+   "author_id": 1027,
+   "location": {
+    "address": "Папернянский сельский Совет, Н8955, 78",
+    "user_address": "Папернянский сельский Совет, Н8955, 78",
+    "latitude": 54.03373355,
+    "longitude": 27.459305049999998
+   },
+   "price": {
+    "amount": "257340.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "257340.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "87106.93",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/lyZMnN9UylGBEadMeu9WQ9bA78pIWee8GiSAPFXEoZc/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2JmOGYwOWMwZjQx/NGYzZjk0ZWQ1ZDll/NGE0OTA1ZmY0LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "living": 88,
+    "total": 88.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-05T16:51:27+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1274014",
+   "auction_bid": null
+  },
+  {
+   "id": 1274241,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, Пионерская улица, 36",
+    "user_address": "Минск, Пионерская улица, 36",
+    "latitude": 53.9393199,
+    "longitude": 27.481741549595142
+   },
+   "price": {
+    "amount": "1550000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "1550000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "524658.97",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/9ew1bauKXQkqAwmo6O5YvbGApg7uD2KlIOMQSEsW1g4/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzUxM2M2OTc3MDJi/NjExNGM5NjFmNWFi/MTZhMTA1ODEzLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 5,
+   "number_of_floors": 6,
+   "area": {
+    "kitchen": 25.4,
+    "living": 84.9,
+    "total": 165.1
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-08T19:33:37+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1274241",
+   "auction_bid": null
+  },
+  {
+   "id": 1274966,
+   "author_id": 1027,
+   "location": {
+    "address": "Ждановичский сельский Совет, Крыжовка, Дачная улица",
+    "user_address": "Ждановичский сельский Совет, Крыжовка, Дачная улица",
+    "latitude": 53.9470497,
+    "longitude": 27.3024714
+   },
+   "price": {
+    "amount": "1210000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "1210000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "409572.49",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/NPauI_9fMi2iaR9YsvCwTED-aDh9eaMVfgXGT15Tk4U/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzE2MGY5YTc0ZWQ2/NTU4ZDI5MDZjNWFm/OGMxMmViMzFhLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 1,
+   "number_of_floors": 1,
+   "area": {
+    "kitchen": 4.4,
+    "living": 24.6,
+    "total": 35.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-15T17:58:09+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1274966",
+   "auction_bid": null
+  },
+  {
+   "id": 1276104,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Михаила Савицкого, 24",
+    "user_address": "Минск, улица Михаила Савицкого, 24",
+    "latitude": 53.8628623,
+    "longitude": 27.541824664020627
+   },
+   "price": {
+    "amount": "254570.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "254570.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "86169.31",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/XGhK4VnB0GDKSLwXuCNkzbsHljymLhKlayV0xVxKqgQ/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzYyYmUxZmM2ZGY3/NGRhNmY1Y2UzNDVi/Mzg0ZGQ4YWI5LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 10,
+   "number_of_floors": 16,
+   "area": {
+    "living": 33.8,
+    "total": 41.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-26T18:10:29+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1276104",
+   "auction_bid": null
+  },
+  {
+   "id": 1276375,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, Поставская улица, 29",
+    "user_address": "Минск, Поставская улица, 29",
+    "latitude": 53.95311565,
+    "longitude": 27.588559150000002
+   },
+   "price": {
+    "amount": "3600000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "3600000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "1218562.77",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/x3Ni6afJtX9tGIkB9wOxf6GCPNTyaWHPW-2x_Oek_-w/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2YyOTZkNTc3N2Y2/NWM1ZjQ1MDE1ZjQ4/YzI1OTI0NzA3LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 3,
+   "area": {
+    "kitchen": 17.6,
+    "living": 172.2,
+    "total": 449
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-30T16:59:07+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1276375",
+   "auction_bid": null
+  },
+  {
+   "id": 1280131,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Александра Воинова, 34",
+    "user_address": "Минск, улица Александра Воинова, 34",
+    "latitude": 53.96423675,
+    "longitude": 27.563892622425122
+   },
+   "price": {
+    "amount": "815000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "815000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "275869.07",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/5KGkp0LANdt--olazmHGJ8e1vT4b_Otc9npibv3VZbM/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2UyYWM2OWVlNmRj/MjA2YTk3OTdhM2Jm/NjQ5NjJkY2M0LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 4,
+   "number_of_floors": 6,
+   "area": {
+    "kitchen": 20.5,
+    "living": 24.7,
+    "total": 73
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-05T19:26:37+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1280131",
+   "auction_bid": null
+  },
+  {
+   "id": 1282186,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, Братская улица, 17",
+    "user_address": "Минск, Братская улица, 17",
+    "latitude": 53.86229555,
+    "longitude": 27.546412133002235
+   },
+   "price": {
+    "amount": "450000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "450000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "152320.35",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/Sqaq1iwyAbR3gWtqvQmXRH31f-8wUWme2w46U2vGOb8/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzllYjAyMjE3NjJl/ZWRhOGM4ZWE3Y2M4/Zjc2YzgxMWUwLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 20,
+   "number_of_floors": 25,
+   "area": {
+    "living": 49,
+    "total": 55.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-25T12:49:00+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1282186",
+   "auction_bid": null
+  },
+  {
+   "id": 1282367,
+   "author_id": 1027,
+   "location": {
+    "address": "Мачулищи, Дружная улица, 48",
+    "user_address": "Мачулищи, Дружная улица, 48",
+    "latitude": 53.774976699999996,
+    "longitude": 27.592031973716587
+   },
+   "price": {
+    "amount": "306600.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "306600.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "103780.93",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/UwrXPTzAN7KuyOicqihcmPIhNxYP6UAH1ncC5zys2YY/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzQwMjdmMTVjMjM1/MmFjOWQ3YjJkNzM0/NDYwMjI1OTE4LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 7,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 10.1,
+    "living": 35,
+    "total": 67.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-08-26T19:02:17+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1282367",
+   "auction_bid": null
+  },
+  {
+   "id": 1282926,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Юрия Семеняко, 15",
+    "user_address": "Минск, улица Юрия Семеняко, 15",
+    "latitude": 53.87572965,
+    "longitude": 27.456538453304567
+   },
+   "price": {
+    "amount": "604950.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "604950.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "204769.32",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/tDe2OsPGDs1WAGMhy4tqBC6PT-TkLB9YrkP6QgNQ6KY/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2IxNTkzNWZjZThh/MjEwYzI4ZTdmNTA4/OTQ2OWU4ZWIyLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 7,
+   "number_of_floors": 16,
+   "area": {
+    "kitchen": 13.9,
+    "living": 42.3,
+    "total": 76.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-02T13:56:54+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1282926",
+   "auction_bid": null
+  },
+  {
+   "id": 1282998,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Якуба Коласа, 45 к2",
+    "user_address": "Минск, улица Якуба Коласа, 45 к2",
+    "latitude": 53.92928875,
+    "longitude": 27.596064637689764
+   },
+   "price": {
+    "amount": "297000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "297000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "100531.43",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/CnKNTV5bw7vte5PNRAJ8-QilflQ3AvsH37HIRo9Grog/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzQyMzNlMTU3YjNm/MzZjZDU3MTMwOTRk/NWIwZTI4MWIyLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 2,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 5.6,
+    "living": 31,
+    "total": 45.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-03T11:45:28+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1282998",
+   "auction_bid": null
+  },
+  {
+   "id": 1285484,
+   "author_id": 1027,
+   "location": {
+    "address": "Колодищанский сельский Совет, Колодищи, улица Серебряный Лес, 9",
+    "user_address": "Колодищанский сельский Совет, Колодищи, улица Серебряный Лес, 9",
+    "latitude": 53.89357735,
+    "longitude": 27.749048582785086
+   },
+   "price": {
+    "amount": "329810.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "329810.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "111637.27",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/TVOi7G-pS577C4bM5ltnrlf4aKZZ2UIENnvz61J4jHU/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2E4NmZjMjJkNGNk/ZWNjMDI5YTUyNjQ4/ODIxNGM1MTQ5LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 2,
+   "number_of_floors": 7,
+   "area": {
+    "living": 39.1,
+    "total": 45.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-09-30T14:48:04+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1285484",
+   "auction_bid": null
+  },
+  {
+   "id": 1285763,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Академика Карского, 35",
+    "user_address": "Минск, улица Академика Карского, 35",
+    "latitude": 53.87562905,
+    "longitude": 27.43422348171641
+   },
+   "price": {
+    "amount": "443850.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "443850.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "150238.64",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/c6gIxC-3idUohc1EFNJoM9v1kU7i1HbT0iAEP_9xKBk/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzNjNmU3MzhjZjc1/M2I2NmNjZmZhY2Y1/NmUzNmMyNTc5LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 4,
+   "number_of_floors": 16,
+   "area": {
+    "kitchen": 10,
+    "living": 31.1,
+    "total": 61.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-02T19:27:45+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1285763",
+   "auction_bid": null
+  },
+  {
+   "id": 1286621,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Фроликова, 1",
+    "user_address": "Минск, улица Фроликова, 1",
+    "latitude": 53.90371065,
+    "longitude": 27.611326970117766
+   },
+   "price": {
+    "amount": "210000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "210000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "71082.83",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ur4ODK-lqlaE7pt_ZsXCmean9hyWL6ThBUH-hVF4tK0/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzMxOWE4NWQ0Nzky/ZTQzYTk0ODAyMGQy/ZDZiYWNjMzg3LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 9,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.4,
+    "living": 17.9,
+    "total": 35.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-12T17:38:05+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1286621",
+   "auction_bid": null
+  },
+  {
+   "id": 1286707,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Червякова, 55",
+    "user_address": "Минск, улица Червякова, 55",
+    "latitude": 53.9286997,
+    "longitude": 27.5479338
+   },
+   "price": {
+    "amount": "399000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "399000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "135057.37",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/nwWUD8n1xt5VFEs9ZE3UQer75kdofMDdna4g9MyKQUE/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2YwZTU0MzdlYmM1/ODY4N2RmOWIzMzU0/YWYwMTRlYmI0LnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 3,
+   "number_of_floors": 9,
+   "area": {
+    "living": 19,
+    "total": 45.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-13T14:07:41+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1286707",
+   "auction_bid": null
+  },
+  {
+   "id": 1286942,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Якубова, 32",
+    "user_address": "Минск, улица Якубова, 32",
+    "latitude": 53.8547071,
+    "longitude": 27.596164276872248
+   },
+   "price": {
+    "amount": "325000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "325000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "110009.14",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/QWQ93rUV9LEWtwSybu0WL2So6ozTGp0DFRTU58Zqo2s/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/LzEyZmM4MGEwOTgz/MmZiZmFjMDM2YTM2/MjlmYzE1NDVhLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 11,
+   "number_of_floors": 12,
+   "area": {
+    "kitchen": 8.8,
+    "living": 30.9,
+    "total": 52.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-15T15:22:06+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1286942",
+   "auction_bid": null
+  },
+  {
+   "id": 1287240,
+   "author_id": 1027,
+   "location": {
+    "address": "Минск, улица Леонида Беды, 13",
+    "user_address": "Минск, улица Леонида Беды, 13",
+    "latitude": 53.9321022,
+    "longitude": 27.588416738265288
+   },
+   "price": {
+    "amount": "366000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "366000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "123887.22",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/6ueJ7n--J44tpimMh8Va1gDsa3hcQs1OFx3aG2J-EXU/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zNzI3/OTg1L29yaWdpbmFs/L2QwYWQzMmE5YzQ3/M2Y1MDFhMjRiZTZi/MDEyNDk0YWYyLnBu/Zw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 12,
+   "number_of_floors": 12,
+   "area": {
+    "kitchen": 8.8,
+    "living": 29.1,
+    "total": 52
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-19T15:16:00+03:00",
+   "last_time_up": "2026-10-23T18:40:01+03:00",
+   "up_available_in": 248206,
+   "url": "https://r.onliner.by/pk/apartments/1287240",
+   "auction_bid": null
+  },
+  {
+   "id": 1287804,
+   "author_id": 1022,
+   "location": {
+    "address": "Беларусь, Копище, Михаила Миля ул., 5",
+    "user_address": "Беларусь, Копище, Михаила Миля ул., 5",
+    "latitude": 53.955675,
+    "longitude": 27.659181
+   },
+   "price": {
+    "amount": "172629.73",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "510000.01",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "172629.73",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/hrqSCxtwBCMBTgmIBTwzpjMNCRFjO5lxvMsucMcIyRQ/w:600/h:400/aHR0cHM6Ly9tbWVk/aWEuYW5zZXZlbi5i/eS91cGxvYWQvY3Jt/LzIzMTg5LzZhZGI2/YTcxYjM0NWY5ZDA0/MmU5NzM2N18xNzky/NzY5ODgwLmpwZw",
+   "resale": false,
+   "number_of_rooms": 3,
+   "floor": 6,
+   "number_of_floors": 8,
+   "area": {
+    "living": 59.2,
+    "total": 67
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T18:38:13+03:00",
+   "last_time_up": "2026-10-23T18:38:13+03:00",
+   "up_available_in": 248098,
+   "url": "https://r.onliner.by/pk/apartments/1287804",
+   "auction_bid": null
+  },
+  {
+   "id": 1287803,
+   "author_id": 1000,
+   "location": {
+    "address": "Минск, Волгоградская ул. 5",
+    "user_address": "Минск, Волгоградская ул. 5",
+    "latitude": 53.9308,
+    "longitude": 27.6233
+   },
+   "price": {
+    "amount": "309000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "309000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "104593.30",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/039e79r8TcsghMgJML8dMQpMGMFkgWcaizIPKA41wBo/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvY2U1NjVm/MDQtY2VmNi0xMWYx/LTg4NmMtYmVlMDhl/OWE4NmIxLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 5,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 5.9,
+    "living": 26.4,
+    "total": 41.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T18:35:00+03:00",
+   "last_time_up": "2026-10-23T18:35:00+03:00",
+   "up_available_in": 247905,
+   "url": "https://r.onliner.by/pk/apartments/1287803",
+   "auction_bid": null
+  },
+  {
+   "id": 1282890,
+   "author_id": 1028,
+   "location": {
+    "address": "Минск, Братская улица, 17",
+    "user_address": "Минск, Братская улица, 17",
+    "latitude": 53.86229555,
+    "longitude": 27.546412133002235
+   },
+   "price": {
+    "amount": "105000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "310201.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "105000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ljMJNoz-2zDZOE85lvljZ5DsJl5GT4BUbyDk0ld3lVM/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8zOTA5/MTc1L29yaWdpbmFs/L2Y1MjJjOTU5M2Yw/Y2MyMGZlZDJhYTc0/YThkMDAzYjlkLmpw/Zw",
+   "resale": false,
+   "number_of_rooms": 1,
+   "floor": 22,
+   "number_of_floors": 25,
+   "area": {
+    "living": 25,
+    "total": 31.7
+   },
+   "seller": {
+    "type": "owner"
+   },
+   "created_at": "2026-09-02T08:56:02+03:00",
+   "last_time_up": "2026-10-23T18:22:43+03:00",
+   "up_available_in": 247168,
+   "url": "https://r.onliner.by/pk/apartments/1282890",
+   "auction_bid": null
+  },
+  {
+   "id": 1287802,
+   "author_id": 1026,
+   "location": {
+    "address": "Беларусь, Минск, Левина ул., 7",
+    "user_address": "Левина ул., 7",
+    "latitude": 53.8668,
+    "longitude": 27.5311
+   },
+   "price": {
+    "amount": "293952.84",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "293952.84",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "99500.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/m9llddnn3fTroOUotLGd0NojiHr1_4dOjxKQVBs2L98/w:600/h:400/aHR0cHM6Ly9tYW5h/Z2VyLnQtcy5ieS91/cGxvYWRzL2ZsYXRz/Lzk5NDAzMS9mbGF0/cy82YWRiNTgxMjUw/ZTE3LmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 24,
+   "number_of_floors": 25,
+   "area": {
+    "kitchen": 1,
+    "living": 23.4,
+    "total": 27.9
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-10-23T18:21:20+03:00",
+   "last_time_up": "2026-10-23T18:21:20+03:00",
+   "up_available_in": 247085,
+   "url": "https://r.onliner.by/pk/apartments/1287802",
+   "auction_bid": null
+  },
+  {
+   "id": 1263591,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Гинтовта ул. 18",
+    "user_address": "Минск, Гинтовта ул. 18",
+    "latitude": 53.9485,
+    "longitude": 27.6734
+   },
+   "price": {
+    "amount": "162000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "478596.60",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "162000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/Ja6NXveAEHUO_YgvCa-sONcUJCblCKHIlRiL1fCtrwY/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMWE5YjNm/MjgtMTdiYS0xMWYx/LWIwZTItMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 9,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.7,
+    "living": 52.8,
+    "total": 84
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-03-04T16:30:20+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1263591",
+   "auction_bid": null
+  },
+  {
+   "id": 1266980,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Воронянского ул. 40",
+    "user_address": "Минск, Воронянского ул. 40",
+    "latitude": 53.8776,
+    "longitude": 27.5451
+   },
+   "price": {
+    "amount": "754000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "754000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "255221.20",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/27cv99hvwrB3janiyI_Fb0s1rXUkQyImgtZq91BxZFE/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMDAxN2Zl/Y2UtYjA0NS0xMWYx/LWI5MzMtZjIyZmVh/NzM4Mjg4LmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 13,
+   "number_of_floors": 15,
+   "area": {
+    "kitchen": 20,
+    "living": 50.6,
+    "total": 97.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-03-30T21:25:35+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1266980",
+   "auction_bid": null
+  },
+  {
+   "id": 1269464,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Захарова ул. 72",
+    "user_address": "Минск, Захарова ул. 72",
+    "latitude": 53.8964,
+    "longitude": 27.5867
+   },
+   "price": {
+    "amount": "346000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "346000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "117117.42",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ICx50A-8W2Zgu6JumA7dUg2ori-VebXAOZrnXX2TnG8/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjJkZmE2/NDItNzIyZC0xMWYx/LWIxYzctMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 1,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 6.8,
+    "living": 40.2,
+    "total": 59.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-04-23T14:45:13+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1269464",
+   "auction_bid": null
+  },
+  {
+   "id": 1269661,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Слободская ул. 125",
+    "user_address": "Минск, Слободская ул. 125",
+    "latitude": 53.8459,
+    "longitude": 27.4525
+   },
+   "price": {
+    "amount": "387000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "387000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "130995.50",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/tV8UIJOQKyo6AeO4pVNKU17Ie6ULzvSdg2Zu4P3Q16s/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZmQyODNj/NWEtM2ZlOC0xMWYx/LTlhNjUtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 10,
+   "number_of_floors": 19,
+   "area": {
+    "living": 30,
+    "total": 48.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-04-24T20:25:38+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1269661",
+   "auction_bid": null
+  },
+  {
+   "id": 1270383,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Мавра ул. 44",
+    "user_address": "Минск, Мавра ул. 44",
+    "latitude": 53.8994,
+    "longitude": 27.4897
+   },
+   "price": {
+    "amount": "483690.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "483690.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "163724.06",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/Lga7vXKa5DF_CbV3y95-645hX3bF8m9b5Z5SEYgxFUM/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvM2IwYjI5/YzYtNDQ4ZC0xMWYx/LWExMTUtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 1,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.5,
+    "living": 60.1,
+    "total": 81.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-04-30T17:55:21+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1270383",
+   "auction_bid": null
+  },
+  {
+   "id": 1270402,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Победителей просп. 115",
+    "user_address": "Минск, Победителей просп. 115",
+    "latitude": 53.9368,
+    "longitude": 27.4772
+   },
+   "price": {
+    "amount": "548000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "548000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "185492.33",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/8cAT7XKFlnRtQ4w1cLA8GqSZuHTlbfnoiY6jO3ntxDM/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNDdhNTJh/OTAtMDAyOS0xMWYx/LTlmYzUtMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 8,
+   "number_of_floors": 37,
+   "area": {
+    "kitchen": 10,
+    "living": 33.7,
+    "total": 53.5
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-04-30T22:20:15+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1270402",
+   "auction_bid": null
+  },
+  {
+   "id": 1270737,
+   "author_id": 1029,
+   "location": {
+    "address": "Фаниполь, Комсомольская ул. 39",
+    "user_address": "Фаниполь, Комсомольская ул. 39",
+    "latitude": 53.743,
+    "longitude": 27.3226
+   },
+   "price": {
+    "amount": "266300.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "266300.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "90139.80",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/E9sxYaSxhxLs3FwrfnJh0IXXJNr9eJO0GE6-j4bc3lU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvOTBmNDg1/NWUtNDg3OS0xMWYx/LWJmMWQtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 5,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 7.3,
+    "living": 43.7,
+    "total": 62.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-05T17:45:15+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1270737",
+   "auction_bid": null
+  },
+  {
+   "id": 1270756,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Скорины ул. 41ка",
+    "user_address": "Минск, Скорины ул. 41ка",
+    "latitude": 53.9279,
+    "longitude": 27.698
+   },
+   "price": {
+    "amount": "545000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "545000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "184476.86",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/63EAnspx3B4nhigwgYvyDJOMdQdsh0DAF-l6Qv3099s/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNDI2MWI1/NGEtNDg4MC0xMWYx/LTlhMWMtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 9,
+   "number_of_floors": 19,
+   "area": {
+    "kitchen": 12.9,
+    "living": 45,
+    "total": 78.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-05T18:50:30+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1270756",
+   "auction_bid": null
+  },
+  {
+   "id": 1270994,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Орловская ул. 86к4",
+    "user_address": "Минск, Орловская ул. 86к4",
+    "latitude": 53.9298,
+    "longitude": 27.5072
+   },
+   "price": {
+    "amount": "495000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "495000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "167552.38",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/ugaOv0rb4xDJLehN5EMKa_Ooo4FaD4iTW-1I3TnC-Xg/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvZjQ0YmQ0/NGEtNDlmZi0xMWYx/LTkzMjEtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 3,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7,
+    "living": 55.6,
+    "total": 81.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-07T16:10:18+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1270994",
+   "auction_bid": null
+  },
+  {
+   "id": 1272021,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Победителей просп. 57",
+    "user_address": "Минск, Победителей просп. 57",
+    "latitude": 53.9203,
+    "longitude": 27.5285
+   },
+   "price": {
+    "amount": "1325000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "1325000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "448498.80",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/F5izEtoJdKc5APo1HjsoczHZiStCEZYgLvWV5YhUWB8/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYzVhZWE1/YzgtNTJlMS0xMWYx/LTk0ZmUtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 8,
+   "number_of_floors": 18,
+   "area": {
+    "kitchen": 25.4,
+    "living": 88.4,
+    "total": 142.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-18T23:00:14+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272021",
+   "auction_bid": null
+  },
+  {
+   "id": 1272413,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Карвата ул. 31кГ",
+    "user_address": "Минск, Карвата ул. 31кГ",
+    "latitude": 53.9125,
+    "longitude": 27.6785
+   },
+   "price": {
+    "amount": "147000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "434282.10",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "147000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/YCj4cVU7UsKS45oEYntebD2gzHwspmcYLOwuIKA7WqU/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMGNmZGNl/NGMtZDBlZi0xMWYw/LTk3YjQtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 10,
+   "number_of_floors": 20,
+   "area": {
+    "living": 47.2,
+    "total": 62
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-21T18:45:32+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272413",
+   "auction_bid": null
+  },
+  {
+   "id": 1272415,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Раковская ул. 16",
+    "user_address": "Минск, Раковская ул. 16",
+    "latitude": 53.9049,
+    "longitude": 27.5491
+   },
+   "price": {
+    "amount": "706000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "706000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "238973.70",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/1poMcpFar9F4DnjCSwXcwMwlEABssi0Ye1kmEuxVx5Y/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvOTg5NmNj/Y2EtMDVjMy0xMWYx/LTkzZmItMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "kitchen": 7.9,
+    "living": 39.6,
+    "total": 68
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-21T18:50:33+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272415",
+   "auction_bid": null
+  },
+  {
+   "id": 1272529,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Бирюзова ул. 9",
+    "user_address": "Минск, Бирюзова ул. 9",
+    "latitude": 53.9117,
+    "longitude": 27.5145
+   },
+   "price": {
+    "amount": "242000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "242000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "81914.50",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/C_hjLIs399Q6rrgRz_DxHWTww3rhfuSHnMxOX4eOLoA/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvODBiMjY4/YTAtNTVjNi0xMWYx/LTk0NmYtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 1,
+   "floor": 3,
+   "number_of_floors": 5,
+   "area": {
+    "kitchen": 5.7,
+    "living": 18.9,
+    "total": 30.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-22T15:50:33+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272529",
+   "auction_bid": null
+  },
+  {
+   "id": 1272917,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Старовиленская ул. 52",
+    "user_address": "Минск, Старовиленская ул. 52",
+    "latitude": 53.9141,
+    "longitude": 27.559
+   },
+   "price": {
+    "amount": "180300.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "532660.29",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "180300.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/HFjtAyehd9SKSU4KyC7H7t8s6NoTriRDWCmUy31KN-A/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvY2FlOWU2/MTYtNTkxNi0xMWYx/LWE0NmUtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 3,
+   "number_of_floors": 3,
+   "area": {
+    "kitchen": 8.2,
+    "living": 36,
+    "total": 61.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-26T20:40:27+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272917",
+   "auction_bid": null
+  },
+  {
+   "id": 1272984,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Некрасова ул. 88",
+    "user_address": "Минск, Некрасова ул. 88",
+    "latitude": 53.9391,
+    "longitude": 27.576
+   },
+   "price": {
+    "amount": "756000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "756000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "255898.18",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/6bFJ_R5O8RKgoqvpMthmKsD9cdX7tUm5hLs4iKRnFEg/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNDI3MWQ2/MzgtNTlhYS0xMWYx/LWJlZWQtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 5,
+   "floor": 1,
+   "number_of_floors": 3,
+   "area": {
+    "kitchen": 15.3,
+    "living": 243.6,
+    "total": 326.6
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-27T14:10:21+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1272984",
+   "auction_bid": null
+  },
+  {
+   "id": 1273037,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Стадионная ул. 9",
+    "user_address": "Минск, Стадионная ул. 9",
+    "latitude": 53.9373,
+    "longitude": 27.5368
+   },
+   "price": {
+    "amount": "175000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "517002.50",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "175000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/c24BGQQoY2vPlq9KTJe_dU-ahByw-5rOph6yFsdX-UA/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvNTAwNjky/MWMtMGEzNS0xMWYx/LTg3YWMtMDI0MmFj/MTIwMDAyLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 10,
+   "number_of_floors": 13,
+   "area": {
+    "kitchen": 11.7,
+    "living": 32.8,
+    "total": 53.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-27T18:45:18+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1273037",
+   "auction_bid": null
+  },
+  {
+   "id": 1273162,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Романовская Слобода ул. 24",
+    "user_address": "Минск, Романовская Слобода ул. 24",
+    "latitude": 53.904,
+    "longitude": 27.5441
+   },
+   "price": {
+    "amount": "671000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "671000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "227126.56",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/8rGeRReu9UGqUCU9HlSdxRiQkQ8mbL8PJk5kL79GZaA/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvODhmNTIx/ODItNzk4NS0xMWYx/LWJjNWUtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 2,
+   "number_of_floors": 4,
+   "area": {
+    "kitchen": 9,
+    "living": 50.3,
+    "total": 74.2
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-05-28T19:30:27+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1273162",
+   "auction_bid": null
+  },
+  {
+   "id": 1273425,
+   "author_id": 1029,
+   "location": {
+    "address": "Острошицкогородокский сельский Совет, Раубичи",
+    "user_address": "Острошицкогородокский сельский Совет, Раубичи",
+    "latitude": 54.0617932,
+    "longitude": 27.7675118
+   },
+   "price": {
+    "amount": "330000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "974919.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "330000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/q8SIWn0cqA5OP2aosdYiK2myzkW8rU2WYq2Xqv7XNu8/w:600/h:400/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8xODEy/NjM2L29yaWdpbmFs/LzlhZDFjMWU0ZjAx/YmM5YTQyNTBhNDMz/ZjFlNTYxZjdmLmpw/Zw",
+   "resale": true,
+   "number_of_rooms": 5,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "kitchen": 7.9,
+    "living": 196.3,
+    "total": 291.7
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-01T12:51:30+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1273425",
+   "auction_bid": null
+  },
+  {
+   "id": 1273650,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Слободская ул. 53",
+    "user_address": "Минск, Слободская ул. 53",
+    "latitude": 53.8564,
+    "longitude": 27.4386
+   },
+   "price": {
+    "amount": "379200.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "379200.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "128355.28",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/4nTe0sQwD8ponwIChFE9asrLsrv0KjtZr6nuVPAxRFs/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYjBkMzQ3/MTItNWU4YS0xMWYx/LTgyOWEtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 3,
+   "floor": 3,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.1,
+    "living": 43.5,
+    "total": 65.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-02T19:00:28+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1273650",
+   "auction_bid": null
+  },
+  {
+   "id": 1273657,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Седова ул. 10",
+    "user_address": "Минск, Седова ул. 10",
+    "latitude": 53.8666,
+    "longitude": 27.6616
+   },
+   "price": {
+    "amount": "99000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "292475.70",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "99000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/-Ngw8Y7XxiOZb297YMQ-QeUsTFM81PeCZ1vaY6SC2DY/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjk5Yzg4/ZTYtNWU4ZC0xMWYx/LWI3MjAtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 1,
+   "number_of_floors": 2,
+   "area": {
+    "kitchen": 6,
+    "living": 24.9,
+    "total": 39.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-02T19:15:30+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1273657",
+   "auction_bid": null
+  },
+  {
+   "id": 1274703,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Белинского ул. 54",
+    "user_address": "Минск, Белинского ул. 54",
+    "latitude": 53.9383,
+    "longitude": 27.5926
+   },
+   "price": {
+    "amount": "549000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "549000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "185830.82",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/PhXtqFD4VxCSscgMTPrtZa6PuaO4t4WLy8Hiivk01WQ/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvMjBkZDY0/ZjItNjY1MS0xMWYx/LThhYTYtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 2,
+   "floor": 11,
+   "number_of_floors": 11,
+   "area": {
+    "kitchen": 11.5,
+    "living": 42.9,
+    "total": 72.4
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-12T18:05:39+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1274703",
+   "auction_bid": null
+  },
+  {
+   "id": 1274985,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Любимова просп. 34к1",
+    "user_address": "Минск, Любимова просп. 34к1",
+    "latitude": 53.8641,
+    "longitude": 27.461
+   },
+   "price": {
+    "amount": "586000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "586000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "198354.94",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/zAm_wMM_BbJQXIMwF5p3WDtXXzvp37oYCPMFr3uA6UM/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYmIyODk0/YjItNjhiYS0xMWYx/LTkwZmMtMDI0MmFj/MTIwMDAzLmpwZw",
+   "resale": true,
+   "number_of_rooms": 5,
+   "floor": 1,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 12.1,
+    "living": 61.4,
+    "total": 101.3
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-15T19:10:35+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1274985",
+   "auction_bid": null
+  },
+  {
+   "id": 1275631,
+   "author_id": 1029,
+   "location": {
+    "address": "Минск, Голубева ул. 13",
+    "user_address": "Минск, Голубева ул. 13",
+    "latitude": 53.8635,
+    "longitude": 27.474
+   },
+   "price": {
+    "amount": "510000.00",
+    "currency": "BYN",
+    "converted": {
+     "BYN": {
+      "amount": "510000.00",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "172629.73",
+      "currency": "USD"
+     }
+    }
+   },
+   "photo": "https://imgproxy.onliner.by/NC0kWIKtbc7uw0oNFCEY9IqKHJprpCJrNqOtRsLEHkg/w:600/h:400/aHR0cHM6Ly9maWxl/cy5yZWFsdC5ieS9p/bWcvNjIvYTZjNGQz/NWUtOTViMS0xMWYx/LTk3OGMtYjI1NWVi/YTMxMDM1LmpwZw",
+   "resale": true,
+   "number_of_rooms": 4,
+   "floor": 7,
+   "number_of_floors": 9,
+   "area": {
+    "kitchen": 7.1,
+    "living": 54.1,
+    "total": 76.8
+   },
+   "seller": {
+    "type": "agent"
+   },
+   "created_at": "2026-06-23T00:05:38+03:00",
+   "last_time_up": "2026-10-23T18:15:15+03:00",
+   "up_available_in": 246720,
+   "url": "https://r.onliner.by/pk/apartments/1275631",
+   "auction_bid": null
+  }
+ ],
+ "total": 3620,
+ "page": {
+  "limit": 96,
+  "items": 96,
+  "current": 1,
+  "last": 38
+ }
+}

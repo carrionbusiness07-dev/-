@@ -4,6 +4,8 @@
 
     python scripts/capture_fixture.py kufar
     python scripts/capture_fixture.py realt
+    python scripts/capture_fixture.py onliner
+    python scripts/capture_fixture.py domovita
 
 Скрипт делает ОДИН запрос к первой странице выдачи, сохраняет очищенный ответ в
 tests/fixtures/<source>/ и печатает список полей, чтобы закрыть пункты UNVERIFIED
@@ -20,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from minsk_realty.privacy import scrub
-from minsk_realty.sources import kufar, realt
+from minsk_realty.sources import domovita, kufar, onliner, realt
 from minsk_realty.sources.base import PoliteClient
 
 OUT = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
@@ -68,11 +70,45 @@ def capture_realt(client: PoliteClient) -> None:
     print(f"saved {path}\nobject keys: {keys}")
 
 
+def capture_onliner(client: PoliteClient) -> None:
+    params = {**onliner.SEARCH_PARAMS, "page": 1}
+    data = scrub(client.get(onliner.SEARCH_URL, params=params).json())
+    path = OUT / "onliner" / f"search_sale_minsk.{date.today()}.json"
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    items = data.get("apartments") or []
+    mirrors = Counter(onliner.mirror_of(i) for i in items if onliner.is_minsk(i))
+    print(
+        f"saved {path}\ntotal: {data.get('total')}, page: {data.get('page')}\nmirrors: {dict(mirrors)}"
+    )
+
+
+def capture_domovita(client: PoliteClient) -> None:
+    page = domovita.extract_next_data(client.get(domovita.LIST_URL).text)
+    cards = domovita.listing_cards(page["props"]["pageProps"])
+    # Карточку целиком не храним: в ней телефоны и имя продавца (см. domovita.compact).
+    data = {
+        "buildId": page.get("buildId"),
+        "totalCount": cards.get("totalCount"),
+        "items": [domovita.to_raw(item).payload for item in cards.get("items") or []],
+    }
+    path = OUT / "domovita" / f"flats_sale_minsk.{date.today()}.json"
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    keys = sorted({k for item in cards.get("items") or [] for k in item})
+    print(f"saved {path}\ntotal: {data['totalCount']}\ncard keys: {keys}")
+
+
+CAPTURES = {
+    "kufar": capture_kufar,
+    "realt": capture_realt,
+    "onliner": capture_onliner,
+    "domovita": capture_domovita,
+}
+
 if __name__ == "__main__":
     source = sys.argv[1] if len(sys.argv) > 1 else ""
-    capture = {"kufar": capture_kufar, "realt": capture_realt}.get(source)
+    capture = CAPTURES.get(source)
     if capture is None:
-        sys.exit("usage: capture_fixture.py kufar|realt")
+        sys.exit(f"usage: capture_fixture.py {'|'.join(CAPTURES)}")
     client = PoliteClient()
     try:
         capture(client)

@@ -979,3 +979,37 @@ def test_new_event_written_before_baseline_rule_is_retracted(session):
     observe(session, "realt", T0 + HOUR, realt("101"))
     [new] = events(session, object_id, with_payload=True)
     assert new.retracted_at is not None and not new.notify
+
+
+def test_same_flat_on_realt_onliner_and_domovita_is_one_object(session):
+    """Адреса трёх площадок записаны по-разному, но это одна квартира: улица, дом, этаж,
+    этажность и площадь совпадают (полный отпечаток уровня 1 → medium)."""
+    observe(session, "realt", T0, realt("101"))
+    onliner = kufar(
+        "301",
+        source="onliner",
+        url="https://r.onliner.by/pk/apartments/301",
+        seller_key="onliner-seller",
+        address_raw="Минск, Притыцкого ул. 10",
+        floor=5,
+        floors_total=9,
+    )
+    observe(session, "onliner", T0 + HOUR, onliner)
+    domovita = kufar(
+        "2-komnatnaa-kvartira-ul-prityckogo-10",
+        source="domovita",
+        url="https://domovita.by/minsk/flats/sale/2-komnatnaa-kvartira-ul-prityckogo-10",
+        seller_key="domovita-seller",
+        street="ул. Притыцкого",
+        house="10",
+        address_raw="Минск, ул. Притыцкого, 10",
+        floor=5,
+        floors_total=9,
+    )
+    observe(session, "domovita", T0 + 2 * HOUR, domovita)
+    r = listing(session, "realt", "101")
+    o = listing(session, "onliner", "301")
+    d = listing(session, "domovita", "2-komnatnaa-kvartira-ul-prityckogo-10")
+    assert o.object_id == d.object_id == r.object_id
+    assert (o.match_confidence, d.match_confidence) == ("medium", "medium")
+    assert objects_count(session) == 1

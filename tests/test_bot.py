@@ -136,9 +136,17 @@ def test_find_links_in_free_text():
     assert (realt[0].source, realt[0].external_id) == ("realt", "101")
 
 
-def test_find_links_unsupported_and_none():
+def test_find_links_onliner_domovita_and_none():
     onl = links.find_links("https://r.onliner.by/pk/apartments/301")
-    assert onl and not onl[0].supported and onl[0].coming_soon == "Onliner"
+    assert (onl[0].source, onl[0].external_id) == ("onliner", "301")
+    dom = links.find_links(
+        "https://domovita.by/minsk/flats/sale/1-komnatnaa-kvartira-ul-bratskaa-42-114"
+    )
+    assert (dom[0].source, dom[0].external_id) == (
+        "domovita",
+        "1-komnatnaa-kvartira-ul-bratskaa-42-114",
+    )
+    assert not links.find_links("https://domovita.by/minsk/flats/sale")[0].supported
     assert links.find_links("2-комн., ул.Притыцкого, 54.3 м², т.е. недорого") == []
     search = links.find_links("https://re.kufar.by/l/minsk/kupit/kvartiru")
     assert search and not search[0].supported
@@ -160,8 +168,8 @@ def test_hidden_text_links_are_read():
 
 def test_start_lists_current_sources():
     text = texts.start_text()
-    assert "Kufar или Realt" in text
-    assert "Onliner и Domovita — скоро" in text
+    assert "Kufar, Realt, Onliner или Domovita" in text
+    assert "скоро" not in text
     assert "/watch" in text and "/list" in text
 
 
@@ -174,8 +182,8 @@ def test_html_escaping_and_telegram_length():
 
 
 def test_unsupported_link_texts():
-    onl = texts.unsupported_text(links.find_links("https://r.onliner.by/pk/apartments/301"))
-    assert "Onliner я пока не читаю" in onl and "Kufar и Realt" in onl
+    onl = texts.unsupported_text(links.find_links("https://r.onliner.by/pk/"))
+    assert "не на объявление" in onl
     other = texts.unsupported_text(links.find_links("https://example.com/x"))
     assert "не понимаю" in other and "re.kufar.by/vi/" in other
     search = texts.unsupported_text(links.find_links("https://re.kufar.by/l/minsk"))

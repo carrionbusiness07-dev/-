@@ -217,3 +217,34 @@ def test_close_stale_runs_marks_killed_passes_interrupted(factory):
         close_stale_runs(session, older_than=None, at=T0 + timedelta(hours=1))
         session.commit()
         assert check_sources(session, ["kufar"], now=T0 + timedelta(hours=1)) == []
+
+
+def test_run_cycle_respects_min_interval(factory, monkeypatch):
+    created = []
+
+    class Slow(FakeKufar):
+        min_interval = timedelta(hours=3)
+
+        def __init__(self):
+            created.append("slow")
+            super().__init__([])
+
+    monkeypatch.setattr("minsk_realty.collector.__main__.ADAPTERS", {"kufar": Slow})
+    monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
+    now = datetime.now(UTC)
+    with factory() as session:
+        session.add(
+            SourceRun(
+                source="kufar", started_at=now - timedelta(hours=1), status="ok", complete=True
+            )
+        )
+        session.commit()
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    assert created == []  # полный проход был час назад — рано
+
+    with factory() as session:
+        for run in session.scalars(select(SourceRun)):
+            run.started_at = now - timedelta(hours=4)
+        session.commit()
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    assert created == ["slow"]

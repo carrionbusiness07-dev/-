@@ -506,7 +506,7 @@ def test_unknown_and_unsupported_links(docs):
     assert "Наблюдаем рынок с 15.07.2026" in render_check_text(missing)
     bad = build_check_report(docs, "https://example.com/flat/1", NOW)
     assert bad.status == "unsupported_url"
-    assert "Kufar или Realt" in render_check_text(bad)
+    assert "Kufar, Realt, Onliner или Domovita" in render_check_text(bad)
 
 
 # --- Недельная сводка и гипотеза на данных в памяти --------------------------------------

@@ -23,14 +23,14 @@ from minsk_realty.analytics.fmt import (
     pct,
 )
 from minsk_realty.analytics.render import render_weekly_text
-from minsk_realty.bot.links import COMING, SUPPORTED, Link
+from minsk_realty.bot.links import SOURCE_DOMAINS, Link
 from minsk_realty.bot.watchlist import FlatName, WatchItem, WatchResult
+from minsk_realty.sources import names_text
 
 TG_LIMIT = 4096
 EXAMPLES = ("https://re.kufar.by/vi/123456789", "https://realt.by/sale-flats/object/1234567/")
-SOURCES_TEXT = " или ".join(SUPPORTED)  # «Kufar или Realt»
-AND_TEXT = " и ".join(SUPPORTED)  # «Kufar и Realt»
-COMING_TEXT = " и ".join(COMING.values())  # «Onliner и Domovita»
+SOURCES_TEXT = names_text("или")  # «Kufar, Realt, Onliner или Domovita»
+AND_TEXT = names_text("и")  # «Kufar, Realt, Onliner и Domovita»
 
 # Строка из отчёта Leo для «видим впервые». Если следить нельзя, бот её заменяет.
 WATCH_PROMISE = "Нажмите «Следить» — сообщу, если цена изменится или объявление снимут."
@@ -76,8 +76,6 @@ START = (
     "• есть ли она на других площадках дешевле\n"
     "• стоит ли торговаться\n"
     "\n"
-    f"{COMING_TEXT} — скоро.\n"
-    "\n"
     "/watch — следить за квартирой   /list — мои квартиры"
 )
 
@@ -106,7 +104,7 @@ def help_text(watch_limit: int) -> str:
             "раза в час по одной квартире."
         ),
         "",
-        f"Пока понимаю только {AND_TEXT}. {COMING_TEXT} — скоро.",
+        f"Понимаю объявления {AND_TEXT}.",
         (
             "Я храню только ваш Telegram ID, список квартир и ссылки, которые вы проверяли. "
             "Телефоны продавцов не показываю: связаться с продавцом можно через объявление "
@@ -131,7 +129,7 @@ def unsupported_text(links: Sequence[Link]) -> str:
             f"{coming} я пока не читаю — скоро добавлю. Сейчас понимаю объявления о продаже "
             f"квартир на {AND_TEXT}, например:\n{examples}"
         )
-    elif any(link.host.endswith(("kufar.by", "realt.by")) for link in links):
+    elif any(link.host.endswith(SOURCE_DOMAINS) for link in links):
         text = (
             "Это ссылка не на объявление. Откройте само объявление о продаже квартиры и пришлите "
             f"ссылку на него, например:\n{examples}"
@@ -139,7 +137,7 @@ def unsupported_text(links: Sequence[Link]) -> str:
     else:
         text = (
             f"Эту ссылку я не понимаю. Я работаю с объявлениями о продаже квартир в Минске на "
-            f"{AND_TEXT}, например:\n{examples}\n\n{COMING_TEXT} — скоро."
+            f"{AND_TEXT}, например:\n{examples}"
         )
     return esc(text)
 

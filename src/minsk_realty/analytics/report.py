@@ -50,14 +50,13 @@ from minsk_realty.matching.rules import (
     LOC_GEO,
     compare,
 )
-from minsk_realty.sources.kufar import KufarAdapter
-from minsk_realty.sources.realt import RealtAdapter
+from minsk_realty.sources import ADAPTERS, url_adapters
 
 ReportStatus = Literal["ok", "not_found", "unsupported_url"]
 Scope = Literal["object", "listing"]
 DataLevel = Literal["first_time", "short", "full"]
 
-SUPPORTED_SOURCES = ("kufar", "realt")
+SUPPORTED_SOURCES = tuple(ADAPTERS)
 # Ниже этого расхождения в USD цены в разных валютах не сравниваем: курсы площадок разные.
 CROSS_CURRENCY_MIN_PCT = Decimal(2)
 # История «короткая», если площадку наблюдаем меньше этого и объект застали уже висящим.
@@ -186,12 +185,12 @@ class CheckReport:
 @cache
 def _adapters() -> tuple:
     # Адаптеры создают HTTP-клиент, но resolve_url в сеть не ходит. Один экземпляр на процесс.
-    return (KufarAdapter(), RealtAdapter())
+    return url_adapters()
 
 
 def resolve_ref(session: Session, ref: int | str) -> tuple[Listing | None, str | None, bool]:
     """→ (объявление или None, площадка, ссылка понята). `ref`: id объявления (int или строка
-    из цифр), "listing:<id>" или ссылка на объявление Kufar/Realt."""
+    из цифр), "listing:<id>" или ссылка на объявление любой собираемой площадки."""
     if isinstance(ref, int):
         listing = session.get(Listing, ref)
         return listing, listing.source if listing else None, True

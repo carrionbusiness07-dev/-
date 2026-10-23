@@ -11,12 +11,12 @@ from dataclasses import dataclass
 from functools import cache
 from urllib.parse import urlsplit, urlunsplit
 
-from minsk_realty.sources.kufar import KufarAdapter
-from minsk_realty.sources.realt import RealtAdapter
+from minsk_realty.sources import DOMAINS, NAMES, url_adapters
 
-# Площадки, которые бот уже понимает, и те, что «скоро».
-SUPPORTED = ("Kufar", "Realt")
-COMING = {"onliner.by": "Onliner", "domovita.by": "Domovita"}
+# Площадки, которые бот понимает, и те, что «скоро» (сейчас таких нет).
+SUPPORTED = tuple(NAMES.values())
+COMING: dict[str, str] = {}
+SOURCE_DOMAINS = tuple(DOMAINS.values())
 
 # Ссылка в тексте: со схемой или без («re.kufar.by/vi/123»).
 URL_RE = re.compile(r"(?:https?://)?(?:[\w-]+\.)+[a-z]{2,}\b(?:/[^\s<>\"«»]*)?", re.IGNORECASE)
@@ -29,7 +29,7 @@ MAX_SCAN = 1000
 @cache
 def _adapters() -> tuple:
     # resolve_url не ходит в сеть; один экземпляр на процесс.
-    return (KufarAdapter(), RealtAdapter())
+    return url_adapters()
 
 
 @dataclass(frozen=True)

@@ -25,6 +25,12 @@ PII_KEYS = frozenset(
         "account_id",
         "useruuid",
         "message_id",
+        # Onliner и Domovita: id аккаунта продавца и блок контактов в карточке.
+        "author_id",
+        "user_id",
+        "contacts",
+        "contact_name",
+        "viber_phone",
     }
 )
 
