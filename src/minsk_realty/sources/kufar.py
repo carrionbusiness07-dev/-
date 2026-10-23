@@ -1,9 +1,7 @@
 """Адаптер Kufar: продажа квартир в Минске через поисковый JSON-API.
 
-Эндпоинт и поля подтверждены по рабочему open-source коду (см. docs/recon/sources.md),
-но не живым запросом: Kufar отвечает «Доступ ограничен» на запросы не из Беларуси.
-Поля, помеченные UNVERIFIED, нужно сверить с первой живой фикстурой
-(`scripts/capture_fixture.py kufar` на сервере в Беларуси).
+Поля сверены с живой выдачей 23.10.2026 (tests/fixtures/kufar/search_sell_minsk.2026-10-23.json).
+Kufar отвечает «Доступ ограничен» на запросы не из Беларуси: сборщик работает из Минска.
 """
 
 from __future__ import annotations
@@ -36,11 +34,27 @@ URL_RE = re.compile(r"kufar\.by/(?:vi|item)/(?:[^?#\s]*/)?(\d{6,})")
 # Белый список параметров объявления, которые уходят в snapshots.extra. Новые ключи площадки
 # в БД не попадают, пока их явно не добавят сюда (защита от новых полей с персональными данными).
 EXTRA_PARAMS = frozenset(
-    {"type", "category", "rooms", "size", "region", "area", "coordinates", "metro"}
+    {
+        "type",
+        "category",
+        "rooms",
+        "size",
+        "region",
+        "area",
+        "coordinates",
+        "metro",
+        "re_district",
+        "year_built",
+        "house_type",
+        "flat_new_building",
+        "new_buildings_apartment_complex",
+    }
 )
 
-# UNVERIFIED: значения поля `currency` в продаже не видели живьём.
+# В живой выдаче `currency` бывает USD, BYR и EUR. Цена в валюте объявления лежит в
+# `calculator` (в центах); price_usd/price_byn — пересчёт площадки по курсу дня.
 CURRENCY_MAP = {"USD": "USD", "BYR": "BYN", "BYN": "BYN", "EUR": "EUR"}
+CALCULATOR_CURRENCY = {"USD": "USD", "BYN": "BYN", "EUR": "EUR"}
 
 
 class KufarAdapter:
@@ -71,15 +85,8 @@ class KufarAdapter:
         params = {p["p"]: p for p in ad.get("ad_parameters") or [] if p.get("p")}
         account = {p["p"]: p for p in ad.get("account_parameters") or [] if p.get("p")}
 
-        currency = CURRENCY_MAP.get(str(ad.get("currency") or "").upper())
+        currency, amount = original_price(ad)
         price_usd = _from_cents(ad.get("price_usd"))
-        price_byn = _from_cents(ad.get("price_byn"))
-        if currency == "BYN":
-            amount = price_byn
-        elif currency == "USD":
-            amount = price_usd
-        else:
-            currency, amount = ("USD", price_usd) if price_usd else (None, None)
 
         coords = _value(params, "coordinates")
         lon, lat = (
@@ -100,9 +107,8 @@ class KufarAdapter:
             seller_key=ad.get("_seller_key"),
             rooms=_int(_value(params, "rooms")),
             area_total=_float(_value(params, "size")),
-            # UNVERIFIED: ключи этажа и этажности в продаже ещё не подтверждены живой фикстурой.
-            floor=None,
-            floors_total=None,
+            floor=_first_int(_value(params, "floor")),
+            floors_total=_first_int(_value(params, "re_number_floors")),
             address_raw=_label(account, "address"),
             district=_label(params, "area"),
             town=_label(params, "region"),
@@ -114,7 +120,10 @@ class KufarAdapter:
                 for img in ad.get("images") or []
                 if img.get("path")
             ],
-            extra={key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
+            extra={
+                **{key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
+                **({"microdistrict": md} if (md := _label(params, "re_district")) else {}),
+            },
         )
 
     def close(self) -> None:
@@ -123,6 +132,26 @@ class KufarAdapter:
     def resolve_url(self, url: str) -> str | None:
         match = URL_RE.search(url)
         return match.group(1) if match else None
+
+
+def original_price(ad: dict[str, Any]) -> tuple[str | None, Decimal | None]:
+    """Цена в валюте, в которой её указал продавец.
+
+    Изменение цены считается в исходной валюте (SKILL.md): для объявления в евро пересчёт
+    площадки в доллары менялся бы каждый день вместе с курсом и давал ложные «снижения».
+    """
+    currency = CURRENCY_MAP.get(str(ad.get("currency") or "").upper())
+    if currency is None:
+        usd = _from_cents(ad.get("price_usd"))
+        return ("USD", usd) if usd else (None, None)
+    for row in ad.get("calculator") or []:
+        if CALCULATOR_CURRENCY.get(str(row.get("currency")).upper()) == currency:
+            amount = _from_cents(row.get("price"))
+            if amount:
+                return currency, amount
+    fallback = {"USD": "price_usd", "BYN": "price_byn"}.get(currency)
+    amount = _from_cents(ad.get(fallback)) if fallback else None
+    return (currency, amount) if amount else (None, None)
 
 
 def to_raw(ad: dict[str, Any]) -> RawListing:
@@ -156,6 +185,13 @@ def _from_cents(value: Any) -> Decimal | None:
     except (ArithmeticError, ValueError, TypeError):
         return None
     return amount if amount > 0 else None
+
+
+def _first_int(value: Any) -> int | None:
+    """Kufar отдаёт этаж и этажность списком: {"p": "floor", "v": [8]}."""
+    if isinstance(value, list):
+        value = value[0] if value else None
+    return _int(value)
 
 
 def _int(value: Any) -> int | None:

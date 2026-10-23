@@ -18,6 +18,10 @@ PII_KEYS = frozenset(
         "email",
         "name",
         "contact_person",
+        # Реквизиты продавца на Kufar: у ИП это данные конкретного человека.
+        "vat_number",
+        "company_number",
+        "company_address",
         "account_id",
         "useruuid",
         "message_id",
