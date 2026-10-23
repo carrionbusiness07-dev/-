@@ -17,6 +17,7 @@ PII_KEYS = frozenset(
         "phones",
         "email",
         "name",
+        "contact_person",
         "account_id",
         "useruuid",
         "message_id",

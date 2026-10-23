@@ -7,7 +7,11 @@ def test_scrub_drops_pii_keys_and_params():
     data = {
         "contactPhones": ["+375290000001"],
         "contactName": "Иван",
-        "account_parameters": [{"p": "name", "v": "Иван"}, {"p": "address", "v": "Минск"}],
+        "account_parameters": [
+            {"p": "name", "v": "Иван"},
+            {"p": "contact_person", "v": "Иван"},
+            {"p": "address", "v": "Минск"},
+        ],
         "nested": {"email": "a@b.c", "keep": 1},
     }
     cleaned = scrub(data)

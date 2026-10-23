@@ -17,6 +17,7 @@ import sys
 from collections import Counter
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from minsk_realty.privacy import scrub
 from minsk_realty.sources import kufar, realt
@@ -24,10 +25,31 @@ from minsk_realty.sources.base import PoliteClient
 
 OUT = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 
+# Адаптеры свободный текст не читают, а в нём продавцы пишут имена («Звоните, Анна»),
+# которые scrub по ключам не ловит.
+FREE_TEXT_KEYS = frozenset(
+    {"body", "body_short", "description", "headline", "title", "comments", "specialComment"}
+)
+TEXT_PLACEHOLDER = "[текст удалён]"
+
+
+def strip_free_text(value: Any) -> Any:
+    """Заменить свободный текст объявлений заглушкой, сохранив структуру ответа."""
+    if isinstance(value, dict):
+        return {
+            k: TEXT_PLACEHOLDER
+            if k in FREE_TEXT_KEYS and isinstance(v, str) and v
+            else strip_free_text(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [strip_free_text(item) for item in value]
+    return value
+
 
 def capture_kufar(client: PoliteClient) -> None:
     params = dict(kufar.SEARCH_PARAMS, size="20")
-    data = scrub(client.get(kufar.SEARCH_URL, params=params).json())
+    data = strip_free_text(scrub(client.get(kufar.SEARCH_URL, params=params).json()))
     path = OUT / "kufar" / f"search_sell_minsk.{date.today()}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     keys = Counter(p.get("p") for ad in data.get("ads", []) for p in ad.get("ad_parameters", []))
@@ -37,7 +59,9 @@ def capture_kufar(client: PoliteClient) -> None:
 
 def capture_realt(client: PoliteClient) -> None:
     page_props = realt.extract_page_props(client.get(realt.LIST_URL, params={"page": 1}).text)
-    data = scrub({"objects": page_props.get("objects"), "pagination": page_props.get("pagination")})
+    data = strip_free_text(
+        scrub({"objects": page_props.get("objects"), "pagination": page_props.get("pagination")})
+    )
     path = OUT / "realt" / f"sale_flats.{date.today()}.json"
     path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     keys = sorted({k for obj in data["objects"] or [] for k in obj})
