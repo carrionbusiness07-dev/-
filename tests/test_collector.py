@@ -248,3 +248,42 @@ def test_run_cycle_respects_min_interval(factory, monkeypatch):
         session.commit()
     run_cycle(factory, ["kufar"], set(), AlertThrottle())
     assert created == ["slow"]
+
+
+def test_watchdog_pings_after_cycle_and_reports_total_failure(factory, ads, monkeypatch):
+    sent = []
+
+    class Response:
+        def raise_for_status(self):
+            return self
+
+    def fake_post(url, **kwargs):
+        sent.append(url)
+        return Response()
+
+    monkeypatch.setattr("minsk_realty.health.check.httpx.post", fake_post)
+    monkeypatch.setattr("minsk_realty.collector.__main__.notify", lambda text: None)
+    monkeypatch.setenv("HEALTHCHECK_URL", "https://hc-ping.com/test-uuid")
+
+    monkeypatch.setattr(
+        "minsk_realty.collector.__main__.ADAPTERS", {"kufar": lambda: FakeKufar(ads)}
+    )
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    assert sent == ["https://hc-ping.com/test-uuid"]
+
+    monkeypatch.setattr(
+        "minsk_realty.collector.__main__.ADAPTERS",
+        {"kufar": lambda: FakeKufar([], fail_with=RuntimeError("сеть пропала"))},
+    )
+    run_cycle(factory, ["kufar"], set(), AlertThrottle())
+    assert sent[-1] == "https://hc-ping.com/test-uuid/fail"
+
+
+def test_watchdog_is_optional(monkeypatch):
+    from minsk_realty.health.check import ping_watchdog
+
+    monkeypatch.delenv("HEALTHCHECK_URL", raising=False)
+    monkeypatch.setattr(
+        "minsk_realty.health.check.httpx.post", lambda *a, **k: pytest.fail("не должен звонить")
+    )
+    ping_watchdog()

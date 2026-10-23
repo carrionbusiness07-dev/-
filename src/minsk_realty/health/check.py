@@ -138,3 +138,22 @@ def notify(text: str) -> None:
         ).raise_for_status()
     except httpx.HTTPError as exc:  # без traceback: в URL запроса лежит токен бота
         log.error("не удалось отправить алерт в Telegram: %s", type(exc).__name__)
+
+
+def ping_watchdog(*, failed: bool = False) -> None:
+    """Сигнал внешнему сторожу (healthchecks.io или аналог): «сборщик жив» после цикла.
+
+    Алерты выше отправляет сам этот компьютер, поэтому они молчат, когда пропали свет или
+    интернет. Сторож работает наоборот: если сигналов нет дольше настроенного срока, он сам
+    пишет владельцу. `failed=True` — в цикле не удалась ни одна площадка: сторож сообщит сразу.
+
+    Адрес — HEALTHCHECK_URL в .env. Наружу уходит только пустой запрос. В лог адрес не
+    пишется: в нём ключ проверки.
+    """
+    url = os.environ.get("HEALTHCHECK_URL", "").strip()
+    if not url:
+        return
+    try:
+        httpx.post(url.rstrip("/") + ("/fail" if failed else ""), timeout=10).raise_for_status()
+    except httpx.HTTPError as exc:
+        log.warning("сторож: сигнал не отправлен (%s)", type(exc).__name__)

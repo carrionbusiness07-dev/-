@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 
 from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, last_pass_started
 from minsk_realty.db.session import make_engine, make_session_factory
-from minsk_realty.health.check import AlertThrottle, check_sources, notify
+from minsk_realty.health.check import AlertThrottle, check_sources, notify, ping_watchdog
 from minsk_realty.matching import process_after_run
 from minsk_realty.sources import ADAPTERS
 
@@ -87,6 +87,7 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
             session.commit()
     except Exception:
         log.exception("сбой при закрытии прерванных проходов")
+    attempted = succeeded = 0
     for source in sources:
         try:
             with factory() as session:
@@ -106,11 +107,16 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                         interval,
                     )
                     continue
+            attempted += 1
             adapter = ADAPTERS[source]()
             try:
-                collect(adapter, factory)
+                run = collect(adapter, factory)
+                succeeded += run.status == "ok"
             finally:
-                adapter.close()
+                try:
+                    adapter.close()
+                except Exception:  # noqa: BLE001 — закрытие клиента не отменяет записанный проход
+                    log.warning("%s: не удалось закрыть HTTP-клиент", source)
         except Exception:
             log.exception("%s: сбой цикла сборщика", source)
         try:  # склейка и события (Emma): сбой не должен останавливать сбор
@@ -126,6 +132,8 @@ def run_cycle(factory, sources, unblocked, throttle) -> None:
                     notify(alert.text)
     except Exception:
         log.exception("сбой проверки здоровья источников")
+    # Внешний сторож: «жив» после каждого цикла; «сбой», если не удалась ни одна площадка.
+    ping_watchdog(failed=attempted > 0 and not succeeded)
 
 
 if __name__ == "__main__":
