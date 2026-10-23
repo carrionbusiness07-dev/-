@@ -207,6 +207,7 @@ def test_domovita_search_uses_data_route_and_recovers_build_id(domovita_items):
         ("_next", "2"),
         ("_next", "3"),
         ("minsk", "3"),  # 404 по старому buildId → HTML той же страницы
+        ("_next", "4"),  # 3-я страница дала новые объявления — хвост мог уехать дальше
     ]
     # Объявление на стыке страниц (сдвиг выдачи) берётся один раз.
     assert len(raws) == len({r.external_id for r in raws}) == 58

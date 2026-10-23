@@ -2,7 +2,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from minsk_realty.collector.__main__ import run_cycle
 from minsk_realty.collector.run import INTERRUPTED, close_stale_runs, collect
@@ -287,3 +287,41 @@ def test_watchdog_is_optional(monkeypatch):
         "minsk_realty.health.check.httpx.post", lambda *a, **k: pytest.fail("не должен звонить")
     )
     ping_watchdog()
+
+
+def test_shrunk_pass_does_not_deactivate_and_reference_does_not_stick(factory, ads):
+    """Проход сильно меньше обычного не гасит объявления. Один раздутый проход не делает
+    все следующие «неполными»: сравнение идёт с медианой последних проходов."""
+    from minsk_realty.collector import run as run_module
+
+    many = [dict(ads[0], ad_id=str(2_000_000 + i), list_id=str(2_000_000 + i)) for i in range(150)]
+    for hour in range(3):
+        assert collect(FakeKufar(many), factory, now=clock(T0 + timedelta(hours=hour))).complete
+    small = collect(FakeKufar(many[:60]), factory, now=clock(T0 + timedelta(hours=3)))
+    assert not small.complete  # 60 из обычных 150
+    with factory() as session:
+        assert session.scalar(select(func.count()).where(Listing.status == "inactive")) == 0
+
+    huge = [dict(ads[0], ad_id=str(3_000_000 + i), list_id=str(3_000_000 + i)) for i in range(600)]
+    collect(FakeKufar(huge), factory, now=clock(T0 + timedelta(hours=4)))  # раздутый проход
+    normal = collect(FakeKufar(many), factory, now=clock(T0 + timedelta(hours=5)))
+    assert normal.complete  # медиана 150, а не 600
+    assert run_module.SHRINK_WINDOW >= 3
+
+
+def test_incomplete_streak_alerts(factory):
+    with factory() as session:
+        for hour in range(6):
+            session.add(
+                SourceRun(
+                    source="domovita",
+                    started_at=T0 + timedelta(hours=hour),
+                    finished_at=T0 + timedelta(hours=hour, minutes=10),
+                    status="ok",
+                    complete=False,
+                    listings_seen=2900,
+                )
+            )
+        session.commit()
+        keys = [a.key for a in check_sources(session, ["domovita"], now=T0 + timedelta(hours=7))]
+        assert "domovita:incomplete" in keys

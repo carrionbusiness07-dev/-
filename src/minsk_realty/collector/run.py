@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import statistics
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
@@ -21,9 +22,10 @@ COMMIT_EVERY = 100
 # Такой проход не считается полным, чтобы не погасить объявления по ошибке.
 MAX_PARSE_ERROR_SHARE = 0.2
 # Выдача за проход не может вдруг уменьшиться в разы: рынок меняется на проценты в сутки.
-# Если увидели меньше этой доли от прошлого полного прохода, площадка, скорее всего, отдала
-# неполную выдачу — такой проход не гасит объявления.
+# Если увидели меньше этой доли от обычного (медиана последних успешных проходов), площадка,
+# скорее всего, отдала неполную выдачу — такой проход не гасит объявления.
 MIN_SHARE_OF_PREVIOUS = 0.8
+SHRINK_WINDOW = 5
 # На маленькой выдаче (новая площадка, тесты) доли скачут — проверка только от этого объёма.
 SHRINK_CHECK_FROM = 100
 # Проход идёт 5–20 минут. Запись «running» старше этого — от процесса, который убили
@@ -151,27 +153,32 @@ def is_blocked(session: Session, source: str) -> bool:
 
 
 def _not_shrunk(session: Session, run: SourceRun) -> bool:
-    previous = session.scalar(
-        select(SourceRun.listings_seen)
-        .where(
-            SourceRun.source == run.source,
-            SourceRun.status == "ok",
-            SourceRun.complete.is_(True),
-            SourceRun.id != run.id,
+    """Проход не меньше обычного: сравниваем с медианой последних успешных проходов.
+
+    Медиана, а не последний полный проход: один раздутый проход не делает все следующие
+    «неполными», а если рынок и правда стал меньше, медиана догонит его за пару проходов.
+    """
+    recent = list(
+        session.scalars(
+            select(SourceRun.listings_seen)
+            .where(
+                SourceRun.source == run.source,
+                SourceRun.status == "ok",
+                SourceRun.id != run.id,
+            )
+            .order_by(SourceRun.started_at.desc())
+            .limit(SHRINK_WINDOW)
         )
-        .order_by(SourceRun.started_at.desc())
-        .limit(1)
     )
-    if (
-        previous
-        and previous >= SHRINK_CHECK_FROM
-        and run.listings_seen < previous * MIN_SHARE_OF_PREVIOUS
-    ):
+    if len(recent) < 3:
+        return True
+    usual = statistics.median(recent)
+    if usual >= SHRINK_CHECK_FROM and run.listings_seen < usual * MIN_SHARE_OF_PREVIOUS:
         log.warning(
-            "%s: в проходе %d объявлений, в прошлом полном было %d — проход считаю неполным",
+            "%s: в проходе %d объявлений, обычно %d — проход считаю неполным",
             run.source,
             run.listings_seen,
-            previous,
+            usual,
         )
         return False
     return True

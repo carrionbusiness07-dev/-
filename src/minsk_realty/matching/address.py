@@ -39,6 +39,7 @@ STREET_KINDS = {
     "набережная": "наб",
     # Белорусская запись (Onliner: «вуліца Жылуновіча»), после перевода букв (`_from_belarusian`).
     "вулица": "ул",
+    "праспект": "пр-т",
     "завулак": "пер",
     "плошча": "пл",
     "праезд": "проезд",
@@ -99,7 +100,7 @@ _BY_GENITIVE = re.compile(r"ага\b")
 
 
 def _from_belarusian(text: str) -> str:
-    text = text.replace("і", "и").replace("ў", "в").replace("э", "е")
+    text = text.replace("і", "и").replace("ў", "в").replace("э", "е").replace("шч", "щ")
     return _BY_GENITIVE.sub("ого", _BY_HARD_I.sub("и", text))
 
 

@@ -97,5 +97,9 @@ def test_belarusian_spelling_matches_russian():
     assert streets_match(by.street, normalize_street("ул. Жилуновича")) is True
     savitski = parse_address("Minsk, вуліца Міхаіла Савіцкага").street
     assert streets_match(savitski, normalize_street("ул. Михаила Савицкого")) is True
+    assert streets_match(
+        parse_address("Minsk, вуліца Шчорса, 9").street, normalize_street("ул. Щорса")
+    )
+    assert parse_address("Minsk, праспект Пераможцаў, 1").street.kind == "пр-т"
     # Русские адреса без белорусских букв не трогаем («ы» в «Крылова» остаётся).
     assert normalize_street("ул. Крылова").name == ("крылова",)

@@ -19,6 +19,8 @@ log = logging.getLogger(__name__)
 
 SILENCE_WINDOW = timedelta(hours=24)
 FAILURES_IN_A_ROW = 3
+# Успешные, но неполные проходы подряд: сбор идёт, а снятые объявления не отмечаются.
+INCOMPLETE_IN_A_ROW = 6
 REPEAT_ALERT_AFTER = timedelta(hours=24)
 
 
@@ -74,6 +76,27 @@ def check_sources(
                     f"{source}:parse_errors",
                     f"{source}: не разобрано {latest.parse_errors} из {latest.listings_seen} "
                     "объявлений — похоже, площадка поменяла формат",
+                )
+            )
+
+        last_ok = session.scalars(
+            select(SourceRun)
+            .where(
+                SourceRun.source == source,
+                SourceRun.finished_at.is_not(None),
+                SourceRun.error.is_distinct_from(INTERRUPTED),
+            )
+            .order_by(SourceRun.started_at.desc())
+            .limit(INCOMPLETE_IN_A_ROW)
+        ).all()
+        if len(last_ok) == INCOMPLETE_IN_A_ROW and all(
+            r.status == "ok" and not r.complete for r in last_ok
+        ):
+            alerts.append(
+                Alert(
+                    f"{source}:incomplete",
+                    f"{source}: {INCOMPLETE_IN_A_ROW} проходов подряд не дошли до конца выдачи — "
+                    "снятые объявления не отмечаются. Посмотрите лог сборщика",
                 )
             )
 

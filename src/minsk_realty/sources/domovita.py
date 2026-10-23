@@ -55,10 +55,13 @@ MINSK_TZ = timezone(timedelta(hours=3))
 # «649 946 BYN». Обратный пересчёт BYN → USD круглым почти не бывает, поэтому при ничьей
 # побеждает USD, затем EUR.
 CURRENCY_ORDER = ("USD", "EUR", "BYN")
-# Платные объявления и выдача, сдвинувшаяся за время обхода, дают повторы и пропуски на
-# стыках страниц. Проход полный, только если увидели почти всю выдачу: иначе пропущенные
-# объявления погасли бы как снятые.
+# Пока обходим 150 страниц, сверху появляются новые и поднятые объявления, и выдача
+# сдвигается вниз: на стыке страниц объявление повторяется, а хвост уезжает дальше
+# рассчитанного числа страниц. Поэтому идём и дальше, пока страницы дают новые объявления
+# (не больше EXTRA_PAGES сверху). Проход полный, только если увидели почти всю выдачу:
+# иначе пропущенные объявления погасли бы как снятые.
 MIN_COVERAGE = 0.95
+EXTRA_PAGES = 20
 # «9/а» → «9а»: литера через дробь (корпус через дробь — цифра, «10/1» не трогаем).
 HOUSE_LETTER_RE = re.compile(r"^(\d+)\s*/\s*([а-яa-z])$", re.IGNORECASE)
 
@@ -83,23 +86,29 @@ class DomovitaAdapter:
         total = cards.get("totalCount") or 0
         page_size = len(cards.get("items") or []) or 1
         pages = math.ceil(total / page_size)
-        for page in range(1, max_pages + 1):
+        reached_end = False
+        for page in range(1, min(max_pages, pages + EXTRA_PAGES) + 1):
             if page > 1:
                 self._client.pause()
                 cards = self._data_page(page)
             items = cards.get("items") or []
+            fresh = 0
             for item in items:
                 raw = to_raw(item)
-                town = raw.payload.get("town")
-                # Одно объявление может попасть на две соседние страницы — берём один раз.
-                if raw.external_id in seen or (town and town != self._town):
-                    continue
+                if raw.external_id in seen:
+                    continue  # повтор на стыке страниц
                 seen.add(raw.external_id)
-                yield raw
-            if not items or page >= pages:
+                fresh += 1
+                town = raw.payload.get("town")
+                if not town or town == self._town:
+                    yield raw
+            if not items or (page >= pages and not fresh):
+                reached_end = page >= pages
                 break
+        else:
+            reached_end = page >= pages
         coverage = len(seen) / total if total else 0.0
-        self.last_search_complete = page >= pages and coverage >= MIN_COVERAGE
+        self.last_search_complete = reached_end and coverage >= MIN_COVERAGE
         log.info(
             "domovita: уникальных %d из %d (%.0f%%), страниц %d из %d, полный проход: %s",
             len(seen),
