@@ -1,4 +1,4 @@
-"""Цена квартиры против похожих квартир рядом: тот же тип комнатности, та же эпоха дома.
+"""Цена квартиры против похожих квартир рядом: тот же тип комнатности, эпоха дома и отделка.
 
 Шаги от точного к грубому: 1,5 км (`near`) → 3 км (`wide`) → район (`district`). Берём первый
 шаг, где после отсечения выбросов хватает объектов (`min_sample`). Расстояния — по прямой.
@@ -44,6 +44,7 @@ class ComparePoint:
     epoch: str | None
     usd_per_m2: float
     house_key: str | None  # "улица|дом": чтобы не показывать цены соседей по дому как «рядом»
+    finish: str | None = None  # "none" (без отделки) / "done" (ремонт) / None (неизвестна)
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ class Comparison:
     year_known: bool
     district: str | None
     points: tuple[ComparePoint, ...]  # кандидаты в радиусе (для карты); для district пусто
+    finish: str | None = None  # отделка, по которой отобраны похожие; None — не учитывалась
 
 
 def price_group(diff_pct: float, cfg: AnalyticsConfig = DEFAULT_ANALYTICS) -> str:
@@ -81,17 +83,20 @@ def find_comparison(
     district_cell: MedianCell | None,
     now_year: int,
     cfg: AnalyticsConfig = DEFAULT_ANALYTICS,
+    finish: str | None = None,
 ) -> Comparison | None:
     if usd_per_m2 is None:
         return None
     bucket = rooms_bucket(rooms)
     target_epoch = epoch(year, now_year)
 
-    def result(step, radius_km, n, median, used_epoch, used_rooms, district, shown):
+    def result(
+        step, radius_km, n, median, used_epoch, used_rooms, district, shown, used_finish=None
+    ):
         diff = (usd_per_m2 / median - 1) * 100
         return Comparison(
             step, radius_km, used_epoch, used_rooms, n, median, usd_per_m2, diff,
-            price_group(diff, cfg), year is not None, district, shown,
+            price_group(diff, cfg), year is not None, district, shown, used_finish,
         )  # fmt: skip
 
     # Неточная координата (центр улицы) для радиуса 1,5 км не годится — сразу район.
@@ -102,6 +107,7 @@ def find_comparison(
             for p in points
             if p.rooms == bucket
             and (target_epoch is None or p.epoch == target_epoch)
+            and (finish is None or p.finish == finish)
             and p.object_id != object_id
         ]
         for step, radius_km in zip(STEPS, cfg.compare_radii_km, strict=True):
@@ -114,7 +120,15 @@ def find_comparison(
             )
             if s.median is not None:
                 return result(
-                    step, radius_km, len(s.kept), s.median, target_epoch, bucket, None, inside
+                    step,
+                    radius_km,
+                    len(s.kept),
+                    s.median,
+                    target_epoch,
+                    bucket,
+                    None,
+                    inside,
+                    finish,
                 )
 
     if district_cell is not None and district_cell.enough:

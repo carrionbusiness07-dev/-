@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from itertools import pairwise
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -29,6 +29,7 @@ from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, Sourc
 from minsk_realty.matching.config import DEFAULT_CONFIG
 from minsk_realty.matching.events import baseline_ends
 from minsk_realty.matching.rules import TRUSTED
+from minsk_realty.sources.realt import REALT_REPAIR_LABELS
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,8 @@ class MarketData:
     baseline_ends: dict[str, datetime] = field(default_factory=dict)
     # Год постройки по объекту (из самого свежего снимка, где он есть).
     building_years: dict[int, int] = field(default_factory=dict)
+    # Отделка по объекту: "none" (без отделки) или "done" (любой ремонт); неизвестная — нет ключа.
+    finishings: dict[int, str] = field(default_factory=dict)
     _by_object: dict[int, list[ListingRow]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
@@ -450,6 +453,9 @@ def load_market(
         building_years=building_years(
             session, None if full else {r.object_id for r in listings.values() if r.object_id}
         ),
+        finishings=finishings(
+            session, None if full else {r.object_id for r in listings.values() if r.object_id}
+        ),
     )
 
 
@@ -482,6 +488,48 @@ def building_years(session: Session, object_ids: Iterable[int] | None = None) ->
         year = parse_year((extra or {}).get(YEAR_KEYS[source]), now_year)
         if year is not None:
             out[object_id] = year  # порядок по возрастанию seen_at: последний выигрывает
+    return out
+
+
+NO_FINISH_MARKERS = ("без отделки", "строительн", "чернов")
+
+
+def finishing_kind(label: str | None) -> Literal["none", "done"] | None:
+    """Отделка по подписи площадки: без отделки / любой ремонт / неизвестна."""
+    text = (label or "").strip().lower()
+    if not text:
+        return None
+    return "none" if any(m in text for m in NO_FINISH_MARKERS) else "done"
+
+
+def _finishing_label(source: str, extra: dict[str, Any] | None) -> str | None:
+    extra = extra or {}
+    if source == "kufar":
+        label = extra.get("repair")
+        return label if isinstance(label, str) else None
+    code = extra.get("repairState")  # Realt: код, подпись из словаря самого Realt
+    return REALT_REPAIR_LABELS.get(code) if isinstance(code, int) else None
+
+
+def finishings(session: Session, object_ids: Iterable[int] | None = None) -> dict[int, str]:
+    """Отделка по объектам: из самого свежего снимка надёжных объявлений, где она известна."""
+    q = (
+        select(Listing.object_id, Listing.source, Snapshot.extra)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(
+            Listing.source.in_(("kufar", "realt")),
+            Listing.object_id.is_not(None),
+            Listing.match_confidence.in_(TRUSTED),
+        )
+        .order_by(Snapshot.seen_at, Snapshot.id)
+    )
+    if object_ids is not None:
+        q = q.where(Listing.object_id.in_(set(object_ids)))
+    out: dict[int, str] = {}
+    for object_id, source, extra in session.execute(q):
+        kind = finishing_kind(_finishing_label(source, extra))
+        if kind is not None:
+            out[object_id] = kind  # порядок по возрастанию seen_at: последний выигрывает
     return out
 
 

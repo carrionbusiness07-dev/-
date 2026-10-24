@@ -17,6 +17,8 @@ from minsk_realty.analytics.medians import MarketBaseline
 
 GROUPS = ("suspicious", "below", "market", "above", "unknown")
 STEPS = ("near", "wide", "district")
+FINISHES = ("none", "done", "unknown")
+FINISH_LABELS = {"none": "без отделки", "done": "с ремонтом", "unknown": "неизвестна"}
 
 
 @dataclass(frozen=True)
@@ -32,6 +34,9 @@ class AssessmentStats:
     steps: dict[str, Count]  # только объекты со сравнением
     no_coords: Count
     approx: Count  # координата неточная (центр улицы)
+    finishing_known: Count  # отделка известна
+    # Раскладка по группам отдельно для отделки none/done/unknown; доля — внутри своей отделки.
+    by_finish: dict[str, dict[str, Count]]
     sample: tuple[int, ...]  # object_id для ручного просмотра
 
 
@@ -46,6 +51,7 @@ def assessment_stats(
     groups = dict.fromkeys(GROUPS, 0)
     steps = dict.fromkeys(STEPS, 0)
     no_coords = approx = 0
+    by_finish = {f: dict.fromkeys(GROUPS, 0) for f in FINISHES}
     active = [oid for oid in data.objects if data.object_active_at(oid, at)]
     for oid in active:
         price = data.object_price(oid, at)
@@ -59,12 +65,15 @@ def assessment_stats(
             point=point,
             rooms=rooms,
             year=data.building_years.get(oid),
+            finish=data.finishings.get(oid),
             usd_per_m2=price.usd_per_m2 if price else None,
             district_cell=baseline.price_for(data.object_district(oid), rooms),
             now_year=at.year,
             cfg=cfg,
         )
-        groups[comparison.group if comparison else "unknown"] += 1
+        group = comparison.group if comparison else "unknown"
+        groups[group] += 1
+        by_finish[data.finishings.get(oid, "unknown")][group] += 1
         if comparison:
             steps[comparison.step] += 1
 
@@ -73,6 +82,11 @@ def assessment_stats(
     def count(n: int) -> Count:
         return Count(n, n / total if total else 0.0)
 
+    def share_in(counts: dict[str, int]) -> dict[str, Count]:
+        size = sum(counts.values())
+        return {k: Count(v, v / size if size else 0.0) for k, v in counts.items()}
+
+    known = sum(sum(g.values()) for f, g in by_finish.items() if f != "unknown")
     sample = random.Random(seed).sample(sorted(active), min(10, total))
     return AssessmentStats(
         total,
@@ -80,6 +94,8 @@ def assessment_stats(
         {k: count(v) for k, v in steps.items()},
         count(no_coords),
         count(approx),
+        count(known),
+        {f: share_in(g) for f, g in by_finish.items()},
         tuple(sample),
     )
 
@@ -92,6 +108,10 @@ def render_stats_text(s: AssessmentStats, seconds: float) -> str:
     lines += [line(k, c) for k, c in s.groups.items()]
     lines += [line(k, c) for k, c in s.steps.items()]
     lines += [line("без координат", s.no_coords), line("неточная точка", s.approx)]
+    lines.append(line("отделка известна", s.finishing_known))
+    for f, groups in s.by_finish.items():
+        lines.append(f"{FINISH_LABELS[f]} ({sum(c.n for c in groups.values())}):")
+        lines += [f"  {line(k, c)}" for k, c in groups.items()]
     lines += [
         "10 случайных объектов:",
         ", ".join(map(str, s.sample)),

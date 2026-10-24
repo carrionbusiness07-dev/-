@@ -101,6 +101,7 @@ class FlatInfo:
     district: str | None  # «Фрунзенский»
     year: int | None = None  # год постройки; для scope="listing" не подставляем
     house_key: str | None = None  # «улица|дом» как у ComparePoint.house_key; для "listing" None
+    finish: str | None = None  # "none" / "done" / None (неизвестна); для "listing" None
 
 
 @dataclass(frozen=True)
@@ -298,6 +299,7 @@ def build_check_report(
         district_cell=median_cell,
         now_year=now.year,
         cfg=cfg,
+        finish=flat.finish,
     )
     similar = comparison is not None and comparison.step in ("near", "wide")
     if comparison is not None:
@@ -427,6 +429,7 @@ def _flat_info(data: MarketData, oid: int | None, target: ListingRow) -> FlatInf
         district=district,
         year=data.building_years.get(oid) if oid else None,
         house_key=house_key(obj.street_norm, obj.house) if obj else None,
+        finish=data.finishings.get(oid) if oid else None,
     )
 
 

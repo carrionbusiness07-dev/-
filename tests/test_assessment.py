@@ -24,6 +24,8 @@ from minsk_realty.analytics.data import (
     MarketData,
     SnapRow,
     building_years,
+    finishing_kind,
+    finishings,
     load_market,
     parse_year,
 )
@@ -63,14 +65,16 @@ def _object(session) -> int:
 
 def _listing(session, oid, source, ext, **kw) -> int:
     row = Listing(
-        source=source,
-        external_id=ext,
-        url=f"https://example.test/{ext}",
-        object_id=oid,
-        match_confidence="high",
-        first_seen=T0,
-        last_seen=T0,
-        **kw,
+        **{
+            "source": source,
+            "external_id": ext,
+            "url": f"https://example.test/{ext}",
+            "object_id": oid,
+            "match_confidence": "high",
+            "first_seen": T0,
+            "last_seen": T0,
+        }
+        | kw
     )
     session.add(row)
     session.flush()
@@ -102,6 +106,45 @@ def test_building_years_latest_wins(session):
     assert load_market(session).building_years == {oid: 1976}
     assert load_market(session, listing_ids=[realt]).building_years == {oid: 1976}
     assert load_market(session, object_ids=[other]).building_years == {}
+
+
+@pytest.mark.parametrize(
+    ("label", "kind"),
+    [
+        ("Без отделки", "none"),
+        ("без отделки", "none"),
+        ("Строительная отделка", "none"),
+        ("Черновая", "none"),
+        ("Косметический", "done"),
+        ("Дизайнерский", "done"),
+        ("евроремонт", "done"),
+        (None, None),
+        ("", None),
+        ("  ", None),
+    ],
+)
+def test_finishing_kind(label, kind):
+    assert finishing_kind(label) == kind
+
+
+def test_finishings_loader(session):
+    oid, other, weak = _object(session), _object(session), _object(session)
+    kufar = _listing(session, oid, "kufar", "k1")
+    realt = _listing(session, oid, "realt", "r1")
+    lone = _listing(session, other, "realt", "r2")
+    low = _listing(session, weak, "kufar", "k3", match_confidence="low")
+    _snap(session, kufar, 0, extra={"repair": "Косметический"})
+    _snap(session, realt, 1, extra={"repairState": 7})  # свежее: код Realt 7 = «без отделки»
+    _snap(session, kufar, 2, extra={})  # свежий снимок без отделки не затирает
+    _snap(session, lone, 0, extra={"repairState": 2})  # «хороший» = ремонт
+    _snap(session, low, 0, extra={"repair": "Без отделки"})  # ненадёжная склейка не в счёт
+
+    assert finishings(session) == {oid: "none", other: "done"}
+    assert finishings(session, [other]) == {other: "done"}
+    assert finishings(session, [weak]) == {}
+    assert load_market(session).finishings == {oid: "none", other: "done"}
+    assert load_market(session, listing_ids=[lone]).finishings == {other: "done"}
+    assert load_market(session, object_ids=[oid]).finishings == {oid: "none"}
 
 
 def _row(lid, source, oid=1, confidence="high") -> ListingRow:
@@ -176,10 +219,12 @@ LAT, LON = 53.9, 27.5
 M_PER_DEG_LAT = 111_195
 
 
-def _pts(n, *, dist_m=1000, ep="1970_1990", rooms=2, first_id=1, base=1500):
+def _pts(n, *, dist_m=1000, ep="1970_1990", rooms=2, first_id=1, base=1500, finish=None):
     """n точек на заданном расстоянии к северу от (LAT, LON); цена растёт на $1 за точку."""
     return tuple(
-        ComparePoint(first_id + i, LAT + dist_m / M_PER_DEG_LAT, LON, rooms, ep, base + i, None)
+        ComparePoint(
+            first_id + i, LAT + dist_m / M_PER_DEG_LAT, LON, rooms, ep, base + i, None, finish
+        )
         for i in range(n)
     )
 
@@ -242,6 +287,31 @@ def test_comparison_without_year():
     assert (c.step, c.n, c.epoch, c.year_known) == ("near", 12, None, False)
 
 
+def test_comparison_same_finishing_only():
+    mixed = (
+        _pts(12, finish="none")
+        + _pts(7, finish="done", first_id=50)
+        + _pts(8, finish=None, first_id=100)
+    )
+    c = _compare(mixed, finish="none")
+    assert (c.step, c.n, c.finish) == ("near", 12, "none")
+    assert {p.finish for p in c.points} == {"none"}
+    # отделка цели неизвестна: фильтра нет, в выборке все 27 точек
+    c = _compare(mixed)
+    assert (c.step, c.n, c.finish) == ("near", 27, None)
+    c = _compare(_pts(12, finish="done") + _pts(9, finish="none", first_id=50), finish="done")
+    assert (c.step, c.n, c.finish) == ("near", 12, "done")
+    # квартир с той же отделкой мало, а «done» и неизвестные в выборку не берём
+    few = _pts(9, finish="none") + _pts(20, finish="done", first_id=50) + _pts(20, first_id=100)
+    assert _compare(few, finish="none") is None
+
+
+def test_comparison_finishing_district_step_ignores_finish():
+    cell = MedianCell("фрунзенский", 2, 40, 45, 1800.0)
+    c = _compare(_pts(12, finish="done"), finish="none", district_cell=cell)
+    assert (c.step, c.finish) == ("district", None)
+
+
 def test_approx_point_goes_to_district():
     cell = MedianCell(None, None, 100, 110, 1700.0)
     c = _compare(_pts(12), point=(LAT, LON, True), district_cell=cell)
@@ -267,11 +337,13 @@ def test_baseline_has_points():
     for i, snaps in data.snapshots.items():
         data.snapshots[i] = [replace(s, lat=53.9 + i / 10_000, lon=27.5) for s in snaps]
     data.building_years[3] = 1975
+    data.finishings[3] = "none"
     data.objects[4] = replace(data.objects[4], street_norm=None)
     base = compute_baseline(data, NOW)
     assert len(base.points) == 12
     by_id = {p.object_id: p for p in base.points}
     assert by_id[3].epoch == "1970_1990" and by_id[1].epoch is None
+    assert by_id[3].finish == "none" and by_id[1].finish is None
     assert by_id[3].house_key == "ул тест 3|1" and by_id[4].house_key is None
     assert by_id[3].rooms == 2 and by_id[3].usd_per_m2 == pytest.approx(90300 / 50)
     # без координат точек нет
@@ -505,6 +577,45 @@ def test_bargaining_uses_similar_flats(session, stations):
     assert "медианы похожих квартир" in reason.text
 
 
+def _set_kufar_repair(session, target: str | None, background: str | None) -> None:
+    rows = session.execute(
+        select(Snapshot, Listing.external_id)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(Listing.source == "kufar")
+    ).all()
+    for snap, ext in rows:
+        label = target if ext == "1000201" else background
+        if label:
+            snap.extra = {**(snap.extra or {}), "repair": label}
+    session.flush()
+
+
+def test_report_compares_with_same_finishing(session, stations):
+    _docs(session)
+    _set_kufar_repair(session, "Без отделки", "Без отделки")
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.finish == "none"
+    assert (r.comparison.step, r.comparison.finish, r.comparison.n) == ("near", "none", 12)
+    assert "12 двушек без отделки в домах 1970–90-х в радиусе 1,5 км" in render_check_text(r)
+
+
+def test_report_other_finishing_goes_to_district(session, stations):
+    _docs(session)
+    _set_kufar_repair(session, "Без отделки", "Косметический")  # у соседей ремонт
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.finish == "none"
+    assert (r.comparison.step, r.comparison.finish) == ("district", None)
+    # отделка цели неизвестна: фильтра нет
+    _set_kufar_repair(session, None, "Косметический")
+    session.execute(
+        update(Snapshot)
+        .where(Snapshot.extra["repair"].as_string() == "Без отделки")
+        .values(extra={"year_built": 1978})
+    )
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.finish is None and r.comparison.step == "near" and r.comparison.finish is None
+
+
 def test_report_for_removed_listing_still_compares(session, stations):
     _docs(session)
     item = session.scalar(select(Listing).where(Listing.external_id == "1000201"))
@@ -665,6 +776,16 @@ def test_text_house_line(session, stations):
             "   (12 двушек без учёта возраста дома в радиусе 1,5 км, медиана $1 835/м²)",
         ),
         (
+            {"finish": "none"},
+            "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+            "   (12 двушек без отделки в домах 1970–90-х в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"rooms": 1, "n": 1, "epoch": "building", "finish": "done"},
+            "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+            "   (1 однушка с ремонтом в строящихся домах в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
             {"step": "district", "radius_km": None, "epoch": None, "district": "Фрунзенский"},
             "📊 Цена: $1 703/м² — на 7.2% ниже медианы района",
             "   (Фрунзенский р-н, 2-комн.: медиана $1 835/м², 12 объектов)",
@@ -766,3 +887,25 @@ def test_assessment_stats_counts_add_up():
     assert st.groups["market"].share == pytest.approx(st.groups["market"].n / 12)
     assert len(st.sample) == 10 and set(st.sample) <= set(data.objects)
     assert st == assessment_stats(data, compute_baseline(data, NOW), NOW, seed=1)
+
+
+def test_assessment_stats_by_finishing():
+    from minsk_realty.analytics.assessment_stats import assessment_stats, render_stats_text
+
+    data = _flat_market(12)
+    for i, snaps in data.snapshots.items():
+        data.snapshots[i] = [replace(s, lat=53.9 + i / 10_000, lon=27.5) for s in snaps]
+    data.finishings.update({1: "none", 2: "none", 3: "none", 4: "done"})
+    st = assessment_stats(data, compute_baseline(data, NOW), NOW)
+
+    assert st.finishing_known.n == 4 and st.finishing_known.share == pytest.approx(4 / 12)
+    assert set(st.by_finish) == {"none", "done", "unknown"}
+    assert [sum(c.n for c in st.by_finish[k].values()) for k in ("none", "done", "unknown")] == [
+        3, 1, 8,
+    ]  # fmt: skip
+    assert all(set(g) == set(st.groups) for g in st.by_finish.values())
+    # общая раскладка не изменилась от разбивки
+    assert sum(c.n for c in st.groups.values()) == 12
+    text = render_stats_text(st, 0.1)
+    assert "отделка известна: 4 (33.3%)" in text
+    assert "без отделки (3):" in text and "с ремонтом (1):" in text and "неизвестна (8):" in text

@@ -381,6 +381,7 @@ _EPOCH_PHRASES = {
     "post2010": "в домах после 2010 г.",
     "building": "в строящихся домах",
 }
+_FINISH_PHRASES = {"none": " без отделки", "done": " с ремонтом"}
 _SIDE = {"suspicious": "ниже", "below": "ниже", "above": "выше"}
 
 
@@ -401,7 +402,8 @@ def _comparison_lines(report: CheckReport, icons: bool) -> list[str]:
         words = _ROOM_WORDS.get(min(c.rooms or 0, 4), ("квартира", "квартиры", "квартир"))
         age = _EPOCH_PHRASES.get(c.epoch, "без учёта возраста дома")
         radius = f"{c.radius_km:g}".replace(".", ",")
-        detail = f"{c.n} {plural(c.n, *words)} {age} в радиусе {radius} км, медиана {ppm(c.median)}"
+        what = plural(c.n, *words) + _FINISH_PHRASES.get(c.finish, "")
+        detail = f"{c.n} {what} {age} в радиусе {radius} км, медиана {ppm(c.median)}"
     return [f"{_icon('median', icons)}Цена: {ppm(c.usd_per_m2)} — {diff}", f"   ({detail})"]
 
 

@@ -181,6 +181,7 @@ def compute_baseline(
                 ComparePoint(
                     object_id, coords[0], coords[1], bucket,
                     epoch(data.building_years.get(object_id), at.year), value, key,
+                    data.finishings.get(object_id),
                 )
             )  # fmt: skip
 
