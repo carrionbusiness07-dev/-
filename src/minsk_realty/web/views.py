@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from collections import defaultdict
@@ -748,9 +749,12 @@ class PlatformEvent:
     usd: float | None  # Realt цену не отдаёт — только факт и направление
     direction: int  # -1 снижение, 1 повышение, 0 просто цена на дату
     change_pct: float | None  # к предыдущей цене той же площадки, если она известна
+    platform = True  # строка таблицы истории: со слов площадки (у HistoryRow — False)
 
 
 PLATFORM_EVENTS_MAX = 12
+# Площадка может помнить цену за годы; такая точка растянет ось так, что наши дни сольются.
+PLATFORM_EVENTS_DAYS = 365
 
 
 def _platform_when(value) -> datetime | None:
@@ -763,11 +767,14 @@ def _platform_when(value) -> datetime | None:
     return when if when.tzinfo else when.replace(tzinfo=MINSK_TZ)
 
 
-def platform_events(session: Session, report) -> list[PlatformEvent]:
+def platform_events(
+    session: Session, report, now: datetime | None = None
+) -> list[PlatformEvent]:
     """События цены со слов площадок (Domovita `price_history`, Realt `priceChangeDate`) из
     последних снимков надёжных объявлений объекта. Читаем только их, от старых к новым."""
     if report.listing is None:
         return []
+    oldest = (now or datetime.now(UTC)) - timedelta(days=PLATFORM_EVENTS_DAYS)
     trusted = [o for o in report.others if o.confidence in ("high", "medium")]
     found: dict[tuple, PlatformEvent] = {}
     for lid, source in [(report.listing.listing_id, report.listing.source)] + [
@@ -776,7 +783,14 @@ def platform_events(session: Session, report) -> list[PlatformEvent]:
         extra = _latest_extra(session, lid)
         pairs = []  # Domovita: [[дата, USD], ...] от новых к старым
         for row in extra.get("price_history") or []:
-            if isinstance(row, list | tuple) and len(row) == 2 and isinstance(row[1], int | float):
+            if (
+                isinstance(row, list | tuple)
+                and len(row) == 2
+                and isinstance(row[1], int | float)
+                and not isinstance(row[1], bool)
+                and math.isfinite(row[1])
+                and row[1] > 0
+            ):
                 when = _platform_when(row[0])
                 if when:
                     pairs.append((when, float(row[1])))
@@ -789,7 +803,8 @@ def platform_events(session: Session, report) -> list[PlatformEvent]:
         when = _platform_when(extra.get("priceChangeDate")) if direction in (-1, 1) else None
         if when:
             found[(source, when.date(), None)] = PlatformEvent(when, source, None, direction, None)
-    return sorted(found.values(), key=lambda e: e.at)[-PLATFORM_EVENTS_MAX:]
+    recent = [e for e in found.values() if e.at >= oldest]
+    return sorted(recent, key=lambda e: e.at)[-PLATFORM_EVENTS_MAX:]
 
 
 # Короче — вместо графика лента: две точки на пустой оси ничего не показывают.
@@ -898,12 +913,14 @@ def price_feed(history: list[HistoryRow], events: list[PlatformEvent]) -> list[F
         text = money(e.usd, "USD") if e.usd is not None else (
             "цену снижали" if e.direction < 0 else "цену повышали"
         )
-        items.append(FeedItem(e.at, text, e.change_pct, f"{name} · со слов площадки", True))
+        note = f"{name} · со слов площадки" + (" · в долларах" if e.usd is not None else "")
+        items.append(FeedItem(e.at, text, e.change_pct, note, True))
     return sorted(items, key=lambda i: i.at, reverse=True)
 
 
 @dataclass
 class HistoryRow:
+    platform = False
     at: datetime
     amount: Decimal
     currency: str
@@ -938,6 +955,11 @@ def history_rows(report) -> list[HistoryRow]:
             )
         )
     return rows
+
+
+def history_table(history: list[HistoryRow], events: list[PlatformEvent]) -> list:
+    """Строки таблицы под графиком: наши точки и (приглушённо) события со слов площадки."""
+    return sorted([*history, *events], key=lambda r: r.at)
 
 
 # --- Источники -----------------------------------------------------------------------------

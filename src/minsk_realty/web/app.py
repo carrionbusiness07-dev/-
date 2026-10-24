@@ -215,7 +215,7 @@ def _report_page(request: Request, session: Session, snap: views.Snapshot, ref: 
     report = build_check_report(session, ref, snap.now, baseline=baseline)
     if report.status != "ok":
         return RedirectResponse("/objects?missing=not_found", status_code=303)
-    events = views.platform_events(session, report)
+    events = views.platform_events(session, report, snap.now)
     history = views.history_rows(report)
     chart = views.timeline(snap, report, events)
     return _page(
@@ -229,7 +229,7 @@ def _report_page(request: Request, session: Session, snap: views.Snapshot, ref: 
         photos=views.photos(session, report),
         other_rows=views.other_rows(session, snap.data, report),
         timeline=chart,
-        history=history,
+        history=views.history_table(history, events),
         events=events,
         feed=None if chart else views.price_feed(history, events),
         nav_hint="objects",

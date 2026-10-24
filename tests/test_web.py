@@ -412,7 +412,7 @@ def test_platform_events_domovita_and_realt(tmp_path):
         },
         others=[("realt", "high"), ("kufar", "low")],  # low не берём
     )
-    got = views.platform_events(session, report)
+    got = views.platform_events(session, report, datetime(2026, 10, 24, tzinfo=UTC))
     assert [(e.source, e.at.date().isoformat(), e.usd) for e in got] == [
         ("domovita", "2026-08-01", 100000.0),
         ("domovita", "2026-09-20", 100000.0),
@@ -492,6 +492,29 @@ def test_timeline_axis_starts_at_earliest_point_with_platform_dots():
     assert hollow[0][1] < min(d[1] for d in plain.dots)  # шкала Y подстроена под цену площадки
 
 
+def test_platform_events_guard_values_and_age(tmp_path):
+    from datetime import UTC, datetime
+
+    from minsk_realty.web import views
+
+    session, report = _chart_world(
+        tmp_path,
+        {
+            "domovita": [
+                {
+                    "price_history": [
+                        ["2026-10-10", True], ["2026-10-09", 0], ["2026-10-08", -5],
+                        ["2026-10-07", float("nan")], ["2026-10-06", float("inf")],
+                        ["2026-10-05", 80000], ["2024-01-01", 70000],
+                    ]
+                }
+            ]
+        },
+    )
+    got = views.platform_events(session, report, datetime(2026, 10, 24, tzinfo=UTC))
+    assert [(e.at.date().isoformat(), e.usd) for e in got] == [("2026-10-05", 80000.0)]  # >365 дней и мусор отброшены
+
+
 def test_object_page_chart_or_feed(client, monkeypatch):
     from datetime import UTC, datetime
 
@@ -502,18 +525,38 @@ def test_object_page_chart_or_feed(client, monkeypatch):
         views.PlatformEvent(datetime(2026, 10, 10, tzinfo=UTC), "domovita", 90000.0, -1, -10.0),
         views.PlatformEvent(datetime(2026, 10, 15, tzinfo=UTC), "realt", None, -1, None),
     ]
-    monkeypatch.setattr(web_app.views, "platform_events", lambda session, report: events)
+    monkeypatch.setattr(web_app.views, "platform_events", lambda session, report, now=None: events)
+    real_timeline = views.timeline
     monkeypatch.setattr(web_app.views, "timeline", lambda *a, **k: None)
     page = client.get("/objects/1").text
     assert 'class="price-feed"' in page and 'class="chart"' not in page and "со слов площадки" in page
-    assert "цену снижали" in page and "feed-platform" in page and 'class="history"' not in page.split("price-feed", 1)[1].split("</section>", 1)[0]
+    assert "цену снижали" in page and "feed-platform" in page and "в долларах" in page
+    assert 'class="history"' not in page.split("price-feed", 1)[1].split("</section>", 1)[0]
 
-    monkeypatch.undo()
-    monkeypatch.setattr(web_app.views, "platform_events", lambda session, report: events)
-    pages = (client.get(f"/objects/{i}").text for i in range(1, 40))
-    page = next(p for p in pages if 'class="chart"' in p)  # в демо у части объектов есть длинная история
-    assert "price-feed" not in page and 'class="history"' in page
-    assert "pt-platform" in page and "в наши проценты изменения они не входят" in page
+    # Режим графика: подставляем готовую Timeline, чтобы не зависеть от длины демо-истории.
+    chart = views.Timeline("M0 100 H1000", [(100.0, "$90k")], [(0.0, "окт")], [(500.0, 100.0, "first", "x")], [])
+    monkeypatch.setattr(web_app.views, "timeline", lambda *a, **k: chart)
+    page = client.get("/objects/1").text
+    assert 'class="chart"' in page and "price-feed" not in page
+    assert "pt-platform" not in page  # точки приходят из timeline; здесь они в таблице ниже
+    table = page.split('<table class="history">', 1)[1].split("</table>", 1)[0]
+    assert table.count('class="row-platform"') == 2
+    assert "$90 000" in table.replace(" ", " ") and "в долларах" in table and "Domovita" in table
+    assert "цену снижали" in table and table.count("со слов площадки") >= 2
+    assert "в долларах, которые сообщает сама площадка" in page
+    monkeypatch.setattr(web_app.views, "timeline", real_timeline)
+
+
+def test_history_table_merges_platform_rows_by_date():
+    from datetime import UTC, datetime
+    from decimal import Decimal
+
+    from minsk_realty.web import views
+
+    own = views.HistoryRow(datetime(2026, 10, 12, tzinfo=UTC), Decimal(1), "USD", None, "first", "Kufar", "—")
+    ev = views.PlatformEvent(datetime(2026, 10, 5, tzinfo=UTC), "domovita", 5.0, 0, None)
+    rows = views.history_table([own], [ev])
+    assert rows == [ev, own] and rows[0].platform and not rows[1].platform
 
 
 def test_chart_css_uses_tokens_only():

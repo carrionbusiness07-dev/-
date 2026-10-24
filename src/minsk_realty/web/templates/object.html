@@ -180,7 +180,7 @@
       {% endif %}
     </figure>
     {% if events %}
-    <p class="chart-note"><span class="pt-key" aria-hidden="true"></span>Полые точки и подписи «со слов площадки» — цены, которые сообщает сама площадка; в наши проценты изменения они не входят.</p>
+    <p class="chart-note"><span class="pt-key" aria-hidden="true"></span>Полые точки и строки «со слов площадки» — цены в долларах, которые сообщает сама площадка; в наши проценты изменения они не входят.</p>
     {% endif %}
 
     <table class="history">
@@ -188,6 +188,15 @@
       <thead><tr><th scope="col">Дата</th><th scope="col" class="num">Цена</th><th scope="col" class="num">Изменение</th><th scope="col" class="folded">Площадка</th><th scope="col" class="folded">Продавец</th></tr></thead>
       <tbody>
       {% for h in history %}
+        {% if h.platform %}
+        <tr class="row-platform">
+          <td>{{ h.at | dshort }}<span class="sub">{{ sources.get(h.source, h.source) }} · со слов площадки</span></td>
+          <td class="num">{% if h.usd is not none %}{{ h.usd | money("USD") }}<span class="sub">в долларах</span>{% else %}—{% endif %}</td>
+          <td class="num">{% if h.usd is none %}{{ "цену снижали" if h.direction < 0 else "цену повышали" }}{% else %}<span class="muted">цена площадки</span>{% endif %}</td>
+          <td class="folded">{{ sources.get(h.source, h.source) }}</td>
+          <td class="folded">—</td>
+        </tr>
+        {% else %}
         <tr>
           <td>{{ h.at | dshort }}<span class="sub fold">{{ h.sources }} · {{ h.seller }}</span></td>
           <td class="num strong">{{ h.amount | money(h.currency) }}</td>
@@ -195,6 +204,7 @@
           <td class="folded">{{ h.sources }}</td>
           <td class="folded">{{ h.seller }}</td>
         </tr>
+        {% endif %}
       {% endfor %}
       </tbody>
     </table>

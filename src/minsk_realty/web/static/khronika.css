@@ -509,6 +509,7 @@ table { width: 100%; border-collapse: collapse; }
 .chart-marks .mark-platform { color: var(--ink-3); font-weight: 500; }
 .chart-note { margin: 0 0 var(--s5); font-size: 13px; color: var(--ink-3); max-width: 70ch; }
 .pt-key { display: inline-block; width: 9px; height: 9px; margin-right: var(--s2); border: 2px solid var(--ink-3); border-radius: 50%; box-sizing: border-box; vertical-align: baseline; }
+.row-platform td, .row-platform .strong { color: var(--ink-3); font-weight: 400; }
 .price-feed { list-style: none; margin: 0 0 var(--s4); padding: 0; }
 .price-feed li { display: grid; grid-template-columns: 4.5em 1fr; gap: var(--s3); padding: 8px 0; border-bottom: 1px solid var(--rule); }
 .feed-date { font-variant-numeric: tabular-nums; color: var(--ink-2); }
