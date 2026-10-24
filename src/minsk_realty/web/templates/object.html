@@ -1,7 +1,15 @@
 {% extends "base.html" %}
 {% set r = report %}
 {% block title %}{{ fmt.rooms_label(r.flat.rooms) }} {{ r.flat.street or "" }}{% endblock %}
-{% block head %}{% if map_data %}<link rel="stylesheet" href="/static/leaflet/leaflet.css">{% endif %}{% endblock %}
+{% block head %}{% if map_data %}<link rel="stylesheet" href="/static/leaflet/leaflet.css">{% endif %}{% if photos %}
+<script>
+    function photoGone(img) {
+      var li = img.closest(".photo");
+      li.hidden = true;
+      var sec = li.closest(".photos");
+      if (!sec.querySelector(".photo:not([hidden])")) sec.hidden = true;
+    }
+</script>{% endif %}{% endblock %}
 {% block content %}
 <main class="object">
   <a class="back" href="/"><svg aria-hidden="true" width="14" height="14"><use href="#i-arrow-left"/></svg>Сводка</a>
@@ -26,7 +34,7 @@
       <li class="photo"><button type="button" data-full="{{ ph.url }}" aria-label="Открыть фото {{ loop.index }} крупно"><img src="{{ ph.url }}" alt="Фото {{ loop.index }}, {{ photo_src }}" loading="lazy" referrerpolicy="no-referrer" onerror="photoGone(this)"></button></li>
       {% endfor %}
     </ul>
-    <p class="photo-caption">Фото с {{ photo_src }}</p>
+    <p class="photo-caption">{% if photos[0].source == r.listing.source %}Фото с {{ photo_src }}{% else %}Фото из объявления на {{ photo_src }}{% endif %}</p>
     <dialog class="lightbox" aria-label="Фото квартиры">
       <p class="lb-fail" hidden>Фото не загрузилось</p>
       <button type="button" class="lb-close" aria-label="Закрыть">×</button>
@@ -35,12 +43,6 @@
     </dialog>
   </section>
   <script>
-    function photoGone(img) {
-      var li = img.closest(".photo");
-      li.hidden = true;
-      var sec = li.closest(".photos");
-      if (!sec.querySelector(".photo:not([hidden])")) sec.hidden = true;
-    }
     (function () {
       var sec = document.querySelector(".photos"), dlg = sec.querySelector("dialog"), big = document.createElement("img"), at = 0;
       big.referrerPolicy = "no-referrer";
@@ -133,7 +135,9 @@
   <section class="place" aria-labelledby="place-title">
     <h2 id="place-title" class="section-title">Где находится</h2>
     {% if map_data %}
+    <a class="skip-map" href="#place-address">Пропустить карту</a>
     <div id="map" role="region" aria-label="Карта: квартира, ближайшее метро и похожие квартиры"></div>
+    {% if map_data.similar or map_data.radius_km or map_data.station %}
     <div class="map-legend" id="map-legend">
       {%- if map_data.similar and map_data.flat.ppm %}
       <span><i class="pin-key pin-cheap"></i>▼ дешевле этой квартиры более чем на 5%</span>
@@ -148,10 +152,14 @@
       {%- if map_data.station %}
       <span><i class="pin-key pin-metro">М</i>метро</span>
       {%- endif %}
+      {%- if map_data.capped %}
+      <span>показаны ближайшие {{ map_data.max_groups }} групп</span>
+      {%- endif %}
     </div>
+    {% endif %}
     <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
     {% endif %}
-    <p class="place-address">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+    <p class="place-address" id="place-address" tabindex="-1">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
     {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
     {% if map_data %}
     <p class="place-links">
@@ -179,8 +187,10 @@
       <ol class="chart-marks">{% for m in timeline.marks %}<li class="mark-{{ m.kind }}{% if m.x < 12 %} edge-start{% elif m.x > 88 %} edge-end{% endif %}" style="left: {{ m.x }}%"><span>{{ m.label }} {{ m.date }}</span></li>{% endfor %}</ol>
       {% endif %}
     </figure>
-    {% if events %}
+    {% if events | selectattr("usd", "ne", none) | list %}
     <p class="chart-note"><span class="pt-key" aria-hidden="true"></span>Полые точки и строки «со слов площадки» — цены в долларах, которые сообщает сама площадка; в наши проценты изменения они не входят.</p>
+    {% elif events %}
+    <p class="chart-note">Строки «со слов площадки» — отметки самой площадки о снижении или повышении цены, без суммы; в наши проценты изменения они не входят.</p>
     {% endif %}
 
     <table class="history">
@@ -271,7 +281,7 @@
       return L.marker([lat, lon], {
         icon: L.divIcon({className: "pin-anchor", html: '<span class="' + cls + '">' + html + "</span>", iconSize: [0, 0]}),
         title: title, zIndexOffset: z || 0, riseOnHover: true, keyboard: !!keys
-      }).addTo(map);
+      });
     }
     function el(tag, cls, text) {
       var e = document.createElement(tag);
@@ -279,59 +289,99 @@
       if (text) e.textContent = text;
       return e;
     }
-    function popup(g) {
-      var box = el("div", "pop");
-      g.items.forEach(function (i) {
-        var row = el("div", "pop-row");
+    function dist2(a, b) { return Math.pow(a.lat - b.lat, 2) + Math.pow(a.lon - b.lon, 2); }
+    // Попап кластера: до 10 квартир, ближайших к его центру; остальное — «и ещё N».
+    function popup(c, centre) {
+      var box = el("div", "pop"), rows = [];
+      c.items.forEach(function (e) {
+        var far = dist2(e.g, centre);
+        e.g.items.forEach(function (i) { rows.push({i: i, far: far}); });
+      });
+      rows.sort(function (a, b) { return a.far - b.far; });
+      var shown = rows.slice(0, 10);
+      shown.forEach(function (row) {
+        var i = row.i, line = el("div", "pop-row");
         var bits = [i.rooms ? i.rooms + "-комн." : null, i.area ? String(i.area).replace(".", ",") + " м²" : null,
           i.floor ? i.floor + (i.floors_total ? "/" + i.floors_total : "") + " эт." : null,
           i.finish === "done" ? "с отделкой" : i.finish === "none" ? "без отделки" : null].filter(Boolean);
-        row.appendChild(el("span", "pop-text", bits.join(", ") + " — " + usd(i.ppm) + "/м²"));
+        line.appendChild(el("span", "pop-text", bits.join(", ") + " — " + usd(i.ppm) + "/м²"));
         var a = el("a", "pop-link", "Открыть");
         a.href = i.url;
-        row.appendChild(a);
-        box.appendChild(row);
+        line.appendChild(a);
+        box.appendChild(line);
       });
-      if (g.more) box.appendChild(el("div", "pop-more", "и ещё " + g.more));
+      if (c.n > shown.length) box.appendChild(el("div", "pop-more", "и ещё " + (c.n - shown.length)));
       return box;
+    }
+
+    // Ярлыки, которые на экране налезли бы друг на друга, сливаются в один; зум их разделяет.
+    var CELL_W = 80, CELL_H = 26;  // px: ближе этого ярлыки считаем налезающими
+    var groups = d.similar.map(function (g) {
+      return {g: g, n: g.items.length + g.more, far: dist2(g, d.flat)};
+    }).sort(function (a, b) { return a.far - b.far; });
+    var layer = L.layerGroup().addTo(map);
+    function cluster() {
+      var zoom = map.getZoom(), out = [];
+      groups.forEach(function (e) {
+        var p = map.project([e.g.lat, e.g.lon], zoom), hit = null;
+        for (var k = 0; k < out.length && !hit; k++) {
+          if (Math.abs(out[k].x - p.x) < CELL_W && Math.abs(out[k].y - p.y) < CELL_H) hit = out[k];
+        }
+        if (!hit) { out.push({x: p.x, y: p.y, n: e.n, items: [e]}); return; }
+        hit.x = (hit.x * hit.n + p.x * e.n) / (hit.n + e.n);
+        hit.y = (hit.y * hit.n + p.y * e.n) / (hit.n + e.n);
+        hit.n += e.n;
+        hit.items.push(e);
+      });
+      return out;
+    }
+    function render() {
+      layer.clearLayers();
+      cluster().forEach(function (c, idx) {
+        var low = Math.min.apply(null, c.items.map(function (e) { return e.g.items[0].ppm; }));
+        var at = map.unproject([c.x, c.y], map.getZoom()), centre = {lat: at.lat, lon: at.lng};
+        var label = c.n > 1 ? c.n + " кв. · от " + usd(low) : usd(low);
+        var t = tone(low), mark = t === "cheap" ? "▼ " : t === "dear" ? "▲ " : "";
+        // Ярлыки идут от ближайших к квартире: в табуляцию берём первые 20. Попап строится по клику.
+        pin(at.lat, at.lng, "pin pin-" + t, mark + label, label + " за м²", 0, idx < 20)
+          .bindPopup(function () { return popup(c, centre); }, {maxHeight: 240, minWidth: 220}).addTo(layer);
+      });
     }
 
     var bounds = [[d.flat.lat, d.flat.lon]];
     if (d.radius_km) L.circle([d.flat.lat, d.flat.lon], {radius: d.radius_km * 1000, className: "map-radius", interactive: false}).addTo(map);
-    d.similar.forEach(function (g) {
-      var n = g.items.length + g.more, low = g.items[0].ppm;
-      var label = n > 1 ? n + " кв. · от " + usd(low) : usd(low);
-      var t = tone(low), mark = t === "cheap" ? "▼ " : t === "dear" ? "▲ " : "";
-      // Попап собирается по клику: групп может быть сотни.
-      pin(g.lat, g.lon, "pin pin-" + t, mark + label, label + " за м²", 0, true).bindPopup(function () { return popup(g); }, {maxHeight: 240, minWidth: 220});
-      bounds.push([g.lat, g.lon]);
-    });
+    d.similar.forEach(function (g) { bounds.push([g.lat, g.lon]); });
     if (d.station) {
-      pin(d.station.lat, d.station.lon, "pin-metro-wrap", '<b class="pin-metro">М</b><span class="pin-name">' + el("i", "", d.station.name).innerHTML + "</span>", d.station.name, 500, false);
+      pin(d.station.lat, d.station.lon, "pin-metro-wrap", '<b class="pin-metro">М</b><span class="pin-name">' + el("i", "", d.station.name).innerHTML + "</span>", d.station.name, 500, false).addTo(map);
       bounds.push([d.station.lat, d.station.lon]);
     }
+    // Квартира всегда сверху: большой zIndexOffset, ярлыки её не закрывают.
     pin(d.flat.lat, d.flat.lon, "pin-flat",
       '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5V20h-6v-5H9v5H3z" fill="currentColor"/></svg>',
-      "Эта квартира", 1000, false);
+      "Эта квартира", 10000, false).addTo(map);
+    map.on("zoomend", render);
     map.fitBounds(bounds, {padding: [32, 32], maxZoom: 16});
+    render();
 
     // Легенда — обычный текст под картой; со скриптом переезжает в угол карты.
     var legend = document.querySelector(".map-legend");
-    var control = L.control({position: "topright"});
-    control.onAdd = function () {
-      L.DomEvent.disableClickPropagation(legend);
-      // На узком экране легенда свёрнута до кнопки (CSS прячет строки, пока нет .is-open).
-      var toggle = el("button", "legend-toggle", "Легенда");
-      toggle.type = "button";
-      toggle.setAttribute("aria-expanded", "false");
-      toggle.setAttribute("aria-controls", "map-legend");
-      toggle.addEventListener("click", function () {
-        toggle.setAttribute("aria-expanded", String(legend.classList.toggle("is-open")));
-      });
-      legend.insertBefore(toggle, legend.firstChild);
-      return legend;
-    };
-    control.addTo(map);
+    if (legend) {
+      var control = L.control({position: "topright"});
+      control.onAdd = function () {
+        L.DomEvent.disableClickPropagation(legend);
+        // На узком экране легенда свёрнута до кнопки (CSS прячет строки, пока нет .is-open).
+        var toggle = el("button", "legend-toggle", "Легенда");
+        toggle.type = "button";
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-controls", "map-legend");
+        toggle.addEventListener("click", function () {
+          toggle.setAttribute("aria-expanded", String(legend.classList.toggle("is-open")));
+        });
+        legend.insertBefore(toggle, legend.firstChild);
+        return legend;
+      };
+      control.addTo(map);
+    }
   })();
 </script>
 {% endif %}{% endblock %}

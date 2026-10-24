@@ -669,6 +669,8 @@ def map_data(report, data: MarketData) -> dict | None:
         "radius_km": cmp.radius_km if cmp else None,
         "station": {"name": st.name, "lat": st.lat, "lon": st.lon} if st else None,
         "similar": similar,
+        "capped": len(near) > MAP_GROUPS_MAX,
+        "max_groups": MAP_GROUPS_MAX,
     }
 
 

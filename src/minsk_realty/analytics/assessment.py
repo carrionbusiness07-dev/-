@@ -175,7 +175,7 @@ def _size(rooms, area, tail: str = "") -> str | None:
     if rooms:
         parts.append(f"{rooms} {plural(rooms, 'комната', 'комнаты', 'комнат')}")
     if area:
-        parts.append(f"{area:g} м²")
+        parts.append(f"{area:g}".replace(".", ",") + " м²")
     return ", ".join(parts) + tail if parts else None
 
 

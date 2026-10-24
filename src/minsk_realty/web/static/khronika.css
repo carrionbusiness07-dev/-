@@ -469,6 +469,7 @@ table { width: 100%; border-collapse: collapse; }
 .pin-metro-wrap { transform: translate(-11px, -50%); gap: 5px; pointer-events: none; }
 .pin-metro { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--paper); color: var(--spot-deep); border: 2px solid var(--spot-deep); font: 700 12px/1 var(--head); }
 .pin-name { padding: 2px 5px; background: var(--paper); border-radius: var(--radius); color: var(--ink); font-weight: 600; }
+.leaflet-container .leaflet-popup-content-wrapper, .leaflet-container .leaflet-popup-tip { box-shadow: none; border: 1px solid var(--rule); }
 .pop-row { display: flex; justify-content: space-between; gap: var(--s3); padding: 3px 0; font: 400 13px/1.3 var(--body); }
 .pop-link { color: var(--spot); white-space: nowrap; }
 .pop-more { padding-top: 3px; color: var(--ink-2); font-size: 13px; }
@@ -478,6 +479,8 @@ table { width: 100%; border-collapse: collapse; }
 .pin-key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
 .pin-key.pin-radius { background: none; border-top: 2px dashed var(--spot); height: 0; }
 .pin-key.pin-metro { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; font-size: 10px; font-style: normal; }
+.skip-map { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip-map:focus { position: static; display: inline-block; width: auto; height: auto; clip: auto; margin-top: var(--s2); padding: var(--s1) var(--s2); background: var(--paper); color: var(--spot); }
 .legend-toggle { display: none; padding: 0; border: 0; background: none; color: var(--spot); font: 600 12px/1.3 var(--body); cursor: pointer; text-align: left; }
 @media (max-width: 600px) {
   .map-legend.leaflet-control { font-size: 11px; padding: 6px 8px; }

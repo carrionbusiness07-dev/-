@@ -594,7 +594,7 @@ def test_audience_reasons():
         "паре или небольшой семье": "1 комната, 38 м²",
     }
     assert reasons(rooms=2, area=54.3, location=_loc(10)) == {
-        "паре или небольшой семье": "2 комнаты, 54.3 м²"
+        "паре или небольшой семье": "2 комнаты, 54,3 м²"
     }
     far = Location(53.9, 27.5, False, Station("Каменная Горка", 53.9, 27.5), 3000.0, 45)
     assert reasons(rooms=3, area=79.0, location=far) == {

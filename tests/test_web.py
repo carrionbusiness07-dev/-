@@ -166,7 +166,7 @@ def test_map_data_groups_points_by_coordinates():
     report.location = _loc()
     assert views.map_data(report, SimpleNamespace(objects={})) == {
         "flat": {"lat": 53.9, "lon": 27.55, "ppm": None},
-        "radius_km": None, "station": None, "similar": [],
+        "radius_km": None, "station": None, "similar": [], "capped": False, "max_groups": 300,
     }
 
 
@@ -183,7 +183,9 @@ def test_map_data_caps_groups_keeping_nearest():
         comparison=SimpleNamespace(points=tuple(points), radius_km=3),
         listing=None,
     )
-    got = views.map_data(report, SimpleNamespace(objects={}))["similar"]
+    data = views.map_data(report, SimpleNamespace(objects={}))
+    got = data["similar"]
+    assert data["capped"] is True
     assert len(got) == views.MAP_GROUPS_MAX == 300
     assert {g["items"][0]["id"] for g in got} == set(range(300))
 
@@ -198,6 +200,8 @@ def test_object_page_has_map(client):
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
     assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in page and "cartocdn" not in page
     assert 'class="map-legend"' in page and 'id="map-legend"' in page
+    css = (ROOT / "src/minsk_realty/web/static/khronika.css").read_text(encoding="utf-8")
+    assert ".leaflet-container .leaflet-popup-tip { box-shadow: none" in css
     # Строки «дешевле/дороже» только когда на карте есть похожие.
     assert all("▼ дешевле" not in p for p in pages if '"similar": []' in p)
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
@@ -339,10 +343,59 @@ def test_object_page_photo_strip(client, monkeypatch):
     assert page.count('referrerpolicy="no-referrer"') == 2 and "referrerPolicy" in page and 'loading="lazy"' in page
     assert "<dialog" in page and "a=1&amp;b=2" in page and "onerror=" in page
     assert "Фото не загрузилось" in page and "lb-prev" in page
+    assert page.index("function photoGone") < page.index('class="photos"')  # объявлена раньше, чем нужна
     assert "<img" not in page.split("<dialog", 1)[1].split("</dialog>", 1)[0]  # без <img> без src
+
+    other = [{"url": "https://r.test/1.jpg", "source": "realt"}]
+    monkeypatch.setattr(web_app.views, "photos", lambda session, report: other)
+    assert "Фото из объявления на Realt" in client.get("/objects/1").text
 
     monkeypatch.setattr(web_app.views, "photos", lambda session, report: [])
     assert 'class="photos"' not in client.get("/objects/1").text
+
+
+def test_object_page_map_script_legend_and_skip_link(client, monkeypatch):
+    from minsk_realty.web import app as web_app
+
+    page = next(
+        p for p in (client.get(f"/objects/{i}").text for i in range(1, 30)) if 'id="map-data"' in p
+    )
+    assert "function cluster()" in page and 'map.on("zoomend", render)' in page
+    assert "idx < 20" in page and "10000" in page and "if (legend)" in page
+    assert page.index('class="skip-map"') < page.index('id="map"') < page.index('id="place-address"')
+
+    real = web_app.views.map_data
+
+    def lean(*args):
+        return {**real(*args), "similar": [], "radius_km": None, "station": None, "capped": False}
+
+    monkeypatch.setattr(web_app.views, "map_data", lean)
+    assert 'id="map-legend"' not in client.get("/objects/1").text
+
+    def capped(*args):
+        return {**real(*args), "capped": True}
+
+    monkeypatch.setattr(web_app.views, "map_data", capped)
+    assert "показаны ближайшие 300 групп" in client.get("/objects/1").text
+
+
+def test_chart_note_depends_on_priced_platform_events(client, monkeypatch):
+    from datetime import UTC, datetime
+
+    from minsk_realty.web import app as web_app
+    from minsk_realty.web.views import PlatformEvent
+
+    at = datetime(2026, 10, 20, tzinfo=UTC)
+
+    def pages(events):
+        monkeypatch.setattr(web_app.views, "platform_events", lambda *a: events)
+        return [client.get(f"/objects/{i}").text for i in range(1, 30)]
+
+    priced = pages([PlatformEvent(at, "domovita", 90000.0, -1, None)])
+    assert any("Полые точки" in p and "цены в долларах" in p for p in priced)
+    realt = pages([PlatformEvent(at, "realt", None, -1, None)])
+    assert any("отметки самой площадки" in p for p in realt)
+    assert all("Полые точки" not in p for p in realt)
 
 
 def test_hidden_thumbnails_and_viewer_css():
