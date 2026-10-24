@@ -338,10 +338,18 @@ def test_object_page_photo_strip(client, monkeypatch):
     assert 'alt="Фото 2, Kufar"' in page
     assert page.count('referrerpolicy="no-referrer"') == 2 and "referrerPolicy" in page and 'loading="lazy"' in page
     assert "<dialog" in page and "a=1&amp;b=2" in page and "onerror=" in page
+    assert "Фото не загрузилось" in page and "lb-prev" in page
     assert "<img" not in page.split("<dialog", 1)[1].split("</dialog>", 1)[0]  # без <img> без src
 
     monkeypatch.setattr(web_app.views, "photos", lambda session, report: [])
     assert 'class="photos"' not in client.get("/objects/1").text
+
+
+def test_hidden_thumbnails_and_viewer_css():
+    css = (ROOT / "src/minsk_realty/web/static/khronika.css").read_text(encoding="utf-8")
+    # display:block у .thumb перебивает [hidden], поэтому нужно явное правило
+    assert ".thumb[hidden]" in css and ".lightbox > img[hidden]" in css
+    assert "body:has(dialog[open])" in css and "color-mix(in srgb, var(--ink) 86%" in css
 
 
 def test_other_rows_and_table(client, monkeypatch):

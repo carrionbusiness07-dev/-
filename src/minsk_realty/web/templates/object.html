@@ -28,6 +28,7 @@
     </ul>
     <p class="photo-caption">Фото с {{ photo_src }}</p>
     <dialog class="lightbox" aria-label="Фото квартиры">
+      <p class="lb-fail" hidden>Фото не загрузилось</p>
       <button type="button" class="lb-close" aria-label="Закрыть">×</button>
       <button type="button" class="lb-prev" aria-label="Предыдущее фото">‹</button>
       <button type="button" class="lb-next" aria-label="Следующее фото">›</button>
@@ -43,12 +44,17 @@
     (function () {
       var sec = document.querySelector(".photos"), dlg = sec.querySelector("dialog"), big = document.createElement("img"), at = 0;
       big.referrerPolicy = "no-referrer";
+      var fail = dlg.querySelector(".lb-fail");
+      big.addEventListener("error", function () { big.hidden = true; fail.hidden = false; });
       dlg.prepend(big);  // картинку создаём здесь: в разметке нет <img> без настоящего src
-      function items() { return Array.prototype.filter.call(sec.querySelectorAll(".photo:not([hidden]) button"), Boolean); }
+      function items() { return Array.from(sec.querySelectorAll(".photo:not([hidden]) button")); }
       function show(i) {
         var list = items();
         if (!list.length) return dlg.close();
         at = (i + list.length) % list.length;
+        big.hidden = false;
+        fail.hidden = true;
+        dlg.querySelector(".lb-prev").hidden = dlg.querySelector(".lb-next").hidden = list.length < 2;
         big.src = list[at].dataset.full;
         big.alt = list[at].querySelector("img").alt;
       }
