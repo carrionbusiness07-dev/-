@@ -18,10 +18,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from minsk_realty.analytics.assessment import Assessment
 from minsk_realty.analytics.bargaining import Bargaining, BargainInputs, bargaining_index
+from minsk_realty.analytics.comparables import Comparison
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData, load_market
 from minsk_realty.analytics.exposure import Exposure, compute_exposure
+from minsk_realty.analytics.geo import Location
 from minsk_realty.analytics.history import PricePoint, build_price_history
 from minsk_realty.analytics.hypothesis import (
     HypothesisReport,
@@ -96,11 +99,14 @@ def to_jsonable(value: Any) -> Any:
 __all__ = [
     "DEFAULT_ANALYTICS",
     "AnalyticsConfig",
+    "Assessment",
     "BargainInputs",
     "Bargaining",
     "CheckReport",
+    "Comparison",
     "Exposure",
     "HypothesisReport",
+    "Location",
     "MarketBaseline",
     "MarketData",
     "MarketOverview",
