@@ -170,10 +170,7 @@
   (function () {
     var d = JSON.parse(document.getElementById("map-data").textContent);
     var map = L.map("map", {scrollWheelZoom: false});
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd", maxZoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>'
-    }).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
 
     var NEAR = 0.05;  // ±5% к цене за м² этой квартиры — «примерно так же»
     function usd(n) { return "$" + n.toLocaleString("ru-RU"); }
@@ -231,7 +228,18 @@
     // Легенда — обычный текст под картой; со скриптом переезжает в угол карты.
     var legend = document.querySelector(".map-legend");
     var control = L.control({position: "topright"});
-    control.onAdd = function () { L.DomEvent.disableClickPropagation(legend); return legend; };
+    control.onAdd = function () {
+      L.DomEvent.disableClickPropagation(legend);
+      // На узком экране легенда свёрнута до кнопки (CSS прячет строки, пока нет .is-open).
+      var toggle = el("button", "legend-toggle", "Легенда");
+      toggle.type = "button";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.addEventListener("click", function () {
+        toggle.setAttribute("aria-expanded", String(legend.classList.toggle("is-open")));
+      });
+      legend.insertBefore(toggle, legend.firstChild);
+      return legend;
+    };
     control.addTo(map);
   })();
 </script>

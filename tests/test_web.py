@@ -178,7 +178,7 @@ def test_object_page_has_map(client):
     assert 'aria-labelledby="assessment-title"' in page
     assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
-    assert "basemaps.cartocdn.com/light_all" in page and "carto.com/attributions" in page
+    assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in page and "cartocdn" not in page
     assert 'class="map-legend"' in page and "дешевле" in page and "дороже" in page
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
     assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
