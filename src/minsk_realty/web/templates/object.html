@@ -162,9 +162,10 @@
   </section>
   {% endif %}
 
-  {% if timeline %}
+  {% if timeline or feed %}
   <section class="chronicle" aria-labelledby="chronicle-title">
     <h2 id="chronicle-title" class="section-title">Хроника цены</h2>
+    {% if timeline %}
     <figure class="chart">
       <svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Цена квартиры по времени">
         {% for y, label in timeline.y_labels %}<line class="grid" x1="0" x2="1000" y1="{{ y }}" y2="{{ y }}"/>{% endfor %}
@@ -178,6 +179,9 @@
       <ol class="chart-marks">{% for m in timeline.marks %}<li class="mark-{{ m.kind }}{% if m.x < 12 %} edge-start{% elif m.x > 88 %} edge-end{% endif %}" style="left: {{ m.x }}%"><span>{{ m.label }} {{ m.date }}</span></li>{% endfor %}</ol>
       {% endif %}
     </figure>
+    {% if events %}
+    <p class="chart-note"><span class="pt-key" aria-hidden="true"></span>Полые точки и подписи «со слов площадки» — цены, которые сообщает сама площадка; в наши проценты изменения они не входят.</p>
+    {% endif %}
 
     <table class="history">
       <caption class="visually-hidden">История цены</caption>
@@ -194,6 +198,17 @@
       {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    <ol class="price-feed">
+      {% for item in feed %}
+      <li class="{{ 'feed-platform' if item.platform else 'feed-own' }}">
+        <time class="feed-date">{{ item.at | dshort }}</time>
+        <span class="feed-body"><strong>{{ item.text | nb }}</strong>{% if item.change_pct %} <span class="delta delta-{{ 'down' if item.change_pct < 0 else 'up' }}">{{ item.change_pct | pct }}</span>{% endif %}<span class="sub">{{ item.note }}</span></span>
+      </li>
+      {% endfor %}
+    </ol>
+    <p class="chart-note">Графика пока нет: наблюдений мало. Строки «со слов площадки» — то, что сообщает сама площадка, а не наши замеры.</p>
+    {% endif %}
   </section>
   {% endif %}
 

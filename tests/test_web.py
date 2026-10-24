@@ -387,3 +387,136 @@ def test_other_rows_and_table(client, monkeypatch):
     page = client.get("/objects/1").text
     assert "Минск, ул. Тестовая, 5" in page and "3/9" in page and "54 м²" in page
     assert page.count("на карте") == 1 and 'class="thumb"' in page
+
+
+# --- Хроника цены: события со слов площадки --------------------------------------------------
+
+
+def _chart_world(tmp_path, extras, others=()):
+    session, report = _photo_world(tmp_path, extras)
+    first = next(iter(extras))
+    return session, report(first, *others)
+
+
+def test_platform_events_domovita_and_realt(tmp_path):
+    from datetime import UTC, datetime
+
+    from minsk_realty.web import views
+
+    session, report = _chart_world(
+        tmp_path,
+        {
+            "domovita": [{"price_history": [["2026-10-10", 90000], ["2026-09-20", 100000], ["2026-08-01", 100000]]}],
+            "realt": [{"priceChangeDate": "2026-10-15T10:00:00+03:00", "priceChangeDirection": -1}],
+            "kufar": [{"priceChangeDate": "2026-10-01T10:00:00+03:00", "priceChangeDirection": -1}],
+        },
+        others=[("realt", "high"), ("kufar", "low")],  # low не берём
+    )
+    got = views.platform_events(session, report)
+    assert [(e.source, e.at.date().isoformat(), e.usd) for e in got] == [
+        ("domovita", "2026-08-01", 100000.0),
+        ("domovita", "2026-09-20", 100000.0),
+        ("domovita", "2026-10-10", 90000.0),
+        ("realt", "2026-10-15", None),
+    ]
+    assert got[2].change_pct == -10.0 and got[2].direction == -1 and got[3].direction == -1
+    assert got[0].at.tzinfo is not None and datetime.now(UTC) > got[0].at
+    feed = views.price_feed([], got)
+    assert feed[0].text == "цену снижали" and feed[0].platform
+    assert feed[1].text == "$90 000" and "со слов площадки" in feed[1].note
+
+
+def test_platform_events_nothing(tmp_path):
+    from types import SimpleNamespace
+
+    from minsk_realty.web import views
+
+    session, report = _chart_world(
+        tmp_path,
+        {"domovita": [{"price_history": ["junk", [1], ["bad-date", 5]]}], "realt": [{"priceChangeDirection": 0}]},
+        others=[("realt", "high")],
+    )
+    assert views.platform_events(session, report) == []
+    assert views.platform_events(session, SimpleNamespace(listing=None, others=())) == []
+    assert views.price_feed([], []) == []
+
+
+def _tl_report(days_apart, n_points, usd0=100000):
+    from datetime import UTC, datetime
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from minsk_realty.analytics.history import PricePoint
+
+    t0 = datetime(2026, 10, 1, tzinfo=UTC)
+    pts = [
+        PricePoint(
+            at=t0 + timedelta(days=days_apart * i / max(n_points - 1, 1)), amount=Decimal(usd0 - 1000 * i),
+            currency="USD", usd=Decimal(usd0 - 1000 * i), source="kufar", listing_id=1, seller_type="owner",
+            agency_name=None, kind="first" if i == 0 else "change", change_pct=None if i == 0 else -1.0,
+            is_current_listing=True,
+        )
+        for i in range(n_points)
+    ]
+    exposure = SimpleNamespace(start=t0 - timedelta(days=40), state="active", end=t0)
+    snap = SimpleNamespace(now=t0 + timedelta(days=days_apart), data=SimpleNamespace(object_events=lambda oid: []))
+    return snap, SimpleNamespace(history=pts, exposure=exposure, object_id=None)
+
+
+def test_timeline_short_observation_gives_no_chart():
+    from minsk_realty.web import views
+
+    assert views.timeline(*_tl_report(30, 2)) is None  # мало точек
+    assert views.timeline(*_tl_report(3, 4)) is None  # наблюдаем меньше 7 дней
+    assert views.timeline(*_tl_report(0, 0)) is None  # нет данных
+    assert views.timeline(*_tl_report(20, 4)) is not None
+
+
+def test_timeline_axis_starts_at_earliest_point_with_platform_dots():
+    from datetime import UTC, datetime
+
+    from minsk_realty.web import views
+
+    snap, report = _tl_report(20, 4)
+    plain = views.timeline(snap, report)
+    assert plain.dots[0][0] == 0 and all(d[2] != "platform" for d in plain.dots)  # публикация за 40 дней не сдвигает ось
+    events = [
+        views.PlatformEvent(datetime(2026, 9, 21, tzinfo=UTC), "domovita", 120000.0, 0, None),
+        views.PlatformEvent(datetime(2026, 10, 10, tzinfo=UTC), "realt", None, -1, None),
+    ]
+    chart = views.timeline(snap, report, events)
+    hollow = [d for d in chart.dots if d[2] == "platform"]
+    assert len(hollow) == 1 and hollow[0][0] == 0 and "со слов площадки" in hollow[0][3]
+    assert chart.dots[1][0] > 0  # наша первая точка уехала вправо от начала оси
+    assert any(m.kind == "platform" and "Realt" in m.label for m in chart.marks)
+    assert hollow[0][1] < min(d[1] for d in plain.dots)  # шкала Y подстроена под цену площадки
+
+
+def test_object_page_chart_or_feed(client, monkeypatch):
+    from datetime import UTC, datetime
+
+    from minsk_realty.web import app as web_app
+    from minsk_realty.web import views
+
+    events = [
+        views.PlatformEvent(datetime(2026, 10, 10, tzinfo=UTC), "domovita", 90000.0, -1, -10.0),
+        views.PlatformEvent(datetime(2026, 10, 15, tzinfo=UTC), "realt", None, -1, None),
+    ]
+    monkeypatch.setattr(web_app.views, "platform_events", lambda session, report: events)
+    monkeypatch.setattr(web_app.views, "timeline", lambda *a, **k: None)
+    page = client.get("/objects/1").text
+    assert 'class="price-feed"' in page and 'class="chart"' not in page and "со слов площадки" in page
+    assert "цену снижали" in page and "feed-platform" in page and 'class="history"' not in page.split("price-feed", 1)[1].split("</section>", 1)[0]
+
+    monkeypatch.undo()
+    monkeypatch.setattr(web_app.views, "platform_events", lambda session, report: events)
+    pages = (client.get(f"/objects/{i}").text for i in range(1, 40))
+    page = next(p for p in pages if 'class="chart"' in p)  # в демо у части объектов есть длинная история
+    assert "price-feed" not in page and 'class="history"' in page
+    assert "pt-platform" in page and "в наши проценты изменения они не входят" in page
+
+
+def test_chart_css_uses_tokens_only():
+    css = (ROOT / "src/minsk_realty/web/static/khronika.css").read_text(encoding="utf-8")
+    block = css[css.index(".pt-platform"):css.index(".feed-platform .delta")]
+    assert "#" not in block and "rgb" not in block and "var(--ink-3)" in block

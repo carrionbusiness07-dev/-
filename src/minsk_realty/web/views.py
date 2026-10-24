@@ -27,6 +27,7 @@ from minsk_realty.analytics import (
 )
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS
 from minsk_realty.analytics.fmt import (
+    MINSK_TZ,
     MONTHS_GEN,
     district_label,
     local,
@@ -673,19 +674,23 @@ def map_data(report, data: MarketData) -> dict | None:
 PHOTO_LIMIT = 6
 
 
+def _latest_extra(session: Session, listing_id: int) -> dict:
+    extra = session.scalar(
+        select(DbSnapshot.extra)
+        .where(DbSnapshot.listing_id == listing_id)
+        .order_by(DbSnapshot.seen_at.desc(), DbSnapshot.id.desc())
+        .limit(1)
+    )
+    return extra if isinstance(extra, dict) else {}
+
+
 def _photo_urls(session: Session, listing_ids: list[int]) -> dict[int, list[str]]:
     """Ссылки на фото из последнего снимка каждого объявления (extra читаем только у них).
 
     Только https://: ссылка с площадки идёт в src без прокси, чужую схему не пропускаем."""
     out: dict[int, list[str]] = {}
     for lid in listing_ids:
-        extra = session.scalar(
-            select(DbSnapshot.extra)
-            .where(DbSnapshot.listing_id == lid)
-            .order_by(DbSnapshot.seen_at.desc(), DbSnapshot.id.desc())
-            .limit(1)
-        )
-        urls = (extra or {}).get("photo_urls")
+        urls = _latest_extra(session, lid).get("photo_urls")
         urls = urls if isinstance(urls, list) else []
         out[lid] = [u for u in urls if isinstance(u, str) and u.startswith("https://")]
     return out
@@ -734,18 +739,80 @@ def other_rows(session: Session, data: MarketData, report) -> list[dict]:
     return rows
 
 
-def timeline(snap: Snapshot, report) -> Timeline | None:
+@dataclass
+class PlatformEvent:
+    """Изменение цены со слов площадки: мы его не наблюдали, в наши проценты оно не входит."""
+
+    at: datetime
+    source: str
+    usd: float | None  # Realt цену не отдаёт — только факт и направление
+    direction: int  # -1 снижение, 1 повышение, 0 просто цена на дату
+    change_pct: float | None  # к предыдущей цене той же площадки, если она известна
+
+
+PLATFORM_EVENTS_MAX = 12
+
+
+def _platform_when(value) -> datetime | None:
+    try:
+        when = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    if len(str(value)) <= 10:  # Domovita отдаёт только дату
+        when = when.replace(hour=12)
+    return when if when.tzinfo else when.replace(tzinfo=MINSK_TZ)
+
+
+def platform_events(session: Session, report) -> list[PlatformEvent]:
+    """События цены со слов площадок (Domovita `price_history`, Realt `priceChangeDate`) из
+    последних снимков надёжных объявлений объекта. Читаем только их, от старых к новым."""
+    if report.listing is None:
+        return []
+    trusted = [o for o in report.others if o.confidence in ("high", "medium")]
+    found: dict[tuple, PlatformEvent] = {}
+    for lid, source in [(report.listing.listing_id, report.listing.source)] + [
+        (o.listing_id, o.source) for o in trusted
+    ]:
+        extra = _latest_extra(session, lid)
+        pairs = []  # Domovita: [[дата, USD], ...] от новых к старым
+        for row in extra.get("price_history") or []:
+            if isinstance(row, list | tuple) and len(row) == 2 and isinstance(row[1], int | float):
+                when = _platform_when(row[0])
+                if when:
+                    pairs.append((when, float(row[1])))
+        pairs.sort()
+        for i, (when, usd) in enumerate(pairs):
+            change = (usd - pairs[i - 1][1]) / pairs[i - 1][1] * 100 if i and pairs[i - 1][1] else None
+            direction = 0 if not change else (-1 if change < 0 else 1)
+            found[(source, when.date(), usd)] = PlatformEvent(when, source, usd, direction, change)
+        direction = extra.get("priceChangeDirection")  # Realt: -1 снижение, 1 повышение
+        when = _platform_when(extra.get("priceChangeDate")) if direction in (-1, 1) else None
+        if when:
+            found[(source, when.date(), None)] = PlatformEvent(when, source, None, direction, None)
+    return sorted(found.values(), key=lambda e: e.at)[-PLATFORM_EVENTS_MAX:]
+
+
+# Короче — вместо графика лента: две точки на пустой оси ничего не показывают.
+CHART_MIN_POINTS = 3
+CHART_MIN_DAYS = 7
+
+
+def timeline(snap: Snapshot, report, events: list[PlatformEvent] = ()) -> Timeline | None:
     points = [p for p in report.history if p.usd is not None]
     if not points or report.exposure is None:
         return None
-    start = min(report.exposure.start, points[0].at)
     end = snap.now if report.exposure.state == "active" else report.exposure.end
+    if len(points) < CHART_MIN_POINTS or end - points[0].at < timedelta(days=CHART_MIN_DAYS):
+        return None
+    priced = [e for e in events if e.usd is not None]
+    # Ось начинается с самой ранней точки (нашей или площадки), а не с даты публикации.
+    start = min([points[0].at, *(e.at for e in events)])
     span = max((end - start).total_seconds(), 1)
 
     def x(at: datetime) -> float:
         return max(0.0, min(1000.0, (at - start).total_seconds() / span * 1000))
 
-    values = [float(p.usd) for p in points]
+    values = [float(p.usd) for p in points] + [e.usd for e in priced]
     low, high = min(values), max(values)
     pad = max((high - low) * 0.25, high * 0.01)
     low, high = low - pad, high + pad
@@ -753,7 +820,12 @@ def timeline(snap: Snapshot, report) -> Timeline | None:
     def y(v: float) -> float:
         return 180 - (v - low) / (high - low) * 160
 
-    path, dots = [], []
+    path = []
+    # Площадка — полые точки, рисуются первыми: наши лежат поверх.
+    dots = [
+        (x(e.at), y(e.usd), "platform", f"{SOURCE_NAMES.get(e.source, e.source)}, со слов площадки: {money(e.usd, 'USD')}")
+        for e in priced
+    ]
     for i, point in enumerate(points):
         px, py = x(point.at), y(float(point.usd))
         # Ступенька: цена держится до следующего изменения, потом скачком меняется.
@@ -790,7 +862,44 @@ def timeline(snap: Snapshot, report) -> Timeline | None:
                 by_day[day].label += f", {names[event.type]}"
         else:
             by_day[day] = Mark(x(event.at) / 10, names[event.type], day, event.type)
-    return Timeline(" ".join(path), y_labels, x_labels, dots, list(by_day.values()))
+    marks = list(by_day.values())
+    for e in events:
+        if e.usd is None:  # цены нет — нечего ставить на линию, остаётся риска внизу
+            word = "снижение" if e.direction < 0 else "повышение"
+            marks.append(
+                Mark(x(e.at) / 10, f"{SOURCE_NAMES.get(e.source, e.source)}: {word} цены (со слов площадки)", f"{local(e.at):%d.%m}", "platform")
+            )
+    return Timeline(" ".join(path), y_labels, x_labels, dots, marks)
+
+
+@dataclass
+class FeedItem:
+    at: datetime
+    text: str  # цена или «цену снижали»
+    change_pct: float | None
+    note: str
+    platform: bool
+
+
+def price_feed(history: list[HistoryRow], events: list[PlatformEvent]) -> list[FeedItem]:
+    """Лента вместо графика: наши точки истории и события со слов площадки, новые сверху."""
+    items = [
+        FeedItem(
+            h.at,
+            money(h.amount, h.currency),
+            h.change_pct,
+            h.sources + (" · первая цена" if h.kind == "first" else ""),
+            False,
+        )
+        for h in history
+    ]
+    for e in events:
+        name = SOURCE_NAMES.get(e.source, e.source)
+        text = money(e.usd, "USD") if e.usd is not None else (
+            "цену снижали" if e.direction < 0 else "цену повышали"
+        )
+        items.append(FeedItem(e.at, text, e.change_pct, f"{name} · со слов площадки", True))
+    return sorted(items, key=lambda i: i.at, reverse=True)
 
 
 @dataclass
