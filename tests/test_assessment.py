@@ -3,7 +3,16 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from analytics_data import NOW
+from test_analytics import _market as _flat_market
 
+from minsk_realty.analytics.comparables import (
+    ComparePoint,
+    epoch,
+    find_comparison,
+    price_group,
+)
+from minsk_realty.analytics.config import DEFAULT_ANALYTICS as CFG
 from minsk_realty.analytics.data import (
     ListingRow,
     MarketData,
@@ -12,6 +21,7 @@ from minsk_realty.analytics.data import (
     load_market,
     parse_year,
 )
+from minsk_realty.analytics.medians import MedianCell, compute_baseline
 from minsk_realty.db.models import Base, Listing, RealtyObject, Snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
 
@@ -144,3 +154,116 @@ def test_point_skips_invalid_and_untrusted():
     )
     assert data.object_point(1, approx) == (53.9, 27.5, False)
     assert data.listing_point(2, approx) is None
+
+
+def test_epoch_bounds():
+    assert [epoch(y, 2026) for y in (1969, 1970, 1990, 1991, 2010, 2011, 2026, 2027, None)] == [
+        "pre1970", "1970_1990", "1970_1990", "1991_2010", "1991_2010", "post2010", "post2010",
+        "building", None,
+    ]  # fmt: skip
+
+
+LAT, LON = 53.9, 27.5
+M_PER_DEG_LAT = 111_195
+
+
+def _pts(n, *, dist_m=1000, ep="1970_1990", rooms=2, first_id=1, base=1500):
+    """n точек на заданном расстоянии к северу от (LAT, LON); цена растёт на $1 за точку."""
+    return tuple(
+        ComparePoint(first_id + i, LAT + dist_m / M_PER_DEG_LAT, LON, rooms, ep, base + i, None)
+        for i in range(n)
+    )
+
+
+def _compare(points, **kw):
+    args = {
+        "object_id": 999,
+        "point": (LAT, LON, False),
+        "rooms": 2,
+        "year": 1980,
+        "usd_per_m2": 1500.0,
+        "district_cell": None,
+        "now_year": 2026,
+        "cfg": CFG,
+    }
+    return find_comparison(points, **(args | kw))
+
+
+def test_comparison_near():
+    c = _compare(_pts(12))
+    assert (c.step, c.radius_km, c.n, c.epoch, c.rooms) == ("near", 1.5, 12, "1970_1990", 2)
+    assert c.year_known and len(c.points) == 12
+    assert c.diff_pct == pytest.approx((1500 / c.median - 1) * 100)
+
+
+def test_comparison_widens_to_3km():
+    c = _compare(_pts(5) + _pts(7, dist_m=2500, first_id=100))
+    assert (c.step, c.radius_km, c.n, len(c.points)) == ("wide", 3.0, 12, 12)
+
+
+def test_comparison_falls_back_to_district():
+    cell = MedianCell("фрунзенский", 2, 40, 45, 1800.0)
+    c = _compare(_pts(3), district_cell=cell)
+    assert (c.step, c.n, c.median, c.district, c.points) == (
+        "district",
+        40,
+        1800.0,
+        "фрунзенский",
+        (),
+    )
+    assert c.radius_km is None and c.year_known
+    assert _compare(_pts(3)) is None
+    assert _compare(_pts(3), district_cell=MedianCell(None, 2, 4, 4, None)) is None
+
+
+def test_comparison_skips_other_epochs_and_self():
+    assert _compare(_pts(12, ep="pre1970"), year=2015) is None
+    # свой объект в выборку не входит
+    c = _compare(_pts(11), object_id=1)
+    assert c.n == 10 and 1 not in {p.object_id for p in c.points}
+    assert _compare(_pts(10), object_id=1) is None
+    # другая комнатность не считается; 4+ комнат — одна корзина
+    assert _compare(_pts(12, rooms=3)) is None
+    assert _compare(_pts(12, rooms=4), rooms=6).n == 12
+
+
+def test_comparison_without_year():
+    mixed = _pts(6, ep="pre1970") + _pts(6, ep="post2010", first_id=50)
+    c = _compare(mixed, year=None)
+    assert (c.step, c.n, c.epoch, c.year_known) == ("near", 12, None, False)
+
+
+def test_approx_point_goes_to_district():
+    cell = MedianCell(None, None, 100, 110, 1700.0)
+    c = _compare(_pts(12), point=(LAT, LON, True), district_cell=cell)
+    assert (c.step, c.points) == ("district", ())
+    assert _compare(_pts(12), point=None, district_cell=cell).step == "district"
+    assert _compare(_pts(12), rooms=None, district_cell=cell).step == "district"
+
+
+def test_no_price_no_comparison():
+    assert _compare(_pts(12), usd_per_m2=None) is None
+
+
+def test_price_group_bounds():
+    assert [price_group(x, CFG) for x in (-15, -14.9, -5, -4.9, 4.9, 5)] == [
+        "suspicious", "below", "below", "market", "market", "above",
+    ]  # fmt: skip
+
+
+def test_baseline_has_points():
+    from dataclasses import replace
+
+    data = _flat_market(12)
+    for i, snaps in data.snapshots.items():
+        data.snapshots[i] = [replace(s, lat=53.9 + i / 10_000, lon=27.5) for s in snaps]
+    data.building_years[3] = 1975
+    data.objects[4] = replace(data.objects[4], street_norm=None)
+    base = compute_baseline(data, NOW)
+    assert len(base.points) == 12
+    by_id = {p.object_id: p for p in base.points}
+    assert by_id[3].epoch == "1970_1990" and by_id[1].epoch is None
+    assert by_id[3].house_key == "ул тест 3|1" and by_id[4].house_key is None
+    assert by_id[3].rooms == 2 and by_id[3].usd_per_m2 == pytest.approx(90300 / 50)
+    # без координат точек нет
+    assert compute_baseline(_flat_market(12), NOW).points == ()

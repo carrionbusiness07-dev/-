@@ -23,10 +23,14 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData
 from minsk_realty.analytics.exposure import compute_exposure
+
+if TYPE_CHECKING:
+    from minsk_realty.analytics.comparables import ComparePoint
 
 RoomsKey = int | None  # 1, 2, 3, 4 (= 4+), None — все
 
@@ -96,6 +100,8 @@ class MarketBaseline:
     # Доля активных объектов со сроком «как минимум» (застали уже висящими).
     exposure_truncated_share: float | None
     min_sample: int
+    # Активные объекты с ценой, площадью и координатами — для сравнения с похожими квартирами.
+    points: tuple[ComparePoint, ...] = ()
 
     def price_cell(self, district: str | None, rooms: RoomsKey) -> MedianCell | None:
         return _find(self.price_cells, district, rooms)
@@ -139,6 +145,9 @@ def compute_baseline(
 ) -> MarketBaseline:
     ppm_groups: dict[tuple[str | None, RoomsKey], list[float]] = defaultdict(list)
     exp_groups: dict[str | None, list[float]] = defaultdict(list)
+    from minsk_realty.analytics.comparables import ComparePoint, epoch  # цикл импортов
+
+    points: list[ComparePoint] = []
     active = truncated = 0
     lo_area, hi_area = cfg.area_bounds_m2
     for object_id in data.objects:
@@ -163,6 +172,19 @@ def compute_baseline(
         for d in {district, None}:
             for r in {bucket, None}:
                 ppm_groups[(d, r)].append(value)
+        # Неточные координаты тоже годятся: для радиуса 1,5 км точность «до улицы» достаточна.
+        coords = data.object_point(object_id, cfg.approx_coord_sources)
+        if bucket is not None and coords is not None:
+            obj = data.objects.get(object_id)
+            house_key = (
+                f"{obj.street_norm}|{obj.house}" if obj and obj.street_norm and obj.house else None
+            )
+            points.append(
+                ComparePoint(
+                    object_id, coords[0], coords[1], bucket,
+                    epoch(data.building_years.get(object_id), at.year), value, house_key,
+                )
+            )  # fmt: skip
 
     def cell(d, r, values, bounds):
         s = robust_summary(values, bounds=bounds, iqr_k=cfg.iqr_k, min_sample=cfg.min_sample)
@@ -184,6 +206,7 @@ def compute_baseline(
         active_objects=active,
         exposure_truncated_share=truncated / active if active else None,
         min_sample=cfg.min_sample,
+        points=tuple(points),
     )
 
 

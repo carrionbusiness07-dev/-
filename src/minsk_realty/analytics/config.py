@@ -85,5 +85,14 @@ class AnalyticsConfig:
     # Расстояние до метро и «соседей рядом» по площадкам из списка не считаем.
     approx_coord_sources: frozenset[str] = frozenset({"domovita", "realt"})
 
+    # --- Сравнение с похожими квартирами (допущение, не откалибровано) ---
+    # Радиусы поиска похожих (км): сначала рядом, затем шире; дальше — район.
+    compare_radii_km: tuple[float, float] = (1.5, 3.0)
+    # Отклонение цены от медианы похожих, %: ≤ −15 «подозрительно дёшево», ≤ −5 «ниже»,
+    # ≥ +5 «выше», между — «в рынке».
+    group_suspicious_pct: float = -15.0
+    group_below_pct: float = -5.0
+    group_above_pct: float = 5.0
+
 
 DEFAULT_ANALYTICS = AnalyticsConfig()
