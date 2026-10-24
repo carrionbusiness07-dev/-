@@ -36,7 +36,6 @@ from minsk_realty.analytics.fmt import (
     street_label,
 )
 from minsk_realty.analytics.fmt import pct as _pct
-from minsk_realty.analytics.render import web_blocks  # noqa: F401  (для object.html)
 from minsk_realty.collector.run import INTERRUPTED, STALE_RUN_AFTER
 from minsk_realty.db.models import Event, RealtyObject, SourceRun
 

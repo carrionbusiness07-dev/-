@@ -153,6 +153,26 @@ def test_object_page_has_map(client):
     assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
+    assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
+
+
+def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
+    from dataclasses import replace
+
+    from minsk_realty.web import app as web_app
+
+    real = web_app.build_check_report
+
+    def approx_report(*args, **kwargs):
+        report = real(*args, **kwargs)
+        return replace(report, location=replace(report.location, approx=True, walk_min=None))
+
+    monkeypatch.setattr(web_app, "build_check_report", approx_report)
+    page = client.get("/objects/1").text
+    assert "map-data" not in page and "leaflet" not in page
+    assert 'id="place-title"' in page and "Где находится" in page
+    assert 'class="place-address"' in page and "ближайшая станция" in page
+    assert "place-links" not in page
 
 
 def test_leaflet_static_served(client):

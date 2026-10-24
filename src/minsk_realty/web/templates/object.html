@@ -66,11 +66,13 @@
   {% if blocks.place or map_data %}
   <section class="place" aria-labelledby="place-title">
     <h2 id="place-title" class="section-title">Где находится</h2>
-    <p class="place-address">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
-    {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
     {% if map_data %}
     <div id="map" role="region" aria-label="Карта: квартира, ближайшее метро и похожие квартиры"></div>
     <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
+    {% endif %}
+    <p class="place-address">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+    {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
+    {% if map_data %}
     <p class="place-links">
       <a href="https://yandex.by/maps/?pt={{ map_data.flat[1] }},{{ map_data.flat[0] }}&amp;z=16" rel="noopener" target="_blank">Яндекс.Карты<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
       <a href="https://www.google.com/maps?q={{ map_data.flat[0] }},{{ map_data.flat[1] }}" rel="noopener" target="_blank">Google Maps<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
