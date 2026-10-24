@@ -347,6 +347,31 @@ FIRST = ("Первый этаж", "спросите про подвал, сыр�
 LAST = ("Последний этаж", "спросите про крышу и протечки")
 
 
+def _district(group, diff, name="Фрунзенский") -> Comparison:
+    return replace(_cmp(group, diff), step="district", radius_km=None, epoch=None, district=name)
+
+
+@pytest.mark.parametrize(
+    ("name", "ref"), [("Фрунзенский", "медианы района"), (None, "медианы по Минску")]
+)
+def test_district_step_wording(name, ref):
+    below = _assess(comparison=_district("below", -7.0, name), bargaining_level="unknown")
+    assert below.verdict == f"Стоит смотреть: цена на 7% ниже {ref}"
+    assert below.pluses == (f"Цена ниже {ref}",)
+    above = _assess(comparison=_district("above", 12.0, name), bargaining_level="unknown")
+    assert above.verdict == f"Дороже {ref} на 12%: смотреть, если готовы торговаться"
+    assert [m.text for m in above.minuses] == [f"Дороже {ref}"]
+    cheap = _assess(comparison=_district("suspicious", -30.0, name), bargaining_level="high")
+    assert cheap.verdict.startswith(f"Подозрительно дёшево: на 30% ниже {ref}. Узнайте причину")
+    assert "похож" not in cheap.verdict + below.verdict + above.verdict
+    assert _assess(comparison=_district("market", 1.0, name)).verdict == "Цена в рынке"
+
+
+def test_wide_step_keeps_similar_wording():
+    wide = replace(_cmp("below", -7.0), step="wide", radius_km=3.0)
+    assert _assess(comparison=wide, bargaining_level="unknown").verdict.endswith("ниже похожих")
+
+
 def test_minuses_rules():
     assert _minuses(floor=1) == [FIRST]
     assert _minuses(floor=9, floors_total=9) == [LAST]
@@ -536,7 +561,7 @@ def test_text_follows_spec_layout(session, stations):
     assert head[0].splitlines()[0].startswith("🏠 2-комн.")
     assert head[1] == "✅ Стоит смотреть: цена на 7.2% ниже похожих, торг реален"
     assert head[2] == (
-        "📍 Метро «Тестовая» — ~5 мин пешком (0 м). Дом 1978 г., 9 этажей\n"
+        "📍 Метро «Тестовая» — ~5 мин пешком (50 м). Дом 1978 г., 9 этажей\n"
         "👥 Подойдёт: паре или небольшой семье"
     )
     assert head[3] == (
@@ -586,13 +611,24 @@ def test_text_metro_distance_rounded_to_50_m(session, stations):
     assert line.startswith("📍 Метро «Тестовая» — ~10 мин пешком (600 м). Дом 1978 г.")
 
 
+@pytest.mark.parametrize(
+    ("station_m", "shown"), [(625.0, 650), (10.0, 50), (24.0, 50), (575.0, 600)]
+)
+def test_text_metro_distance_half_up_and_never_zero(session, stations, station_m, shown):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    near = replace(r.location, station_m=station_m, walk_min=5)
+    line = _station_line(render_check_text(replace(r, location=near)))
+    assert f"~5 мин пешком ({shown} м)." in line
+
+
 def test_text_without_year(session, stations):
     _docs(session, year=None)
     r = build_check_report(session, KUFAR_URL, NOW)
     assert r.comparison.year_known is False
     text = render_check_text(r)
     assert "без учёта возраста дома в радиусе" in text
-    assert " г." not in _station_line(text) and "Дом 9 этажей" in _station_line(text)
+    assert _station_line(text).endswith(". 9-этажный дом") and " г." not in _station_line(text)
 
 
 def test_text_house_line(session, stations):

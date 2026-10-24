@@ -39,20 +39,28 @@ class Assessment:
     audience: tuple[str, ...]
 
 
+def _ref(comparison: Comparison) -> str:
+    """С чем сравнили: на шаге «район» это медиана района, иначе похожие квартиры."""
+    if comparison.step != "district":
+        return "похожих"
+    return "медианы района" if comparison.district else "медианы по Минску"
+
+
 def _verdict(comparison: Comparison | None, bargaining_level: str) -> tuple[str, str]:
     if comparison is None:
         return "unknown", "Похожих квартир рядом мало, сравнить цену не можем"
     kind = comparison.group
+    ref = _ref(comparison)
     n = pct(comparison.diff_pct, signed=False)
     if kind == "suspicious":  # торг тут не обсуждаем: сначала выяснить причину
         return (
             kind,
-            f"Подозрительно дёшево: на {n} ниже похожих. Узнайте причину до просмотра (доля, состояние, документы)",
+            f"Подозрительно дёшево: на {n} ниже {ref}. Узнайте причину до просмотра (доля, состояние, документы)",
         )
     text = {
-        "below": f"Стоит смотреть: цена на {n} ниже похожих",
+        "below": f"Стоит смотреть: цена на {n} ниже {ref}",
         "market": "Цена в рынке",
-        "above": f"Дороже похожих на {n}: смотреть, если готовы торговаться",
+        "above": f"Дороже {ref} на {n}: смотреть, если готовы торговаться",
     }[kind]
     return kind, text + _BARGAIN_TAIL.get(bargaining_level, "")
 
@@ -67,6 +75,7 @@ def _far_from_metro(location: Location | None) -> bool:
 
 def _minuses(comparison, floor, floors_total, year, now_year, location) -> tuple[Minus, ...]:
     ep = epoch(year, now_year)
+    ref = _ref(comparison) if comparison else ""
     rows = (
         (floor == 1, Minus("Первый этаж", "спросите про подвал, сырость и решётки")),
         (
@@ -83,17 +92,18 @@ def _minuses(comparison, floor, floors_total, year, now_year, location) -> tuple
         ),
         (ep == "building", Minus("Дом ещё строится", f"сдача в {year}, проверьте застройщика")),
         (_far_from_metro(location), Minus("Далеко от метро", None)),
-        (comparison is not None and comparison.group == "above", Minus("Дороже похожих", None)),
+        (comparison is not None and comparison.group == "above", Minus(f"Дороже {ref}", None)),
     )
     return tuple(m for ok, m in rows if ok)[:MAX_MINUSES]
 
 
 def _pluses(comparison, year, now_year, location) -> tuple[str, ...]:
     walk = location.walk_min if location else None
+    ref = _ref(comparison) if comparison else ""
     rows = (
         (walk is not None and walk <= NEAR_WALK_MIN, "Метро рядом"),
         (epoch(year, now_year) == "post2010", "Новый дом"),
-        (comparison is not None and comparison.group == "below", "Цена ниже похожих"),
+        (comparison is not None and comparison.group == "below", f"Цена ниже {ref}"),
     )
     return tuple(t for ok, t in rows if ok)[:MAX_PLUSES]
 

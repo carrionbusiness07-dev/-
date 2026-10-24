@@ -323,15 +323,14 @@ def _place_lines(report: CheckReport, icons: bool) -> list[str]:
     elif loc.approx or loc.walk_min is None:
         text = f"Метро «{loc.station.name}» — ближайшая станция"
     else:
-        metres = round(loc.station_m / 50) * 50
+        metres = max(50, int(loc.station_m / 50 + 0.5) * 50)  # half-up, не «0 м»
         text = f"Метро «{loc.station.name}» — ~{loc.walk_min} мин пешком ({metres} м)"
-    house = []
+    floors = f.floors_total if f is not None else None
     if f is not None and f.year:
-        house.append(f"{f.year} г.")
-    if f is not None and f.floors_total:
-        house.append(f"{f.floors_total} {plural(f.floors_total, 'этаж', 'этажа', 'этажей')}")
-    if house:
-        text += f". Дом {', '.join(house)}"
+        floors_text = f", {floors} {plural(floors, 'этаж', 'этажа', 'этажей')}" if floors else ""
+        text += f". Дом {f.year} г.{floors_text}"
+    elif floors:
+        text += f". {floors}-этажный дом"
     lines = [_icon("place", icons) + text]
     a = report.assessment
     if a and a.audience:
