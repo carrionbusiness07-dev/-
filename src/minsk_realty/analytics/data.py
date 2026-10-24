@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.fmt import normalize_district
+from minsk_realty.analytics.geo import valid_point
 from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, SourceRun
 from minsk_realty.matching.config import DEFAULT_CONFIG
 from minsk_realty.matching.events import baseline_ends
@@ -81,6 +82,8 @@ class SnapRow:
     street: str | None
     district: str | None
     address_raw: str | None = None
+    lat: float | None = None
+    lon: float | None = None
 
     @property
     def priced(self) -> bool:
@@ -158,6 +161,8 @@ class MarketData:
     # Конец исходного среза по площадкам (matching.events.baseline_ends): объекты, впервые
     # замеченные позже, мы видим с самого появления на рынке.
     baseline_ends: dict[str, datetime] = field(default_factory=dict)
+    # Год постройки по объекту (из самого свежего снимка, где он есть).
+    building_years: dict[int, int] = field(default_factory=dict)
     _by_object: dict[int, list[ListingRow]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
@@ -193,6 +198,41 @@ class MarketData:
         for snap in reversed(snaps):
             if not priced or snap.priced:
                 return snap
+        return None
+
+    def listing_point(
+        self, listing_id: int, approx_sources: frozenset[str]
+    ) -> tuple[float, float, bool] | None:
+        """Координаты по последнему снимку с lat/lon; approx — площадка даёт общую точку двора."""
+        row = self.listings.get(listing_id)
+        if row is None:
+            return None
+        found = self._last_point(listing_id)
+        return (found[1], found[2], row.source in approx_sources) if found else None
+
+    def object_point(
+        self, object_id: int, approx_sources: frozenset[str]
+    ) -> tuple[float, float, bool] | None:
+        """Координаты объекта по надёжным объявлениям: сначала точные площадки, затем любые;
+        среди равных — самый свежий снимок."""
+        best: dict[bool, tuple[datetime, float, float]] = {}
+        for row in self.object_listings(object_id):
+            found = self._last_point(row.id)
+            approx = row.source in approx_sources
+            if found and (approx not in best or found > best[approx]):
+                best[approx] = found
+        for approx in (False, True):
+            if approx in best:
+                return best[approx][1], best[approx][2], approx
+        return None
+
+    def _last_point(self, listing_id: int) -> tuple[datetime, float, float] | None:
+        for snap in reversed(self.snapshots.get(listing_id, [])):
+            if snap.lat is not None and snap.lon is not None:
+                # Последняя точка не в Минске — объявление пропускаем целиком.
+                if valid_point(snap.lat, snap.lon):
+                    return snap.seen_at, snap.lat, snap.lon
+                return None
         return None
 
     def object_events(self, object_id: int, *, trusted_only: bool = True) -> list[EventRow]:
@@ -358,6 +398,8 @@ def load_market(
         Snapshot.street,
         Snapshot.district,
         Snapshot.address_raw,
+        Snapshot.lat,
+        Snapshot.lon,
     ).order_by(Snapshot.listing_id, Snapshot.seen_at, Snapshot.id)
     if object_ids is not None or listing_ids is not None:
         snap_q = snap_q.where(Snapshot.listing_id.in_(set(listings)))
@@ -376,6 +418,8 @@ def load_market(
                 street=s.street,
                 district=s.district,
                 address_raw=s.address_raw,
+                lat=s.lat,
+                lon=s.lon,
             )
         )
     events: dict[int, list[EventRow]] = defaultdict(list)
@@ -402,7 +446,43 @@ def load_market(
         source_starts=source_starts(session),
         platform_drops=platform_reported_drops(session) if full else frozenset(),
         baseline_ends=baseline_ends(session, DEFAULT_CONFIG) if full else {},
+        # Год читает extra, поэтому отдельным лёгким запросом и только по нужным объектам.
+        building_years=building_years(
+            session, None if full else {r.object_id for r in listings.values() if r.object_id}
+        ),
     )
+
+
+YEAR_MIN = 1850
+YEAR_KEYS = {"kufar": "year_built", "realt": "buildingYear"}
+
+
+def parse_year(value: Any, now_year: int) -> int | None:
+    """Год постройки: число или строка из цифр в пределах [1850, now_year + 10], иначе None."""
+    if isinstance(value, str) and value.strip().isdecimal():
+        value = int(value)
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if YEAR_MIN <= value <= now_year + 10 else None
+
+
+def building_years(session: Session, object_ids: Iterable[int] | None = None) -> dict[int, int]:
+    """Год постройки по объектам: из самого свежего снимка его объявлений, где год есть."""
+    q = (
+        select(Listing.object_id, Listing.source, Snapshot.extra)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(Listing.source.in_(tuple(YEAR_KEYS)), Listing.object_id.is_not(None))
+        .order_by(Snapshot.seen_at, Snapshot.id)
+    )
+    if object_ids is not None:
+        q = q.where(Listing.object_id.in_(set(object_ids)))
+    now_year = datetime.now(UTC).year
+    out: dict[int, int] = {}
+    for object_id, source, extra in session.execute(q):
+        year = parse_year((extra or {}).get(YEAR_KEYS[source]), now_year)
+        if year is not None:
+            out[object_id] = year  # порядок по возрастанию seen_at: последний выигрывает
+    return out
 
 
 # Снижение по истории Domovita: история в долларах, а продавец мог ставить цену в рублях —
