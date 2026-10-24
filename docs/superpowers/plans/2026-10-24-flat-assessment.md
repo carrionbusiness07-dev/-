@@ -276,3 +276,34 @@
 - [ ] **Step 4: Ворота владельца.** Показать владельцу цифры. Если `suspicious` > 10% активных объектов — остановиться и править пороги вместе с ним (только в `config.py`). Владелец открывает 10 случайных квартир из вывода в кабинете и говорит «ок».
 - [ ] **Step 5: Ревью Grant** (`grant-guard`) всей ветки: персональные данные, тесты, package-data, ничего лишнего в сборщике и склейке.
 - [ ] **Step 6: Обновить `docs/status.md`**: в «Что работает» — новая оценка в отчёте; в «Отложено» — окружение по OpenStreetMap, «что проверить на просмотре», расшифровка кодов Kufar. Commit и push.
+
+---
+
+## Дополнение 24.10: отделка (спека, раздел 9)
+
+### Task 11: Отделка в сборщике и обновление `extra` (Sam)
+
+**Files:**
+- Modify: `src/minsk_realty/sources/kufar.py`, `src/minsk_realty/sources/realt.py`, `src/minsk_realty/db/repository.py`
+- Test: `tests/test_kufar.py`, `tests/test_realt.py`, `tests/test_db.py` (или где тестируется `save_snapshot`)
+
+**Interfaces:**
+- Produces: Kufar `extra["flat_repair"]` (код, как отдаёт площадка) и `extra["repair"]` (подпись, например «Без отделки»); Realt `extra["repairState"]` (код) и, если подписи найдены в данных Realt, `REALT_REPAIR_LABELS: dict[int, str]` в `realt.py`; `save_snapshot` при совпадении хеша и отличающемся `extra` обновляет `extra` последнего снимка и не создаёт новый снимок.
+
+- [ ] **Step 1: Падающие тесты:** Kufar-фикстура с `flat_repair` → в `extra` есть код и подпись; Realt-фикстура с `repairState` → код в `extra`; `save_snapshot` дважды с одинаковыми значимыми полями, но новым ключом в `extra` → один снимок, `extra` обновлён; с одинаковым `extra` → ничего не меняется.
+- [ ] **Step 2: Реализовать.** Подписи Realt — только из данных Realt (фикстура `tests/fixtures/realt/*` или одна вежливая выгрузка страницы фильтров); если не нашлись, подписи нет и в отчёте отделка Realt неизвестна.
+- [ ] **Step 3: Весь набор, ruff.** Commit `feat: collect flat finishing; refresh extra on unchanged snapshots`.
+
+### Task 12: Сравнение с учётом отделки (Leo)
+
+**Files:**
+- Modify: `src/minsk_realty/analytics/data.py`, `comparables.py`, `medians.py`, `report.py`, `render.py`, `assessment_stats.py`
+- Test: `tests/test_assessment.py`
+
+**Interfaces:**
+- Consumes: `extra["repair"]` (Kufar), `extra["repairState"]` + `REALT_REPAIR_LABELS` (Realt).
+- Produces: `finishing_kind(label: str | None) -> Literal["none", "done"] | None` (none: подпись содержит «без отделки», «строительн» или «чернов», регистр не важен; done: любая другая непустая подпись); `MarketData.finishings: dict[int, str]` (object_id → none/done; загружается как `building_years`, только из надёжных объявлений); `ComparePoint.finish: str | None = None` (последнее поле); `find_comparison(..., finish: str | None = None)` — если `finish` задан, точки только с тем же `finish`; `Comparison.finish: str | None = None`; строка сравнения: «без отделки» / «с ремонтом» после комнатности; `assessment_stats` считает долю объектов с известной отделкой и группы отдельно для none/done.
+
+- [ ] **Step 1: Падающие тесты:** `finishing_kind` на подписях «Без отделки», «Строительная отделка», «Косметический», «Дизайнерский», None, ""; сравнение для цели `none` не берёт точки `done` и `None`; без отделки у цели — фильтра нет; текст «однушек без отделки»; статистика по отделке.
+- [ ] **Step 2: Реализовать.**
+- [ ] **Step 3: Весь набор, ruff.** Commit `feat: compare flats with the same finishing`.
