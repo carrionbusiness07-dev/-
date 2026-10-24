@@ -617,17 +617,51 @@ class Timeline:
     marks: list[Mark]
 
 
-def map_data(report) -> dict | None:
-    """Данные для карты на странице квартиры; None — координаты неточные или их нет."""
+MAP_GROUP_LIMIT = 10
+
+
+def map_data(report, data: MarketData) -> dict | None:
+    """Данные для карты на странице квартиры; None — координаты неточные или их нет.
+
+    Похожие с одинаковыми координатами (4 знака) сливаются в одну группу: в новостройках сотни
+    квартир сидят в одной точке. Цвета ярлыков считает JS по ppm, в данных их нет."""
     loc = report.location
     if loc is None or loc.approx:
         return None
     st = loc.station
-    similar = report.comparison.points if report.comparison else ()
+    price = report.listing.price if report.listing else None
+    cmp = report.comparison
+    groups: dict[tuple[float, float], list[dict]] = {}
+    for p in cmp.points if cmp else ():
+        obj = data.objects.get(p.object_id)
+        groups.setdefault((round(p.lat, 4), round(p.lon, 4)), []).append(
+            {
+                "id": p.object_id,
+                "url": f"/objects/{p.object_id}",
+                "ppm": round(p.usd_per_m2),
+                "rooms": obj.rooms if obj and obj.rooms else p.rooms,
+                "area": obj.area if obj else None,
+                "floor": obj.floor if obj else None,
+                "floors_total": obj.floors_total if obj else None,
+                "finish": p.finish,
+            }
+        )
+    similar = []
+    for (lat, lon), items in groups.items():
+        items.sort(key=lambda i: i["ppm"])
+        similar.append(
+            {"lat": lat, "lon": lon, "items": items[:MAP_GROUP_LIMIT],
+             "more": max(len(items) - MAP_GROUP_LIMIT, 0)}
+        )
     return {
-        "flat": [loc.lat, loc.lon],
+        "flat": {
+            "lat": loc.lat,
+            "lon": loc.lon,
+            "ppm": round(price.usd_per_m2) if price and price.usd_per_m2 else None,
+        },
+        "radius_km": cmp.radius_km if cmp else None,
         "station": {"name": st.name, "lat": st.lat, "lon": st.lon} if st else None,
-        "similar": [[p.lat, p.lon, round(p.usd_per_m2)] for p in similar],
+        "similar": similar,
     }
 
 

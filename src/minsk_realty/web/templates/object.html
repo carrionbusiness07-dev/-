@@ -75,14 +75,29 @@
     <h2 id="place-title" class="section-title">Где находится</h2>
     {% if map_data %}
     <div id="map" role="region" aria-label="Карта: квартира, ближайшее метро и похожие квартиры"></div>
+    <div class="map-legend">
+      {%- if map_data.flat.ppm %}
+      <span><i class="pin-key pin-cheap"></i>дешевле этой квартиры более чем на 5%</span>
+      <span><i class="pin-key pin-same"></i>примерно так же</span>
+      <span><i class="pin-key pin-dear"></i>дороже более чем на 5%</span>
+      {%- else %}
+      <span><i class="pin-key pin-same"></i>похожие квартиры, цена за м²</span>
+      {%- endif %}
+      {%- if map_data.radius_km %}
+      <span><i class="pin-key pin-radius"></i>радиус сравнения {{ ("%g" | format(map_data.radius_km)).replace(".", ",") }} км</span>
+      {%- endif %}
+      {%- if map_data.station %}
+      <span><i class="pin-key pin-metro">М</i>метро</span>
+      {%- endif %}
+    </div>
     <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
     {% endif %}
     <p class="place-address">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
     {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
     {% if map_data %}
     <p class="place-links">
-      <a href="https://yandex.by/maps/?pt={{ map_data.flat[1] }},{{ map_data.flat[0] }}&amp;z=16" rel="noopener" target="_blank">Яндекс.Карты<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
-      <a href="https://www.google.com/maps?q={{ map_data.flat[0] }},{{ map_data.flat[1] }}" rel="noopener" target="_blank">Google Maps<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
+      <a href="https://yandex.by/maps/?pt={{ map_data.flat.lon }},{{ map_data.flat.lat }}&amp;z=16" rel="noopener" target="_blank">Яндекс.Карты<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
+      <a href="https://www.google.com/maps?q={{ map_data.flat.lat }},{{ map_data.flat.lon }}" rel="noopener" target="_blank">Google Maps<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
     </p>
     {% endif %}
   </section>
@@ -155,18 +170,69 @@
   (function () {
     var d = JSON.parse(document.getElementById("map-data").textContent);
     var map = L.map("map", {scrollWheelZoom: false});
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
-    var bounds = [d.flat];
-    L.marker(d.flat, {alt: "Квартира"}).addTo(map);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd", maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+
+    var NEAR = 0.05;  // ±5% к цене за м² этой квартиры — «примерно так же»
+    function usd(n) { return "$" + n.toLocaleString("ru-RU"); }
+    function tone(ppm) {
+      if (!d.flat.ppm) return "same";
+      var r = ppm / d.flat.ppm - 1;
+      return r < -NEAR ? "cheap" : r > NEAR ? "dear" : "same";
+    }
+    function pin(lat, lon, cls, html, title, z) {
+      return L.marker([lat, lon], {
+        icon: L.divIcon({className: "pin-anchor", html: '<span class="' + cls + '">' + html + "</span>", iconSize: [0, 0]}),
+        title: title, zIndexOffset: z || 0, riseOnHover: true
+      }).addTo(map);
+    }
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text) e.textContent = text;
+      return e;
+    }
+    function popup(g) {
+      var box = el("div", "pop");
+      g.items.forEach(function (i) {
+        var row = el("div", "pop-row");
+        var bits = [i.rooms ? i.rooms + "-комн." : null, i.area ? String(i.area).replace(".", ",") + " м²" : null,
+          i.floor ? i.floor + (i.floors_total ? "/" + i.floors_total : "") + " эт." : null,
+          i.finish === "done" ? "с отделкой" : i.finish === "none" ? "без отделки" : null].filter(Boolean);
+        row.appendChild(el("span", "pop-text", bits.join(", ") + " — " + usd(i.ppm) + "/м²"));
+        var a = el("a", "pop-link", "Открыть");
+        a.href = i.url;
+        row.appendChild(a);
+        box.appendChild(row);
+      });
+      if (g.more) box.appendChild(el("div", "pop-more", "и ещё " + g.more));
+      return box;
+    }
+
+    var bounds = [[d.flat.lat, d.flat.lon]];
+    if (d.radius_km) L.circle([d.flat.lat, d.flat.lon], {radius: d.radius_km * 1000, className: "map-radius", interactive: false}).addTo(map);
+    d.similar.forEach(function (g) {
+      var n = g.items.length + g.more, low = g.items[0].ppm;
+      var label = n > 1 ? n + " кв. · от " + usd(low) : usd(low);
+      pin(g.lat, g.lon, "pin pin-" + tone(low), label, label + " за м²").bindPopup(popup(g), {maxHeight: 240, minWidth: 220});
+      bounds.push([g.lat, g.lon]);
+    });
     if (d.station) {
-      L.circleMarker([d.station.lat, d.station.lon], {radius: 7, className: "map-station"}).bindTooltip(d.station.name).addTo(map);
+      pin(d.station.lat, d.station.lon, "pin-metro-wrap", '<b class="pin-metro">М</b><span class="pin-name">' + el("i", "", d.station.name).innerHTML + "</span>", d.station.name, 500);
       bounds.push([d.station.lat, d.station.lon]);
     }
-    d.similar.forEach(function (s) {
-      L.circleMarker([s[0], s[1]], {radius: 5, className: "map-similar"}).bindTooltip("$" + s[2].toLocaleString("ru-RU") + "/м²").addTo(map);
-      bounds.push([s[0], s[1]]);
-    });
-    map.fitBounds(bounds, {padding: [24, 24], maxZoom: 16});
+    pin(d.flat.lat, d.flat.lon, "pin-flat",
+      '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5V20h-6v-5H9v5H3z" fill="currentColor"/></svg>',
+      "Эта квартира", 1000);
+    map.fitBounds(bounds, {padding: [32, 32], maxZoom: 16});
+
+    // Легенда — обычный текст под картой; со скриптом переезжает в угол карты.
+    var legend = document.querySelector(".map-legend");
+    var control = L.control({position: "topright"});
+    control.onAdd = function () { L.DomEvent.disableClickPropagation(legend); return legend; };
+    control.addTo(map);
   })();
 </script>
 {% endif %}{% endblock %}

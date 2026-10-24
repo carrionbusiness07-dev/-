@@ -222,7 +222,7 @@ def _report_page(request: Request, session: Session, snap: views.Snapshot, ref: 
         session,
         report=report,
         blocks=web_blocks(report),
-        map_data=views.map_data(report),
+        map_data=views.map_data(report, snap.data),
         timeline=views.timeline(snap, report),
         history=views.history_rows(report),
         nav_hint="objects",

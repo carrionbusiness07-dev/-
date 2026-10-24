@@ -456,8 +456,27 @@ table { width: 100%; border-collapse: collapse; }
 .place p { max-width: 75ch; }
 .place-address { color: var(--ink-2); }
 #map { height: 300px; margin-top: var(--s3); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); background: var(--paper-2); font-family: var(--body); }
-.map-station { stroke: var(--spot-deep); fill: var(--spot); fill-opacity: 1; }
-.map-similar { stroke: var(--ink-3); fill: var(--ink-3); fill-opacity: 0.55; }
+.map-radius { stroke: var(--spot); stroke-width: 1.5; stroke-dasharray: 6 6; fill: var(--spot); fill-opacity: 0.04; }
+.pin-anchor { background: none; border: 0; }
+.pin, .pin-flat, .pin-metro-wrap { position: absolute; display: flex; align-items: center; white-space: nowrap; font: 650 12px/1 var(--body); }
+.pin { transform: translate(-50%, -50%); padding: 5px 7px; border-radius: var(--radius); color: var(--on-spot); border: 1px solid var(--paper); box-shadow: 0 1px 2px rgba(21, 23, 27, 0.35); cursor: pointer; }
+.pin-cheap { background: var(--green); }
+.pin-dear { background: var(--red); }
+.pin-same { background: var(--ink-3); }
+.pin-flat { transform: translate(-50%, -50%); justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--spot); color: var(--on-spot); border: 2px solid var(--paper); box-shadow: 0 1px 3px rgba(21, 23, 27, 0.45); }
+.pin-metro-wrap { transform: translate(-11px, -50%); gap: 5px; pointer-events: none; }
+.pin-metro { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--paper); color: var(--spot-deep); border: 2px solid var(--spot-deep); font: 700 12px/1 var(--head); }
+.pin-name { padding: 2px 5px; background: var(--paper); border-radius: var(--radius); color: var(--ink); font-weight: 600; }
+.pop-row { display: flex; justify-content: space-between; gap: var(--s3); padding: 3px 0; font: 400 13px/1.3 var(--body); }
+.pop-link { color: var(--spot); white-space: nowrap; }
+.pop-more { padding-top: 3px; color: var(--ink-2); font-size: 13px; }
+.map-legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-top: var(--s2); font-size: 13px; color: var(--ink-2); }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend.leaflet-control { display: grid; gap: 4px; margin: 0; padding: var(--s2) var(--s3); background: rgba(236, 238, 240, 0.94); border: 1px solid var(--rule); border-radius: var(--radius); color: var(--ink); font: 400 12px/1.3 var(--body); }
+.pin-key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+.pin-key.pin-radius { background: none; border-top: 2px dashed var(--spot); height: 0; }
+.pin-key.pin-metro { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; font-size: 10px; font-style: normal; }
+@media (max-width: 600px) { .map-legend.leaflet-control { font-size: 11px; padding: 6px 8px; } }
 .place-links { display: flex; gap: var(--s4); margin-top: var(--s2); font-size: 14px; }
 .place-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--spot); }
 

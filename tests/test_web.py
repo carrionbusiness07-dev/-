@@ -119,29 +119,55 @@ def test_map_data_none_without_precise_location():
 
     from minsk_realty.web import views
 
-    assert views.map_data(SimpleNamespace(location=None, comparison=None)) is None
-    assert views.map_data(SimpleNamespace(location=_loc(approx=True), comparison=None)) is None
+    data = SimpleNamespace(objects={})
+    no_cmp = SimpleNamespace(location=None, comparison=None, listing=None)
+    assert views.map_data(no_cmp, data) is None
+    assert views.map_data(SimpleNamespace(location=_loc(approx=True), comparison=None), data) is None
 
 
-def test_map_data_collects_points():
+def test_map_data_groups_points_by_coordinates():
     from types import SimpleNamespace
 
     from minsk_realty.analytics.comparables import ComparePoint
     from minsk_realty.analytics.geo import Station
     from minsk_realty.web import views
 
-    point = ComparePoint(7, 53.91, 27.56, 2, "1970_1990", 2100.4, None)
+    def obj(rooms, area, floor, total):
+        return SimpleNamespace(rooms=rooms, area=area, floor=floor, floors_total=total)
+
+    # 13 квартир в одной точке (разница в 5-м знаке схлопывается) и одна отдельная.
+    points = [ComparePoint(100 + i, 53.91 + i * 1e-6, 27.56, 2, None, 2000.0 + i, None) for i in range(13)]
+    points.append(ComparePoint(7, 53.95, 27.6, 3, "1970_1990", 1800.4, None, "done"))
+    objects = {100 + i: obj(2, 54.0, 5, 9) for i in range(13)} | {7: obj(3, 79.5, 2, 9)}
     report = SimpleNamespace(
         location=_loc(station=Station("Парк Челюскинцев", 53.92, 27.58)),
-        comparison=SimpleNamespace(points=(point,)),
+        comparison=SimpleNamespace(points=tuple(points), radius_km=1.5),
+        listing=SimpleNamespace(price=SimpleNamespace(usd_per_m2=1950.4)),
     )
-    assert views.map_data(report) == {
-        "flat": [53.9, 27.55],
-        "station": {"name": "Парк Челюскинцев", "lat": 53.92, "lon": 27.58},
-        "similar": [[53.91, 27.56, 2100]],
+    got = views.map_data(report, SimpleNamespace(objects=objects))
+    assert got["flat"] == {"lat": 53.9, "lon": 27.55, "ppm": 1950}
+    assert got["radius_km"] == 1.5
+    assert got["station"] == {"name": "Парк Челюскинцев", "lat": 53.92, "lon": 27.58}
+    big, single = sorted(got["similar"], key=lambda g: -len(g["items"]))
+    assert (big["lat"], big["lon"], len(big["items"]), big["more"]) == (53.91, 27.56, 10, 3)
+    assert [i["ppm"] for i in big["items"]] == list(range(2000, 2010))  # от дешёвых
+    assert big["items"][0] == {
+        "id": 100, "url": "/objects/100", "ppm": 2000, "rooms": 2, "area": 54.0,
+        "floor": 5, "floors_total": 9, "finish": None,
     }
-    report.location, report.comparison = _loc(), None
-    assert views.map_data(report) == {"flat": [53.9, 27.55], "station": None, "similar": []}
+    assert single["items"] == [
+        {"id": 7, "url": "/objects/7", "ppm": 1800, "rooms": 3, "area": 79.5,
+         "floor": 2, "floors_total": 9, "finish": "done"}
+    ]
+    assert single["more"] == 0
+    assert "color" not in str(got)
+    # Нет цены у квартиры, сравнения и метро: карта всё равно строится.
+    report.listing, report.comparison = None, None
+    report.location = _loc()
+    assert views.map_data(report, SimpleNamespace(objects={})) == {
+        "flat": {"lat": 53.9, "lon": 27.55, "ppm": None},
+        "radius_km": None, "station": None, "similar": [],
+    }
 
 
 def test_object_page_has_map(client):
@@ -152,6 +178,8 @@ def test_object_page_has_map(client):
     assert 'aria-labelledby="assessment-title"' in page
     assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
+    assert "basemaps.cartocdn.com/light_all" in page and "carto.com/attributions" in page
+    assert 'class="map-legend"' in page and "дешевле" in page and "дороже" in page
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
     assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
 
