@@ -47,19 +47,26 @@
 
   {% if blocks.minuses or blocks.pluses or blocks.audience or blocks.house %}
   <div class="notes">
-    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses)] if items %}
-    <section aria-labelledby="{{ key }}-title">
+    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses), ("audience", "Кому подойдёт", blocks.audience)] if items %}
+    <section class="note-col note-{{ key }}" aria-labelledby="{{ key }}-title">
       <h2 id="{{ key }}-title" class="rubric">{{ title }}</h2>
-      <ul>{% for item in items %}<li>{{ item | nb }}</li>{% endfor %}</ul>
+      <ul class="cards">
+        {% for item in items %}
+        <li class="card">
+          <h3 class="card-title">{{ item.text | nb }}</h3>
+          {% if item.detail or item.reason %}<p class="card-detail">{{ (item.detail or item.reason) | nb }}</p>{% endif %}
+          {% if item.hint %}<p class="card-hint">{{ item.hint | nb }}</p>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
     </section>
     {% endfor %}
-    {% if blocks.audience %}
-    <section aria-labelledby="audience-title">
-      <h2 id="audience-title" class="rubric">Кому подойдёт</h2>
-      <p>{{ blocks.audience | nb }}</p>
+    {% if blocks.house %}
+    <section class="note-col note-house" aria-labelledby="house-title">
+      <h2 id="house-title" class="rubric">Ещё в этом доме</h2>
+      <div class="card"><p class="card-detail">{{ blocks.house | nb }}</p></div>
     </section>
     {% endif %}
-    {% if blocks.house %}<p class="house-note">{{ blocks.house | nb }}</p>{% endif %}
   </div>
   {% endif %}
 

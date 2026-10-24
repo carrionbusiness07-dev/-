@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from minsk_realty.analytics.fmt import (
     CONFIDENCE_NAMES,
     SELLER_NAMES,
@@ -340,7 +342,7 @@ def _audience_lines(report: CheckReport, icons: bool) -> list[str]:
 
 
 def _audience(a) -> str:
-    return ", ".join(a.audience)
+    return ", ".join(x.text for x in a.audience)
 
 
 def _lower(text: str) -> str:
@@ -352,7 +354,7 @@ def _minus_items(a) -> list[str]:
 
 
 def _plus_items(a) -> list[str]:
-    return [_lower(p) for p in a.pluses]
+    return [_lower(p.text) for p in a.pluses]
 
 
 def _minus_plus_lines(report: CheckReport, icons: bool) -> list[str]:
@@ -394,7 +396,7 @@ def _comparison_lines(report: CheckReport, icons: bool) -> list[str]:
     if abs(c.diff_pct) < 1:
         diff = f"на уровне {ref}"
     else:
-        diff = f"на {pct(c.diff_pct, signed=False)} {"ниже" if c.diff_pct < 0 else "выше"} {ref}"
+        diff = f"на {pct(c.diff_pct, signed=False)} {'ниже' if c.diff_pct < 0 else 'выше'} {ref}"
     if district:
         where = district_label(c.district) if c.district else "по Минску"
         detail = f"{where}, {rooms_label(c.rooms)}: медиана {ppm(c.median)}, {objects_text(c.n)}"
@@ -422,6 +424,15 @@ def _house_lines(report: CheckReport, icons: bool) -> list[str]:
     return [f"{_icon('house', icons)}Ещё в этом доме {verb} {n} {flats}: {what}"]
 
 
+def _house_body(report: CheckReport) -> str | None:
+    """Строка про соседей по дому без вводных слов: заголовок карточки «Ещё в этом доме» их несёт."""
+    line = next(iter(_house_lines(report, False)), None)
+    if line is None:
+        return None
+    body = line.removeprefix("Ещё в этом доме ")
+    return body[:1].upper() + body[1:]
+
+
 def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
     b = report.bargaining
     if b is None:
@@ -442,11 +453,11 @@ def web_blocks(report: CheckReport) -> dict:
     return {
         "verdict": a.verdict if a else None,
         "place": place[0] if place else None,
-        "minuses": _minus_items(a) if a else [],
-        "pluses": _plus_items(a) if a else [],
-        "audience": _audience(a) if a and a.audience else None,
+        "minuses": [asdict(m) for m in a.minuses] if a else [],
+        "pluses": [asdict(p) for p in a.pluses] if a else [],
+        "audience": [asdict(x) for x in a.audience] if a else [],
         "comparison": [line.strip() for line in _comparison_lines(report, False)],
-        "house": next(iter(_house_lines(report, False)), None),
+        "house": _house_body(report),
     }
 
 

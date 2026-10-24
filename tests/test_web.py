@@ -178,3 +178,22 @@ def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
 def test_leaflet_static_served(client):
     for path in ("leaflet.js", "leaflet.css", "images/marker-icon.png"):
         assert client.get(f"/static/leaflet/{path}").status_code == 200
+
+
+def test_object_page_shows_assessment_cards(client):
+    hrefs = client.get("/objects").text.split('href="/objects/')[1:]
+    pages = [client.get("/objects/" + h.split('"', 1)[0]).text for h in hrefs]
+    shown = [p for p in pages if 'class="card"' in p]
+    assert shown
+    for page in shown:
+        assert 'class="cards"' in page or "note-house" in page
+        for key, title in (
+            ("minuses", "Минусы"),
+            ("pluses", "Плюсы"),
+            ("audience", "Кому подойдёт"),
+        ):
+            if f'id="{key}-title"' in page:
+                col = page.split(f'id="{key}-title"', 1)[1].split("</section>", 1)[0]
+                assert title in col and 'class="card-title"' in col
+    assert any('class="card-detail"' in p for p in shown)
+    assert any("Кому подойдёт" in p and "note-audience" in p for p in shown)

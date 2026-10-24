@@ -39,6 +39,7 @@
   --amber: #8f5600;
   --amber-tint: #f7e6c4;
   --green: #23744a;
+  --green-tint: #dcefe3;
 
   --head: "PT Sans Narrow", "Arial Narrow", sans-serif;
   --body: "Golos Text", "Segoe UI", system-ui, sans-serif;
@@ -437,12 +438,20 @@ table { width: 100%; border-collapse: collapse; }
 .object-facts b { font-weight: 700; font-size: 25px; color: var(--ink); }
 
 .notes {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s5);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s5);
   margin-top: var(--s5);
 }
 .notes .rubric { font: 700 18px/1.1 var(--head); letter-spacing: 0.01em; margin-bottom: var(--s2); }
-.notes ul { margin: 0; padding-left: 1.1em; display: grid; gap: var(--s1); }
-.notes p { max-width: 55ch; }
+.cards { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s2); }
+.card {
+  background: var(--paper-2); border-left: 3px solid var(--ink-3);
+  border-radius: var(--radius); padding: var(--s3) var(--s4);
+}
+.note-minuses .card { background: var(--amber-tint); border-left-color: var(--amber); }
+.note-pluses .card { background: var(--green-tint); border-left-color: var(--green); }
+.card-title { margin: 0; font: 650 15px/1.3 var(--body); }
+.card-detail { margin: var(--s1) 0 0; color: var(--ink-2); font-size: 14px; max-width: 55ch; }
+.card-hint { margin: var(--s1) 0 0; color: var(--ink-2); font-size: 12px; max-width: 55ch; }
 
 .place p { max-width: 75ch; }
 .place-address { color: var(--ink-2); }
