@@ -3,7 +3,8 @@
     python scripts/fetch_metro_stations.py
 
 Пишет src/minsk_realty/analytics/metro_stations.json: [{"name", "lat", "lon"}], по имени.
-Узлы с одним именем (платформы, входы) сливаются в одну станцию: координаты усредняются.
+Имя — name:ru (запасной вариант — name). Узлы с одним именем (платформы, входы) сливаются
+в одну станцию: координаты усредняются.
 """
 
 from __future__ import annotations
@@ -22,7 +23,8 @@ OUT = Path(__file__).resolve().parent.parent / "src/minsk_realty/analytics/metro
 def merge_by_name(elements: list[dict]) -> list[dict]:
     points: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for el in elements:
-        name = el.get("tags", {}).get("name")
+        tags = el.get("tags", {})
+        name = tags.get("name:ru") or tags.get("name")
         if name:
             points[name].append((el["lat"], el["lon"]))
     return [

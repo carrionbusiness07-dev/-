@@ -33,4 +33,5 @@ def test_metro_stations_file():
     names = [s["name"] for s in stations]
     assert len(stations) >= 25
     assert len(set(names)) == len(names)
+    assert not any(ch in name for name in names for ch in "іўІЎ")
     assert all(53.80 <= s["lat"] <= 54.00 and 27.35 <= s["lon"] <= 27.80 for s in stations)
