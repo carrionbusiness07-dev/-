@@ -1,5 +1,6 @@
 import builtins
 import io
+import logging
 import random
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -323,3 +324,86 @@ def test_photo_step_writes_no_files(db, tmp_path, monkeypatch):
     stats = step.hash_photos(db, "kufar", client=client(ok), since=SINCE)
     assert stats.hashes == 6 and writes == []
     assert {p.name for p in tmp_path.rglob("*")} - before <= {"photos.db-journal"}
+
+
+def collector_logs(monkeypatch, caplog):
+    # Другие тесты настраивают logging и могут выключить уже созданные логгеры.
+    monkeypatch.setattr(logging.getLogger("minsk_realty.collector"), "disabled", False)
+    caplog.set_level(logging.DEBUG, logger="minsk_realty.collector")
+
+
+def test_unexpected_photo_errors_are_counted_and_pass_continues(db, caplog, monkeypatch):
+    broken = add_listing(db, n_photos=3)
+    healthy = add_listing(db, n_photos=2)
+    with db() as session:
+        snap = session.scalar(select(Snapshot).where(Snapshot.listing_id == broken))
+        snap.extra = {
+            "photo_urls": [
+                "http://exa\tmple.test/0.jpg",  # httpx.InvalidURL
+                "https://img.test/bomb.jpg",  # DecompressionBombError
+                "https://img.test/torn.jpg",  # httpx.StreamError посреди тела
+            ]
+        }
+        session.commit()
+    real_phash = step.phash_from_bytes
+
+    def phash(data):
+        if data == b"BOMB":
+            raise Image.DecompressionBombError("https://img.test/bomb.jpg too big")
+        return real_phash(data)
+
+    def torn():
+        yield b"\xff\xd8"
+        raise httpx.StreamError("https://img.test/torn.jpg closed")
+
+    def handler(request):
+        name = request.url.path.rsplit("/", 1)[-1]
+        if name == "bomb.jpg":
+            return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=b"BOMB")
+        if name == "torn.jpg":
+            return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=torn())
+        return ok(request)
+
+    monkeypatch.setattr(step, "phash_from_bytes", phash)
+    collector_logs(monkeypatch, caplog)
+    stats = step.hash_photos(db, "kufar", client=client(handler), since=SINCE)
+    assert (stats.listings, stats.failed, stats.hashes) == (2, 3, 2)
+    assert broken in step._NO_HASHES and healthy not in backlog_ids(db)
+    assert "kufar: фото — объявлений 2, скачано 3, хешей 2, ошибок 3" in caplog.text
+    assert "img.test" not in caplog.text and "mple" not in caplog.text
+
+
+def test_cycle_logs_photo_step_crash_without_url(cycle, monkeypatch, caplog):
+    def boom(factory, source):
+        raise httpx.InvalidURL("bad https://img.test/secret.jpg")
+
+    monkeypatch.setattr(main, "hash_photos", boom)
+    collector_logs(monkeypatch, caplog)
+    main.run_cycle(cycle.db, ["kufar"], set(), AlertThrottle())
+    assert cycle.order == ["match"] and "InvalidURL" in caplog.text
+    assert "img.test" not in caplog.text
+
+
+def test_redirect_chain_over_limit_is_failed(db):
+    add_listing(db, n_photos=1)
+    calls = []
+
+    def handler(request):  # бесконечная цепочка переходов
+        return httpx.Response(302, headers={"location": f"{request.url}x"})
+
+    stats = step.hash_photos(db, "kufar", client=client(handler, calls), since=SINCE)
+    assert (stats.photos, stats.failed) == (0, 1)
+    assert len(calls) == 1 + step.PHOTO_MAX_REDIRECTS
+
+
+def test_slow_drip_body_past_deadline_is_failed(db):
+    add_listing(db, n_photos=1)
+    drip = client(
+        lambda r: httpx.Response(
+            200, headers={"content-type": "image/jpeg"}, content=iter([b"x"] * 100)
+        )
+    )
+    ticks = iter(range(0, 10_000, 5))  # каждый взгляд на часы — плюс 5 с
+    drip.clock = lambda: next(ticks)
+    stats = step.hash_photos(db, "kufar", client=drip, since=SINCE)
+    assert (stats.photos, stats.failed) == (0, 1)

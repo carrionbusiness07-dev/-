@@ -149,8 +149,9 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
                     )
                     if throttle.should_send(alert):
                         notify(alert.text)
-            except Exception:
-                log.exception("%s: сбой хеширования фото", source)
+            # Без текста и traceback: в ошибках httpx бывает URL фото.
+            except Exception as exc:  # noqa: BLE001 — сбой фото не останавливает сбор и склейку
+                log.error("%s: сбой хеширования фото (%s)", source, type(exc).__name__)
         try:  # склейка и события (Emma): сбой не должен останавливать сбор
             with factory() as session:
                 process_after_run(session, source)

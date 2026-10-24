@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -29,7 +30,9 @@ PHOTOS_PER_LISTING = 6
 PHOTO_BUDGET = 150
 PHOTO_PAUSE = (1.0, 2.0)
 MAX_PHOTO_BYTES = 5 * 1024 * 1024
-PHOTO_TIMEOUT = 20.0
+PHOTO_TIMEOUT = 20.0  # на каждую операцию сокета
+PHOTO_DEADLINE = 20.0  # на всё фото целиком: медленная «капельная» отдача не держит проход
+PHOTO_MAX_REDIRECTS = 3
 # Группа 4 «новые» — впервые замеченные после включения шага (день выкладки, 24.10.2026 UTC).
 # Записи «когда шаг впервые сработал» в БД нет, поэтому дата задана здесь.
 PHOTO_HASHING_SINCE = datetime(2026, 10, 24, tzinfo=UTC)
@@ -58,12 +61,17 @@ class PhotoStats:
 class PhotoClient(PoliteClient):
     """`PoliteClient` для картинок: те же отказы и backoff, своя пауза, таймаут и предел тела."""
 
+    clock = staticmethod(time.monotonic)
+
     def __init__(self, *, pause: tuple[float, float] = PHOTO_PAUSE, **kwargs) -> None:
         super().__init__(page_pause=pause, timeout=PHOTO_TIMEOUT, **kwargs)
+        # Переходы на другой хост не запрещаем (CDN площадок так и отдают), но не больше трёх.
+        self._client.max_redirects = PHOTO_MAX_REDIRECTS
 
     def _get_retrying(self, url: str, **kwargs) -> httpx.Response:
         # Без повторов при обрыве: потерянное фото дешевле 40 с ожидания. Тело читаем сами
-        # и бросаем после 5 МБ; не картинка или слишком большая — пустой ответ.
+        # и бросаем после 5 МБ или 20 с; не картинка, слишком большая или долгая — пустой ответ.
+        started = self.clock()
         with self._client.stream("GET", url, **kwargs) as r:
             ctype = r.headers.get("content-type", "").lower()
             body = b""
@@ -71,7 +79,7 @@ class PhotoClient(PoliteClient):
                 chunks, size = [], 0
                 for chunk in r.iter_bytes():
                     size += len(chunk)
-                    if size > MAX_PHOTO_BYTES:
+                    if size > MAX_PHOTO_BYTES or self.clock() - started > PHOTO_DEADLINE:
                         chunks = []
                         break
                     chunks.append(chunk)
@@ -211,15 +219,17 @@ def hash_photos(
                 try:
                     content = client.get(url).content
                     if not content:
-                        raise ValueError("не картинка или больше 5 МБ")
+                        raise ValueError("не картинка, больше 5 МБ или дольше 20 с")
                     stats.photos += 1
                     hashes.append(phash_from_bytes(content))
-                except (httpx.HTTPError, ValueError) as exc:
-                    stats.failed += 1  # без URL в логе
+                except SourceBlocked:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — одно битое фото не останавливает проход
+                    stats.failed += 1  # только тип: в тексте ошибок httpx бывает URL
                     log.debug("%s: фото объявления %s: %s", source, listing_id, type(exc).__name__)
             added = 0
             if hashes:
-                with session_factory() as session:
+                with session_factory() as session:  # сбой БД — дальше, в обёртку цикла
                     added = save_photo_hashes(session, listing_id, hashes)
                     session.commit()
             stats.hashes += added
