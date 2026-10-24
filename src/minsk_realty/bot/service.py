@@ -51,16 +51,34 @@ def utcnow() -> datetime:
 
 
 @dataclass(frozen=True)
+class Venue:
+    """Точка с подписью для `sendVenue` (Telegram показывает заголовок и адрес под картой)."""
+
+    lat: float
+    lon: float
+    title: str
+    address: str
+
+
+@dataclass(frozen=True)
 class Reply:
     text: str
     keyboard: InlineKeyboardMarkup | None = None
-    location: tuple[float, float] | None = None  # точка дома для пина после отчёта
+    venue: Venue | None = None  # точка дома, отправляется после отчёта
 
 
-def reply_location(report: CheckReport) -> tuple[float, float] | None:
-    """Координаты дома для пина; приблизительную (центр района) не показываем."""
+def reply_venue(report: CheckReport) -> Venue | None:
+    """Точка дома с подписью; у неточной (центр района у Realt/Domovita) подпись это говорит."""
     loc = report.location
-    return (loc.lat, loc.lon) if loc is not None and not loc.approx else None
+    if loc is None:
+        return None
+    street = report.flat.street
+    if loc.approx:
+        return Venue(
+            loc.lat, loc.lon, f"≈ {street or 'Минск'} (примерно)", "точка площадки неточная"
+        )
+    district = report.flat.district
+    return Venue(loc.lat, loc.lon, street or "Квартира", f"{district} р-н" if district else "Минск")
 
 
 class BaselineCache:
@@ -156,7 +174,7 @@ class BotService:
             suggest_watch=report.suggest_watch,
         )
         text = texts.report_text(report, can_watch=can_watch, prefix=note)
-        return Reply(text, markup, reply_location(report))
+        return Reply(text, markup, reply_venue(report))
 
     def _log_check(
         self, session: Session, telegram_id: int, report: CheckReport, url: str, now: datetime

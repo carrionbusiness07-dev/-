@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
+from functools import partial
 
 from aiogram import Bot, F, Router
 from aiogram.enums import ChatAction, ChatType
@@ -19,7 +20,7 @@ from aiogram.types import CallbackQuery, Message, MessageEntity
 from minsk_realty.bot import keyboards, texts
 from minsk_realty.bot.config import BotConfig
 from minsk_realty.bot.publish import publish_weekly
-from minsk_realty.bot.service import BotService
+from minsk_realty.bot.service import BotService, Reply
 
 log = logging.getLogger(__name__)
 
@@ -91,8 +92,7 @@ def build_router(cfg: BotConfig) -> Router:
         await _typing(bot, message.chat.id)
         reply = await asyncio.to_thread(service.check_text, message.chat.id, command.args)
         await message.answer(reply.text, reply_markup=reply.keyboard)
-        if reply.location:
-            await message.answer_location(*reply.location)
+        await _send_venue(message.answer_venue, reply)
 
     @users.message(Command("watch"))
     async def watch(message: Message, command: CommandObject, service: BotService) -> None:
@@ -125,8 +125,7 @@ def build_router(cfg: BotConfig) -> Router:
         await _typing(bot, message.chat.id)
         reply = await asyncio.to_thread(service.check_text, message.chat.id, text)
         await message.answer(reply.text, reply_markup=reply.keyboard)
-        if reply.location:
-            await message.answer_location(*reply.location)
+        await _send_venue(message.answer_venue, reply)
 
     @users.message()
     async def other(message: Message) -> None:
@@ -186,8 +185,10 @@ def build_router(cfg: BotConfig) -> Router:
             reply = await asyncio.to_thread(service.report_for_object, user_id, cb.object_id)
             if message is not None:
                 await message.answer(reply.text, reply_markup=reply.keyboard)
+                await _send_venue(message.answer_venue, reply)
             else:
                 await bot.send_message(user_id, reply.text, reply_markup=reply.keyboard)
+                await _send_venue(partial(bot.send_venue, user_id), reply)
             return
 
         if cb.action == "forget":
@@ -203,6 +204,14 @@ def build_router(cfg: BotConfig) -> Router:
                     )
 
     return root
+
+
+async def _send_venue(send, reply: Reply) -> None:
+    # Текст уже ушёл: сбой подписи точки не должен ронять хендлер.
+    if reply.venue is not None:
+        v = reply.venue
+        with suppress(TelegramBadRequest):
+            await send(latitude=v.lat, longitude=v.lon, title=v.title, address=v.address)
 
 
 async def _edit_markup(message: Message, markup) -> None:

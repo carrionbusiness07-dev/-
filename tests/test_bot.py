@@ -18,8 +18,8 @@ import pytest
 import sqlalchemy as sa
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import AnswerCallbackQuery, SendLocation, SendMessage
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
+from aiogram.methods import AnswerCallbackQuery, SendMessage, SendVenue
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TgUser
 from alembic import command
@@ -46,7 +46,7 @@ from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
-from minsk_realty.bot.service import BotService, reply_location
+from minsk_realty.bot.service import BotService, reply_venue
 from minsk_realty.db.models import (
     Base,
     ChannelPost,
@@ -226,25 +226,85 @@ def test_check_report_from_link(docs):
     assert check.user_id == user.id and check.listing_id == listing_id(docs, "1000201")
 
 
-def test_reply_location(docs):
+def test_reply_venue(docs):
     with docs() as session:
         report = build_check_report(session, f"listing:{listing_id(docs, '1000201')}", NOW)
-    assert report.location is not None and not report.location.approx
-    assert reply_location(report) == (report.location.lat, report.location.lon)
-    approx = replace(report, location=replace(report.location, approx=True))
-    assert reply_location(approx) is None
-    assert reply_location(replace(report, location=None)) is None
+    loc = report.location
+    assert loc is not None and not loc.approx
+    venue = reply_venue(report)
+    assert (venue.lat, venue.lon) == (loc.lat, loc.lon)
+    assert venue.title == report.flat.street and venue.address == f"{report.flat.district} р-н"
+    bare = replace(report, flat=replace(report.flat, street=None, district=None))
+    assert (reply_venue(bare).title, reply_venue(bare).address) == ("Квартира", "Минск")
+    approx = reply_venue(replace(report, location=replace(loc, approx=True)))
+    assert approx.title == f"≈ {report.flat.street} (примерно)"
+    assert approx.address == "точка площадки неточная" and (approx.lat, approx.lon) == (
+        loc.lat,
+        loc.lon,
+    )
+    assert reply_venue(replace(report, location=None)) is None
 
 
-def test_check_sends_location_after_report(docs):
+def _venue_calls(calls):
+    return [c for c in calls if isinstance(c, SendMessage | SendVenue)]
+
+
+def test_check_sends_venue_after_report(docs):
     service, _ = make_service(docs)
     with docs() as session:
-        loc = build_check_report(session, f"listing:{listing_id(docs, '1000201')}", NOW).location
+        report = build_check_report(session, f"listing:{listing_id(docs, '1000201')}", NOW)
+    for update in (_message(KUFAR_URL), _message(f"/check {KUFAR_URL}")):
+        _, calls = _feed(service, update)
+        assert [type(c) for c in _venue_calls(calls)] == [SendMessage, SendVenue]
+        pin = next(c for c in calls if isinstance(c, SendVenue))
+        assert (pin.latitude, pin.longitude) == (report.location.lat, report.location.lon)
+        assert pin.title == report.flat.street and pin.address == f"{report.flat.district} р-н"
+
+
+@pytest.mark.parametrize("with_message", [True, False])
+def test_report_button_sends_venue(docs, with_message):
+    service, _ = make_service(docs)
+    with docs() as session:
+        oid = session.get(Listing, listing_id(docs, "1000201")).object_id
+    service.check_text(TG, KUFAR_URL)  # пользователь видел квартиру
+    button = CallbackQuery(
+        id="1",
+        from_user=TgUser(id=TG, is_bot=False, first_name="Имя"),
+        chat_instance="x",
+        data=f"r:{oid}",
+        message=_message("список") if with_message else None,
+    )
+    _, calls = _feed(service, button)
+    assert [type(c) for c in _venue_calls(calls)] == [SendMessage, SendVenue]
+    assert next(c for c in calls if isinstance(c, SendVenue)).chat_id == TG
+
+
+def test_no_venue_without_coordinates(docs, monkeypatch):
+    service, _ = make_service(docs)
+    monkeypatch.setattr("minsk_realty.bot.service.reply_venue", lambda report: None)
     _, calls = _feed(service, _message(KUFAR_URL))
-    kinds = [type(c) for c in calls if isinstance(c, SendMessage | SendLocation)]
-    assert kinds == [SendMessage, SendLocation]
-    pin = next(c for c in calls if isinstance(c, SendLocation))
-    assert (pin.latitude, pin.longitude) == (loc.lat, loc.lon)
+    assert [type(c) for c in _venue_calls(calls)] == [SendMessage]
+
+
+def test_venue_failure_does_not_break_handler(docs):
+    service, _ = make_service(docs)
+
+    async def go():
+        tg = FakeTelegram()
+        orig = tg.make_request
+
+        async def failing(bot, method, timeout=None):
+            if isinstance(method, SendVenue):
+                raise TelegramBadRequest(method=method, message="bad")
+            return await orig(bot, method, timeout)
+
+        tg.make_request = failing
+        bot = Bot("42:TEST", session=tg)
+        await build_dispatcher(service, CFG).feed_update(
+            bot, Update(update_id=1, message=_message(KUFAR_URL))
+        )
+
+    asyncio.run(go())  # не падает
 
 
 def test_check_not_found_does_not_promise_watching(docs):
@@ -642,7 +702,7 @@ class FakeTelegram(BaseSession):
                 ),
                 text=method.text,
             )
-        if isinstance(method, SendLocation):
+        if isinstance(method, SendVenue):
             return Message(
                 message_id=len(self.calls),
                 date=NOW,
