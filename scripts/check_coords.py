@@ -50,7 +50,7 @@ def approx_share(
 def main() -> None:
     from sqlalchemy import func, select
 
-    from minsk_realty.db.models import Listing, Snapshot
+    from minsk_realty.db.models import Listing, RealtyObject, Snapshot
     from minsk_realty.db.session import make_engine, make_session_factory
 
     last = (
@@ -59,15 +59,34 @@ def main() -> None:
         .subquery()
     )
     query = (
-        select(Listing.source, Snapshot.lat, Snapshot.lon, Snapshot.street, Snapshot.house)
+        select(
+            Listing.source,
+            Snapshot.lat,
+            Snapshot.lon,
+            RealtyObject.street_norm,
+            RealtyObject.house,
+            Snapshot.street,
+            Snapshot.house,
+        )
         .join(Snapshot, Snapshot.listing_id == Listing.id)
         .join(
             last, (last.c.listing_id == Snapshot.listing_id) & (last.c.seen_at == Snapshot.seen_at)
         )
+        .outerjoin(RealtyObject, RealtyObject.id == Listing.object_id)
         .where(Listing.status == "active", Snapshot.lat.is_not(None), Snapshot.lon.is_not(None))
     )
     with make_session_factory(make_engine())() as session:
-        rows = [tuple(r) for r in session.execute(query)]
+        raw = session.execute(query).all()
+    # Адрес берём у склеенного объекта (склейка уже разобрала адрес Kufar и Onliner),
+    # иначе из снимка. Улицу и дом из разных источников не смешиваем.
+    rows = []
+    for source, lat, lon, obj_street, obj_house, snap_street, snap_house in raw:
+        street, house = (
+            (obj_street, obj_house)
+            if address_key(obj_street, obj_house)
+            else (snap_street, snap_house)
+        )
+        rows.append((source, lat, lon, street, house))
     counts: dict[str, int] = defaultdict(int)
     comparable: dict[str, int] = defaultdict(int)
     for source, _, _, street, house in rows:
@@ -76,10 +95,8 @@ def main() -> None:
     shares = approx_share(rows)
     print(f"{'площадка':<12}{'объявлений':>12}{'с адресом':>12}{'доля общих точек':>20}")
     for source in sorted(counts):
-        print(
-            f"{source:<12}{counts[source]:>12}{comparable[source]:>12}"
-            f"{shares.get(source, 0.0):>20.2f}"
-        )
+        share = f"{shares[source]:.3f}" if comparable[source] else "—"
+        print(f"{source:<12}{counts[source]:>12}{comparable[source]:>12}{share:>20}")
 
 
 if __name__ == "__main__":
