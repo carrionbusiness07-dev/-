@@ -27,6 +27,17 @@ def test_approx_share_flags_shared_points():
     assert _load_script().approx_share(rows) == {"kufar": 1.0, "realt": 0.0}
 
 
+def test_approx_share_ignores_missing_and_respelled_addresses():
+    rows = [
+        ("kufar", 53.9, 27.5, "Притыцкого", "5"),
+        ("kufar", 53.9, 27.5, "Притыцкого", None),  # нет дома — не «другой дом»
+        ("kufar", 53.9, 27.5, None, "5"),  # нет улицы — тоже
+        ("realt", 53.95, 27.6, "ул. Притыцкого", "5"),
+        ("realt", 53.95, 27.6, "Притыцкого", "д. 5"),  # то же самое, записанное иначе
+    ]
+    assert _load_script().approx_share(rows) == {"kufar": 0.0, "realt": 0.0}
+
+
 def test_metro_stations_file():
     path = ROOT / "src" / "minsk_realty" / "analytics" / "metro_stations.json"
     stations = json.loads(path.read_text(encoding="utf-8"))

@@ -13,17 +13,31 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
+from minsk_realty.matching.address import normalize_house, normalize_street
+
+
+def address_key(street: str | None, house: str | None) -> tuple[tuple[str, ...], str] | None:
+    """Адрес для сравнения (нормализатор склейки); None, если улицы или дома нет."""
+    parsed, num = normalize_street(street), normalize_house(house)
+    return (parsed.name, num) if parsed and num else None
+
 
 def approx_share(
     rows: Iterable[tuple[str, float, float, str | None, str | None]],
 ) -> dict[str, float]:
-    """rows: (площадка, lat, lon, улица, дом). Доля объявлений площадки в общих точках."""
+    """rows: (площадка, lat, lon, улица, дом). Доля объявлений площадки в общих точках.
+
+    Строки без улицы или дома не участвуют: отсутствие данных — не «другой дом».
+    """
     # Точка → какие адреса в ней стоят (в пределах площадки).
-    addresses: dict[tuple[str, float, float], set[tuple[str, str]]] = defaultdict(set)
+    addresses: dict[tuple[str, float, float], set] = defaultdict(set)
     placed: list[tuple[str, tuple[str, float, float]]] = []
     for source, lat, lon, street, house in rows:
+        key = address_key(street, house)
+        if key is None:
+            continue
         point = (source, round(lat, 5), round(lon, 5))
-        addresses[point].add(((street or "").strip().lower(), (house or "").strip().lower()))
+        addresses[point].add(key)
         placed.append((source, point))
     total: dict[str, int] = defaultdict(int)
     shared: dict[str, int] = defaultdict(int)
@@ -55,12 +69,17 @@ def main() -> None:
     with make_session_factory(make_engine())() as session:
         rows = [tuple(r) for r in session.execute(query)]
     counts: dict[str, int] = defaultdict(int)
-    for row in rows:
-        counts[row[0]] += 1
+    comparable: dict[str, int] = defaultdict(int)
+    for source, _, _, street, house in rows:
+        counts[source] += 1
+        comparable[source] += address_key(street, house) is not None
     shares = approx_share(rows)
-    print(f"{'площадка':<12}{'объявлений':>12}{'доля общих точек':>20}")
-    for source in sorted(shares):
-        print(f"{source:<12}{counts[source]:>12}{shares[source]:>20.2f}")
+    print(f"{'площадка':<12}{'объявлений':>12}{'с адресом':>12}{'доля общих точек':>20}")
+    for source in sorted(counts):
+        print(
+            f"{source:<12}{counts[source]:>12}{comparable[source]:>12}"
+            f"{shares.get(source, 0.0):>20.2f}"
+        )
 
 
 if __name__ == "__main__":
