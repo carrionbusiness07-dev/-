@@ -361,9 +361,17 @@ def test_check_report_docs_scenario(docs):
 
 def test_check_text_docs_scenario(docs):
     text = render_check_text(build_check_report(docs, KUFAR_URL, NOW))
-    for line in (
+    lines = text.splitlines()
+    ordered = (  # порядок блоков — спека, раздел 4
         "🏠 2-комн., 54.3 м², 5/9 эт., ул. Притыцкого, Фрунзенский р-н",
         "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство",
+        "✅ Стоит смотреть: цена на 6.4% ниже похожих, торг реален",
+        "📍 Метро «Спортивная» — ~5 мин пешком (400 м). Дом 9 этажей",
+        "👥 Подойдёт: паре или небольшой семье",
+        "👍 Плюсы:",
+        "   • метро рядом",
+        "📊 Цена: $1 703/м² — на 6.4% ниже медианы района",
+        "   (Фрунзенский р-н, 2-комн.: медиана $1 820/м², 13 объектов)",
         "⏳ На рынке: 94 дня (впервые замечена 20 июля на Realt)",
         "   ↻ Перевыкладывалась 1 раз",
         "   На сайте объявлению 19 дней, на самом деле квартира продаётся 94 дня",
@@ -371,18 +379,20 @@ def test_check_text_docs_scenario(docs):
         "   28.08  $95 000  Realt (−3.1%)",
         "   03.10  $92 500  Kufar, агентство (новое объявление, тот же объект, −2.6%)",
         "   Onliner — $91 000 (другое агентство)  ← дешевле на $1 500",
-        (
-            "📊 Фрунзенский р-н: медиана $1 820/м² (2-комн., 13 объектов) → "
-            "эта квартира на 6.4% ниже медианы"
-        ),
+        "Цены объявлений, а не сделок. Это рекомендация, а не гарантия.",
         "Наблюдаем рынок с 15.07.2026",
-    ):
-        assert line in text.splitlines(), line
-    assert "realt.by/statistics" in text  # цены объявлений ≠ цены сделок
+    )
+    positions = [lines.index(line) for line in ordered]
+    assert positions == sorted(positions)
+    [torg] = [i for i, line in enumerate(lines) if line.startswith("💬 Торг: ")]
+    assert positions[-3] < torg < positions[-2]
+    assert next(line for line in lines if line.startswith("Уверенность склейки: высокая ("))
+    assert "Вывод:" not in text and "realt.by/statistics" not in text
     assert "Торг, скорее всего, реален" in text and "сошлитесь на цену на Onliner" in text
-    assert "Уверенность склейки: высокая (" in text
+    assert "\n\n\n" not in text and not text.endswith("\n")
     plain = render_check_text(build_check_report(docs, KUFAR_URL, NOW), icons=False)
-    assert "🏠" not in plain and plain.startswith("2-комн.")
+    assert plain.startswith("2-комн.") and "Торг: " in plain
+    assert not any(ch in plain for ch in "🏠✅⚠📍👥👍📊🏢💬ℹ")
 
 
 def test_check_by_listing_id_and_jsonable(docs):
@@ -471,7 +481,12 @@ def test_first_time_listing_suggests_watch(session):
     assert r.bargaining.level == "unknown"
     text = render_check_text(r)
     assert "ℹ️ Эту квартиру мы видим впервые. Истории пока нет." in text
-    assert "Нажмите «Следить»" in text and "мало данных для медианы" in text
+    lines = text.splitlines()
+    assert lines.index("ℹ️ Похожих квартир рядом мало, сравнить цену не можем") < lines.index(
+        "ℹ️ Эту квартиру мы видим впервые. Истории пока нет."
+    )
+    assert "Нажмите «Следить»" in text and "📊" not in text and "⏳" not in text
+    assert lines[-3] == "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."
     assert "Наблюдаем рынок с 15.07.2026" in text
 
 

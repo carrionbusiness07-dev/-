@@ -39,9 +39,23 @@ _ICONS = {
     "info": "ℹ️",
     "maybe": "❓",
     "top": "🔻",
+    "good": "✅",
+    "warn": "⚠️",
+    "meh": "🟡",
+    "place": "📍",
+    "who": "👥",
+    "plus": "👍",
+    "house": "🏢",
 }
 
-DEALS_NOTE = "Это цены объявлений, не сделок. Сделки — статистика НКА на realt.by/statistics"
+_VERDICT_ICON = {
+    "suspicious": "warn",
+    "below": "good",
+    "market": "good",
+    "above": "meh",
+    "unknown": "info",
+}
+FOOTER = "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."
 SUPPORTED_TEXT = names_text("или")
 
 
@@ -80,37 +94,36 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
             "с задержкой. Попробуйте позже.\n" + (f"{note}\n" if note else "") + obs
         )
 
-    lines = [_header(report, icons), _now_line(report)]
+    top = [_header(report, icons), _now_line(report)]
+    blocks = [
+        _assessment_lines(report, icons),
+        _place_lines(report, icons),
+        _minus_plus_lines(report, icons),
+        [*_comparison_lines(report, icons), *_house_lines(report, icons)],
+    ]
     if report.data_level == "first_time":
-        lines += [
-            "",
-            f"{_icon('info', icons)}Эту квартиру мы видим впервые. Истории пока нет.",
-            "Нажмите «Следить» — сообщу, если цена изменится или объявление снимут.",
+        blocks.append(
+            [
+                f"{_icon('info', icons)}Эту квартиру мы видим впервые. Истории пока нет.",
+                "Нажмите «Следить» — сообщу, если цена изменится или объявление снимут.",
+            ]
+        )
+    else:
+        blocks += [
+            _exposure_lines(report, icons),
+            _history_lines(report, icons, max_history),
+            _others_lines(report, icons) if report.others else [],
+            _possible_lines(report, icons) if report.possible_object else [],
+            _verdict_lines(report, icons),
         ]
-        median = _median_lines(report, icons)
-        if median:
-            lines += ["", *median]
-        lines += ["", _match_line(report), obs]
-        return "\n".join(lines)
-
-    lines += ["", *_exposure_lines(report, icons)]
-    lines += ["", *_history_lines(report, icons, max_history)]
-    if report.others:
-        lines += ["", *_others_lines(report, icons)]
-    if report.possible_object:
-        lines += ["", *_possible_lines(report, icons)]
-    median = _median_lines(report, icons)
-    if median:
-        lines += ["", *median]
-    lines += ["", *_verdict_lines(report, icons)]
-    lines += ["", _match_line(report)]
+    tail = [FOOTER, _match_line(report)]
     if report.data_level == "short":
-        lines.append(
+        tail.append(
             f"{_icon('info', icons)}Квартира уже продавалась, когда мы начали наблюдать: "
             "её настоящая история длиннее нашей."
         )
-    lines.append(obs)
-    return "\n".join(lines)
+    tail.append(obs)
+    return "\n\n".join("\n".join(b) for b in (top, *blocks, tail) if b)
 
 
 def _header(report: CheckReport, icons: bool) -> str:
@@ -296,31 +309,104 @@ def _possible_lines(report: CheckReport, icons: bool) -> list[str]:
     return lines
 
 
-def _median_lines(report: CheckReport, icons: bool) -> list[str]:
-    m = report.median
-    if m is None:
+def _assessment_lines(report: CheckReport, icons: bool) -> list[str]:
+    a = report.assessment
+    return [_icon(_VERDICT_ICON[a.kind], icons) + a.verdict] if a else []
+
+
+def _place_lines(report: CheckReport, icons: bool) -> list[str]:
+    loc, f = report.location, report.flat
+    if loc is None:  # координат нет: ни метро, ни «Дом …»
         return []
-    cell = m.cell
-    where = district_label(cell.district) if cell.district else "Минск"
-    if not cell.enough:
-        text = f"{where}: мало данных для медианы ({objects_text(cell.n)}, нужно хотя бы 10)"
-        return [_icon("median", icons) + text]
-    group = rooms_label(cell.rooms)
-    line = (
-        f"{_icon('median', icons)}{where}: медиана {ppm(cell.median)} "
-        f"({group}, {objects_text(cell.n)})"
-    )
-    if m.diff_pct is not None:
-        if abs(m.diff_pct) < 1:
-            line += " → эта квартира на уровне медианы"
-        else:
-            side = "ниже" if m.diff_pct < 0 else "выше"
-            line += f" → эта квартира на {pct(m.diff_pct, signed=False)} {side} медианы"
-    lines = [line]
-    if report.flat and report.flat.district and not cell.district:
-        lines.append("   По району мало данных, сравниваем с Минском")
-    lines.append(f"   {DEALS_NOTE}")
+    if loc.station is None:
+        text = "Метро дальше 3 км"
+    elif loc.approx or loc.walk_min is None:
+        text = f"Метро «{loc.station.name}» — ближайшая станция"
+    else:
+        metres = round(loc.station_m / 50) * 50
+        text = f"Метро «{loc.station.name}» — ~{loc.walk_min} мин пешком ({metres} м)"
+    house = []
+    if f is not None and f.year:
+        house.append(f"{f.year} г.")
+    if f is not None and f.floors_total:
+        house.append(f"{f.floors_total} {plural(f.floors_total, 'этаж', 'этажа', 'этажей')}")
+    if house:
+        text += f". Дом {', '.join(house)}"
+    lines = [_icon("place", icons) + text]
+    a = report.assessment
+    if a and a.audience:
+        lines.append(f"{_icon('who', icons)}Подойдёт: {', '.join(a.audience)}")
     return lines
+
+
+def _lower(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def _minus_plus_lines(report: CheckReport, icons: bool) -> list[str]:
+    a = report.assessment
+    if a is None:
+        return []
+    lines = []
+    if a.minuses:
+        lines.append(f"{_icon('warn', icons)}Минусы:")
+        lines += [f"   • {_lower(m.text)}" + (f" — {m.hint}" if m.hint else "") for m in a.minuses]
+    if a.pluses:
+        lines.append(f"{_icon('plus', icons)}Плюсы:")
+        lines += [f"   • {_lower(p)}" for p in a.pluses]
+    return lines
+
+
+_ROOM_WORDS = {
+    1: ("однушка", "однушки", "однушек"),
+    2: ("двушка", "двушки", "двушек"),
+    3: ("трёшка", "трёшки", "трёшек"),
+    4: ("квартира 4+ комн.", "квартиры 4+ комн.", "квартир 4+ комн."),
+}
+_EPOCH_PHRASES = {
+    "pre1970": "в домах до 1970 г.",
+    "1970_1990": "в домах 1970–90-х",
+    "1991_2010": "в домах 1991–2010 гг.",
+    "post2010": "в домах после 2010 г.",
+    "building": "в строящихся домах",
+}
+_SIDE = {"suspicious": "ниже", "below": "ниже", "above": "выше"}
+
+
+def _comparison_lines(report: CheckReport, icons: bool) -> list[str]:
+    c = report.comparison
+    if c is None:
+        return []
+    district = c.step == "district"
+    ref = ("медианы района" if c.district else "медианы по Минску") if district else "похожих"
+    if c.group == "market":
+        diff = f"на уровне {ref}"
+    else:
+        diff = f"на {pct(c.diff_pct, signed=False)} {_SIDE[c.group]} {ref}"
+    if district:
+        where = district_label(c.district) if c.district else "по Минску"
+        detail = f"{where}, {rooms_label(c.rooms)}: медиана {ppm(c.median)}, {objects_text(c.n)}"
+    else:
+        words = _ROOM_WORDS.get(min(c.rooms or 0, 4), ("квартира", "квартиры", "квартир"))
+        age = _EPOCH_PHRASES.get(c.epoch, "без учёта возраста дома")
+        radius = f"{c.radius_km:g}".replace(".", ",")
+        detail = f"{c.n} {plural(c.n, *words)} {age} в радиусе {radius} км, медиана {ppm(c.median)}"
+    return [f"{_icon('median', icons)}Цена: {ppm(c.usd_per_m2)} — {diff}", f"   ({detail})"]
+
+
+def _house_lines(report: CheckReport, icons: bool) -> list[str]:
+    prices = report.same_house
+    if not prices:
+        return []
+    n = len(prices)
+    if n > 3:
+        what = f"от {ppm(prices[0]).removesuffix('/м²')} до {ppm(prices[-1])}"
+    else:
+        shown = [ppm(p).removesuffix("/м²") for p in prices]
+        what = (shown[0] if n == 1 else f"{', '.join(shown[:-1])} и {shown[-1]}") + "/м²"
+    verb = plural(n, "продаётся", "продаются", "продаются")
+    flats = plural(n, "квартира", "квартиры", "квартир")
+    return [f"{_icon('house', icons)}Ещё в этом доме {verb} {n} {flats}: {what}"]
 
 
 def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
@@ -328,10 +414,10 @@ def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
     if b is None:
         return []
     if b.level == "unknown" or not b.reasons:
-        return [f"{_icon('verdict', icons)}Вывод: {b.recommendation}"]
+        return [f"{_icon('verdict', icons)}Торг: {b.recommendation}"]
     shorts = [r.short for r in b.reasons]
     return [
-        f"{_icon('verdict', icons)}Вывод: {', '.join(shorts)}.",
+        f"{_icon('verdict', icons)}Торг: {', '.join(shorts)}.",
         f"   {b.recommendation}",
     ]
 

@@ -1,5 +1,6 @@
 """Оценка квартиры: год постройки и координаты в срезе рынка. Сети нет."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy import select, update
 from test_analytics import FRUNZ_PPM, OUTLIERS
 from test_analytics import _market as _flat_market
 
-from minsk_realty.analytics import to_jsonable
+from minsk_realty.analytics import render_check_text, to_jsonable
 from minsk_realty.analytics.assessment import assess, same_house
 from minsk_realty.analytics.comparables import (
     ComparePoint,
@@ -509,3 +510,195 @@ def test_report_same_house_prices(session, stations):
     session.flush()
     r = build_check_report(session, KUFAR_URL, NOW)
     assert len(r.same_house) == 1 and r.same_house[0] == pytest.approx(FRUNZ_PPM[0], abs=1)
+
+
+# --- Текст /check: блоки оценки (спека, раздел 4) ---
+
+
+def _text(session, **kw) -> str:
+    return render_check_text(build_check_report(session, KUFAR_URL, NOW), **kw)
+
+
+def _station_line(text: str) -> str:
+    return next(line for line in text.splitlines() if line.startswith("📍"))
+
+
+def test_text_follows_spec_layout(session, stations):
+    _docs(session)
+    oid = session.scalar(select(Listing.object_id).where(Listing.external_id == "1000201"))
+    other = session.scalar(
+        select(RealtyObject).where(RealtyObject.id != oid).order_by(RealtyObject.id)
+    )
+    other.street_norm, other.house = "ул притыцкого", "10"
+    session.flush()
+    text = _text(session)
+    head = text.split("\n\n")[:4]
+    assert head[0].splitlines()[0].startswith("🏠 2-комн.")
+    assert head[1] == "✅ Стоит смотреть: цена на 7.2% ниже похожих, торг реален"
+    assert head[2] == (
+        "📍 Метро «Тестовая» — ~5 мин пешком (0 м). Дом 1978 г., 9 этажей\n"
+        "👥 Подойдёт: паре или небольшой семье"
+    )
+    assert head[3] == (
+        "⚠️ Минусы:\n"
+        "   • дом 1978 г. — узнайте, был ли капремонт и меняли ли стояки\n"
+        "👍 Плюсы:\n"
+        "   • метро рядом\n"
+        "   • цена ниже похожих"
+    )
+    price_block = text.split("\n\n")[4]
+    assert price_block.splitlines()[:2] == [
+        "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+        "   (12 двушек в домах 1970–90-х в радиусе 1,5 км, медиана $1 835/м²)",
+    ]
+    assert price_block.splitlines()[2].startswith("🏢 Ещё в этом доме продаётся 1 квартира: $1 6")
+    assert "\n\n\n" not in text
+
+
+def test_text_without_location(session, stations):
+    _docs(session, coords=False)
+    text = _text(session)
+    assert "📍" not in text and "👍 Плюсы:\n   • метро рядом" not in text
+    assert "Дом 1978" not in text and "📊 Цена:" in text
+
+
+def test_text_approx_location(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    approx = replace(r.location, approx=True, walk_min=None)
+    line = _station_line(render_check_text(replace(r, location=approx)))
+    assert line.startswith("📍 Метро «Тестовая» — ближайшая станция") and "мин" not in line
+
+
+def test_text_metro_far(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    far = replace(r.location, station=None, station_m=None, walk_min=None)
+    line = _station_line(render_check_text(replace(r, location=far)))
+    assert line == "📍 Метро дальше 3 км. Дом 1978 г., 9 этажей"
+
+
+def test_text_metro_distance_rounded_to_50_m(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    near = replace(r.location, station_m=620.0, walk_min=10)
+    line = _station_line(render_check_text(replace(r, location=near)))
+    assert line.startswith("📍 Метро «Тестовая» — ~10 мин пешком (600 м). Дом 1978 г.")
+
+
+def test_text_without_year(session, stations):
+    _docs(session, year=None)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.comparison.year_known is False
+    text = render_check_text(r)
+    assert "без учёта возраста дома в радиусе" in text
+    assert " г." not in _station_line(text) and "Дом 9 этажей" in _station_line(text)
+
+
+def test_text_house_line(session, stations):
+    _docs(session)
+    assert _station_line(_text(session)).endswith("Дом 1978 г., 9 этажей")
+
+
+@pytest.mark.parametrize(
+    ("changes", "first", "second"),
+    [
+        (
+            {"rooms": 1, "n": 21, "epoch": "pre1970", "radius_km": 3.0},
+            "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+            "   (21 однушка в домах до 1970 г. в радиусе 3 км, медиана $1 835/м²)",
+        ),
+        (
+            {"rooms": 4, "n": 12, "epoch": "building"},
+            "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+            "   (12 квартир 4+ комн. в строящихся домах в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"rooms": 3, "n": 3, "epoch": "post2010", "group": "above", "diff_pct": 12.0},
+            "📊 Цена: $1 703/м² — на 12% выше похожих",
+            "   (3 трёшки в домах после 2010 г. в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"epoch": "1991_2010", "group": "market", "diff_pct": 1.0},
+            "📊 Цена: $1 703/м² — на уровне похожих",
+            "   (12 двушек в домах 1991–2010 гг. в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"epoch": None, "group": "suspicious", "diff_pct": -30.0},
+            "📊 Цена: $1 703/м² — на 30% ниже похожих",
+            "   (12 двушек без учёта возраста дома в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"step": "district", "radius_km": None, "epoch": None, "district": "Фрунзенский"},
+            "📊 Цена: $1 703/м² — на 7.2% ниже медианы района",
+            "   (Фрунзенский р-н, 2-комн.: медиана $1 835/м², 12 объектов)",
+        ),
+        (
+            {"step": "district", "radius_km": None, "epoch": None, "district": None},
+            "📊 Цена: $1 703/м² — на 7.2% ниже медианы по Минску",
+            "   (по Минску, 2-комн.: медиана $1 835/м², 12 объектов)",
+        ),
+    ],
+)
+def test_comparison_line_wording(session, stations, changes, first, second):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    base = {"usd_per_m2": 1703.0, "median": 1835.0, "diff_pct": -7.2, "n": 12}
+    c = replace(r.comparison, **{**base, **changes})
+    lines = render_check_text(replace(r, comparison=c)).splitlines()
+    assert lines[lines.index(first) + 1] == second
+
+
+def test_text_without_comparison(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    text = render_check_text(replace(r, comparison=None))
+    assert "📊" not in text and "Цена: $" not in text
+
+
+@pytest.mark.parametrize(
+    ("prices", "expected"),
+    [
+        ((), None),
+        ((1690.0,), "🏢 Ещё в этом доме продаётся 1 квартира: $1 690/м²"),
+        ((1690.0, 1880.0), "🏢 Ещё в этом доме продаются 2 квартиры: $1 690 и $1 880/м²"),
+        (
+            (1600.0, 1690.0, 1880.0),
+            "🏢 Ещё в этом доме продаются 3 квартиры: $1 600, $1 690 и $1 880/м²",
+        ),
+        (
+            (1600.0, 1690.0, 1880.0, 2100.0),
+            "🏢 Ещё в этом доме продаются 4 квартиры: от $1 600 до $2 100/м²",
+        ),
+    ],
+)
+def test_text_same_house_line(session, stations, prices, expected):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    text = render_check_text(replace(r, same_house=prices))
+    if expected is None:
+        assert "🏢" not in text
+    else:
+        assert expected in text.splitlines()
+
+
+def test_text_first_time_has_assessment_before_the_note(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    lines = render_check_text(replace(r, data_level="first_time")).splitlines()
+    note = lines.index("ℹ️ Эту квартиру мы видим впервые. Истории пока нет.")
+    assert lines.index("📊 Цена: $1 703/м² — на 7.2% ниже похожих") < note
+    assert lines[1] == "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство"
+    assert not any(line.startswith(("⏳", "📉", "💬")) for line in lines)
+    assert lines[-3] == "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."
+
+
+@pytest.mark.parametrize(
+    ("kind", "icon"),
+    [("suspicious", "⚠️"), ("below", "✅"), ("market", "✅"), ("above", "🟡"), ("unknown", "ℹ️")],
+)
+def test_text_verdict_icon_by_kind(session, stations, kind, icon):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    text = render_check_text(replace(r, assessment=replace(r.assessment, kind=kind)))
+    assert f"{icon} {r.assessment.verdict}" in text.splitlines()
