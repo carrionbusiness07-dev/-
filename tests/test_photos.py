@@ -407,3 +407,47 @@ def test_slow_drip_body_past_deadline_is_failed(db):
     drip.clock = lambda: next(ticks)
     stats = step.hash_photos(db, "kufar", client=drip, since=SINCE)
     assert (stats.photos, stats.failed) == (0, 1)
+
+
+def test_pass_time_cap_stops_before_next_listing(db):
+    add_listing(db, n_photos=2)
+    add_listing(db, n_photos=2)
+    calls = []
+    # Старт, проверка перед первым объявлением, перед вторым — уже за пределом.
+    clock = iter([0, 0, step.PHOTO_PASS_SECONDS + 1]).__next__
+    stats = step.hash_photos(db, "kufar", client=client(ok, calls), since=SINCE, clock=clock)
+    assert stats.out_of_time and stats.listings == 1 and stats.hashes == 2 and len(calls) == 2
+
+
+def timeout(request):
+    raise httpx.ConnectTimeout("timed out", request=request)
+
+
+def test_three_network_errors_stop_the_step_without_alert_or_mark(cycle, monkeypatch):
+    first = add_listing(cycle.db, n_photos=2)
+    second = add_listing(cycle.db, n_photos=2)
+    calls = []
+    stats = step.hash_photos(cycle.db, "kufar", client=client(timeout, calls), since=SINCE)
+    assert stats.offline and not stats.refused and len(calls) == 3
+    assert first not in step._NO_HASHES and second not in step._NO_HASHES
+
+    monkeypatch.setattr(step, "PhotoClient", lambda pause: client(timeout))
+    main.run_cycle(cycle.db, ["kufar"], set(), AlertThrottle())
+    assert cycle.alerts == [] and cycle.order == ["match"]
+    assert backlog_ids(cycle.db) == [first, second]
+
+
+def test_network_errors_not_in_a_row_do_not_stop(db):
+    add_listing(db, n_photos=3)
+    add_listing(db, n_photos=2)
+    script = iter([timeout, timeout, ok, timeout, ok])
+    stats = step.hash_photos(db, "kufar", client=client(lambda r: next(script)(r)), since=SINCE)
+    assert not stats.offline and (stats.listings, stats.failed, stats.hashes) == (2, 3, 2)
+
+
+@pytest.mark.parametrize("status", ["failed", "blocked"])
+def test_no_photo_step_after_unsuccessful_pass(cycle, monkeypatch, status):
+    monkeypatch.setattr(main, "collect", lambda adapter, factory: SimpleNamespace(status=status))
+    monkeypatch.setattr(main, "hash_photos", lambda *a, **kw: cycle.order.append("photos"))
+    main.run_cycle(cycle.db, ["kufar"], set(), AlertThrottle())
+    assert cycle.order == ["match"]

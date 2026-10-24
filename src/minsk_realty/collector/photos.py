@@ -4,8 +4,12 @@
 На диск ничего не пишется, в БД остаётся только 16-символьный хеш.
 
 Бережность: не больше 6 фото на объявление и 150 на площадку за проход, один запрос за раз,
-пауза 1–2 с, картинка не больше 5 МБ и только `image/*`, таймаут 20 с. Отказы 403/429 —
-через `PoliteClient`: после трёх подряд хеширование площадки стоит до следующего прохода.
+пауза 1–2 с, картинка не больше 5 МБ и только `image/*`, таймаут 20 с и не больше 20 с на
+фото целиком. Переходы (до трёх на фото) в бюджет 150 не входят. На площадку за проход — не
+больше 5 минут: новое объявление после этого не начинается, начатое доводится до конца.
+Отказы 403/429 — через `PoliteClient`: после трёх подряд хеширование площадки стоит до
+следующего прохода (с алертом). Три сетевые ошибки подряд (таймаут, обрыв) — то же, без алерта:
+это скорее наша связь, чем площадка.
 """
 
 from __future__ import annotations
@@ -13,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -33,12 +38,17 @@ MAX_PHOTO_BYTES = 5 * 1024 * 1024
 PHOTO_TIMEOUT = 20.0  # на каждую операцию сокета
 PHOTO_DEADLINE = 20.0  # на всё фото целиком: медленная «капельная» отдача не держит проход
 PHOTO_MAX_REDIRECTS = 3
+# На площадку за проход. Сбор и так занимает до ~36 мин за цикл, потом сон 30–60 мин, а
+# внешний сторож ждёт сигнал не дольше 1 ч + 1 ч запаса: время на фото должно быть малым.
+PHOTO_PASS_SECONDS = 5 * 60
+MAX_NETWORK_ERRORS = 3  # подряд: дальше связь, скорее всего, лежит — до следующего прохода
 # Группа 4 «новые» — впервые замеченные после включения шага (день выкладки, 24.10.2026 UTC).
 # Записи «когда шаг впервые сработал» в БД нет, поэтому дата задана здесь.
 PHOTO_HASHING_SINCE = datetime(2026, 10, 24, tzinfo=UTC)
 AREA_TOLERANCE = 1.0  # м², как в спеке: кандидаты-двойники — площадь ±1 м²
 
-# shortcut: объявления, у которых не получилось ни одного хеша (все фото 404/битые/заглушки),
+# shortcut: объявления, у которых не получилось ни одного хеша (все фото 404/битые/заглушки;
+# хотя бы один ответ сервера был — сплошные сетевые ошибки объявление не помечают),
 # пропускаются только до перезапуска процесса (множество в памяти). Перейти на отметку в БД,
 # если после перезапуска такие объявления заметно съедают бюджет или множество растёт за 10⁵.
 _NO_HASHES: set[int] = set()
@@ -56,6 +66,12 @@ class PhotoStats:
     hashes: int = 0  # новых строк photo_hashes
     failed: int = 0  # 404, не картинка, больше 5 МБ, обрыв связи, битые байты
     refused: bool = False  # хост трижды подряд ответил 403/429
+    offline: bool = False  # три сетевые ошибки подряд
+    out_of_time: bool = False  # кончились PHOTO_PASS_SECONDS
+
+
+class _Offline(Exception):
+    pass
 
 
 class PhotoClient(PoliteClient):
@@ -198,33 +214,48 @@ def hash_photos(
     pause: tuple[float, float] = PHOTO_PAUSE,
     client: PoliteClient | None = None,
     since: datetime = PHOTO_HASHING_SINCE,
+    clock: Callable[[], float] = time.monotonic,
 ) -> PhotoStats:
     """Скачать и захешировать фото площадки в пределах бюджета. Байты живут только в памяти."""
     stats = PhotoStats()
+    started = clock()
     with session_factory() as session:
         backlog = photo_backlog(session, source, limit_listings=budget, since=since)
     own_client = client is None
     client = client or PhotoClient(pause=pause)
-    requests = 0
+    requests = network_errors = 0
     try:
         for listing_id, urls in backlog:
             if requests + len(urls) > budget:
                 break  # объявление берём целиком: частичные хеши закрыли бы его навсегда
+            if clock() - started > PHOTO_PASS_SECONDS:
+                stats.out_of_time = True
+                break
             stats.listings += 1
             hashes = []
+            responded = False  # сервер хоть раз ответил: тогда «нет хешей» — про фото, не про связь
             for url in urls:
                 if requests:
                     client.pause()
                 requests += 1
                 try:
                     content = client.get(url).content
+                    responded, network_errors = True, 0
                     if not content:
                         raise ValueError("не картинка, больше 5 МБ или дольше 20 с")
                     stats.photos += 1
                     hashes.append(phash_from_bytes(content))
                 except SourceBlocked:
                     raise
+                except httpx.TransportError as exc:  # таймаут, обрыв, сбой DNS — ответа не было
+                    stats.failed += 1
+                    network_errors += 1
+                    log.debug("%s: фото объявления %s: %s", source, listing_id, type(exc).__name__)
+                    if network_errors >= MAX_NETWORK_ERRORS:
+                        raise _Offline from None
                 except Exception as exc:  # noqa: BLE001 — одно битое фото не останавливает проход
+                    # 404, битая ссылка, переходы, не картинка — дело в фото, не в связи.
+                    responded, network_errors = True, 0
                     stats.failed += 1  # только тип: в тексте ошибок httpx бывает URL
                     log.debug("%s: фото объявления %s: %s", source, listing_id, type(exc).__name__)
             added = 0
@@ -233,8 +264,13 @@ def hash_photos(
                     added = save_photo_hashes(session, listing_id, hashes)
                     session.commit()
             stats.hashes += added
-            if not added:
+            if not added and responded:
                 _NO_HASHES.add(listing_id)
+    except _Offline:
+        stats.offline = True
+        log.warning(
+            "%s: фото — %d сетевые ошибки подряд, до следующего прохода", source, network_errors
+        )
     except SourceBlocked:
         stats.refused = True
         log.error(

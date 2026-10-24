@@ -137,9 +137,10 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
                     log.warning("%s: не удалось закрыть HTTP-клиент", source)
         except Exception:
             log.exception("%s: сбой цикла сборщика", source)
-        # Хеши фото до склейки этой площадки: склейка сразу использует их. Площадку, которая
-        # только что отказала (blocked), не трогаем. Сбой не должен останавливать сбор и склейку.
-        if photos_on and run is not None and run.status != "blocked":
+        # Хеши фото до склейки этой площадки: склейка сразу использует их. Только после удачного
+        # прохода: отказ или сбой площадки — не время её грузить. Сбой фото не останавливает
+        # сбор и склейку.
+        if photos_on and run is not None and run.status == "ok":
             try:
                 if hash_photos(factory, source).refused:
                     alert = Alert(
