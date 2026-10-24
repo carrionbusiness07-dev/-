@@ -76,5 +76,12 @@ class AnalyticsConfig:
     min_objects: int = 200
     sample_size: int = 5
 
+    # --- Точность координат ---
+    # Площадки, у которых координата — центр района или улицы, а не дом: доля объявлений в
+    # точках, общих для разных домов, больше 0.10. Сверка живой базы 24.10.2026
+    # (scripts/check_coords.py), доля общих точек: domovita 0.27, realt 0.09, kufar 0.00,
+    # onliner 0.00. Расстояние до метро и «соседей рядом» по таким площадкам не считаем.
+    approx_coord_sources: frozenset[str] = frozenset({"domovita"})
+
 
 DEFAULT_ANALYTICS = AnalyticsConfig()
