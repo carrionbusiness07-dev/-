@@ -22,9 +22,10 @@ import sys
 import time
 from datetime import UTC, datetime
 
+from minsk_realty.collector.photos import hash_photos, photo_hashing_enabled
 from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, last_pass_started
 from minsk_realty.db.session import make_engine, make_session_factory
-from minsk_realty.health.check import AlertThrottle, check_sources, notify, ping_watchdog
+from minsk_realty.health.check import Alert, AlertThrottle, check_sources, notify, ping_watchdog
 from minsk_realty.matching import process_after_run
 from minsk_realty.sources import ADAPTERS
 
@@ -97,7 +98,11 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
     except Exception:
         log.exception("сбой при закрытии прерванных проходов")
     attempted = succeeded = 0
+    photos_on = photo_hashing_enabled()
+    if not photos_on:
+        log.info("хеши фото выключены (PHOTO_HASHING)")
     for source in sources:
+        run = None
         try:
             with factory() as session:
                 if is_blocked(session, source) and source not in unblocked:
@@ -132,6 +137,20 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
                     log.warning("%s: не удалось закрыть HTTP-клиент", source)
         except Exception:
             log.exception("%s: сбой цикла сборщика", source)
+        # Хеши фото до склейки этой площадки: склейка сразу использует их. Площадку, которая
+        # только что отказала (blocked), не трогаем. Сбой не должен останавливать сбор и склейку.
+        if photos_on and run is not None and run.status != "blocked":
+            try:
+                if hash_photos(factory, source).refused:
+                    alert = Alert(
+                        f"{source}:photos_refused",
+                        f"{source}: хост фото трижды подряд отказал (403/429) — хеширование "
+                        "фото остановлено до следующего прохода, сбор идёт",
+                    )
+                    if throttle.should_send(alert):
+                        notify(alert.text)
+            except Exception:
+                log.exception("%s: сбой хеширования фото", source)
         try:  # склейка и события (Emma): сбой не должен останавливать сбор
             with factory() as session:
                 process_after_run(session, source)
