@@ -6,8 +6,10 @@ import pytest
 from analytics_data import NOW
 from test_analytics import _market as _flat_market
 
+from minsk_realty.analytics.assessment import assess, same_house
 from minsk_realty.analytics.comparables import (
     ComparePoint,
+    Comparison,
     epoch,
     find_comparison,
     price_group,
@@ -21,6 +23,7 @@ from minsk_realty.analytics.data import (
     load_market,
     parse_year,
 )
+from minsk_realty.analytics.geo import Location, Station
 from minsk_realty.analytics.medians import MedianCell, compute_baseline
 from minsk_realty.db.models import Base, Listing, RealtyObject, Snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
@@ -267,3 +270,159 @@ def test_baseline_has_points():
     assert by_id[3].rooms == 2 and by_id[3].usd_per_m2 == pytest.approx(90300 / 50)
     # без координат точек нет
     assert compute_baseline(_flat_market(12), NOW).points == ()
+
+
+# --- Вывод, минусы, плюсы, аудитория, дом (спека 4.1, 4.2, 4.4, 4.5) ---
+
+
+def _cmp(group="market", diff=0.0) -> Comparison:
+    return Comparison(
+        step="near", radius_km=1.5, epoch="1970_1990", rooms=2, n=20, median=1800.0,
+        usd_per_m2=1800.0, diff_pct=diff, group=group, year_known=True, district=None, points=(),
+    )  # fmt: skip
+
+
+def _loc(walk_min=10, *, far=False, approx=False) -> Location:
+    if far:
+        return Location(53.9, 27.5, approx, None, None, None)
+    return Location(53.9, 27.5, approx, Station("Спортивная", 53.9, 27.5), 600.0, walk_min)
+
+
+def _assess(**kw):
+    args = {
+        "comparison": _cmp(),
+        "bargaining_level": "unknown",
+        "rooms": 2,
+        "area": 54.0,
+        "floor": 5,
+        "floors_total": 9,
+        "year": 2005,
+        "now_year": 2026,
+        "location": None,
+    }
+    args.update(kw)
+    return assess(**args)
+
+
+@pytest.mark.parametrize(
+    ("group", "diff", "level", "kind", "verdict"),
+    [
+        ("suspicious", -35.0, "unknown", "suspicious",
+         "Подозрительно дёшево: на 35% ниже похожих. Узнайте причину до просмотра (доля, состояние, документы)"),
+        ("suspicious", -35.0, "high", "suspicious",
+         "Подозрительно дёшево: на 35% ниже похожих. Узнайте причину до просмотра (доля, состояние, документы)"),
+        ("below", -7.0, "unknown", "below", "Стоит смотреть: цена на 7% ниже похожих"),
+        ("below", -7.4, "medium", "below", "Стоит смотреть: цена на 7.4% ниже похожих"),
+        ("below", -7.0, "high", "below", "Стоит смотреть: цена на 7% ниже похожих, торг реален"),
+        ("market", 1.0, "unknown", "market", "Цена в рынке"),
+        ("market", 1.0, "high", "market", "Цена в рынке, торг реален"),
+        ("market", 1.0, "low", "market", "Цена в рынке, большой скидки не ждите"),
+        ("above", 12.0, "unknown", "above", "Дороже похожих на 12%: смотреть, если готовы торговаться"),
+        ("above", 12.0, "low", "above",
+         "Дороже похожих на 12%: смотреть, если готовы торговаться, большой скидки не ждите"),
+    ],
+)  # fmt: skip
+def test_verdict_texts(group, diff, level, kind, verdict):
+    a = _assess(comparison=_cmp(group, diff), bargaining_level=level)
+    assert (a.kind, a.verdict) == (kind, verdict)
+
+
+def test_verdict_unknown_without_comparison():
+    a = _assess(comparison=None, bargaining_level="high")
+    assert a.kind == "unknown"
+    assert a.verdict == "Похожих квартир рядом мало, сравнить цену не можем"
+
+
+def _minuses(**kw):
+    return [(m.text, m.hint) for m in _assess(**kw).minuses]
+
+
+FIRST = ("Первый этаж", "спросите про подвал, сырость и решётки")
+LAST = ("Последний этаж", "спросите про крышу и протечки")
+
+
+def test_minuses_rules():
+    assert _minuses(floor=1) == [FIRST]
+    assert _minuses(floor=9, floors_total=9) == [LAST]
+    assert _minuses(floor=3, floors_total=5, year=1985) == [
+        ("Скорее всего без лифта", None),
+        ("Дом 1985 г.", "узнайте, был ли капремонт и меняли ли стояки"),
+    ]
+    assert _minuses(year=1990) == [("Дом 1990 г.", "узнайте, был ли капремонт и меняли ли стояки")]
+    assert _minuses(year=1991) == []
+    assert _minuses(floor=3, floors_total=5, year=2000) == []
+    assert _minuses(floor=3, floors_total=5, year=None) == []
+    assert _minuses(year=2028) == [("Дом ещё строится", "сдача в 2028, проверьте застройщика")]
+    assert _minuses(location=_loc(far=True)) == [("Далеко от метро", None)]
+    assert _minuses(location=_loc(25)) == [("Далеко от метро", None)]
+    assert _minuses(location=_loc(20)) == []
+    assert _minuses(location=_loc(None, approx=True)) == []
+    assert _minuses(comparison=_cmp("above", 10.0)) == [("Дороже похожих", None)]
+    assert _minuses(comparison=None, floor=None, floors_total=None, year=None) == []
+
+
+def test_one_storey_house_has_no_last_floor():
+    assert _minuses(floor=1, floors_total=1) == [FIRST]
+
+
+def test_minuses_capped_at_four():
+    got = _minuses(
+        floor=1, floors_total=5, year=1980, location=_loc(far=True), comparison=_cmp("above", 9.0)
+    )
+    assert [t for t, _ in got] == [
+        "Первый этаж",
+        "Скорее всего без лифта",
+        "Дом 1980 г.",
+        "Далеко от метро",
+    ]
+
+
+def test_pluses_rules():
+    assert _assess(location=_loc(10)).pluses == ("Метро рядом",)
+    assert _assess(location=_loc(15)).pluses == ()
+    assert _assess(location=_loc(None, approx=True)).pluses == ()
+    assert _assess(year=2012).pluses == ("Новый дом",)
+    assert _assess(comparison=_cmp("below", -8.0)).pluses == ("Цена ниже похожих",)
+    assert _assess(year=2015, location=_loc(5), comparison=_cmp("below", -8.0)).pluses == (
+        "Метро рядом",
+        "Новый дом",
+        "Цена ниже похожих",
+    )
+
+
+@pytest.mark.parametrize(
+    ("rooms", "area", "location", "expected"),
+    [
+        (1, 40.0, _loc(10), ("одному или под сдачу", "паре или небольшой семье")),
+        (1, 40.0, _loc(20), ("паре или небольшой семье",)),
+        (1, 40.0, None, ("паре или небольшой семье",)),
+        (1, 50.0, _loc(10), ("паре или небольшой семье",)),
+        (2, 54.0, _loc(10), ("паре или небольшой семье",)),
+        (3, 70.0, _loc(far=True), ("семье с машиной", "семье с детьми")),
+        (3, 70.0, _loc(25), ("семье с машиной", "семье с детьми")),
+        (3, 70.0, _loc(8), ("семье с детьми",)),
+        (2, 72.0, _loc(8), ("паре или небольшой семье", "семье с детьми")),
+        (3, None, None, ("семье с детьми",)),
+        (None, None, None, ()),
+    ],
+)
+def test_audience_rules(rooms, area, location, expected):
+    assert _assess(rooms=rooms, area=area, location=location).audience == expected
+
+
+def _p(oid, price, key="ул х|1") -> ComparePoint:
+    return ComparePoint(oid, 53.9, 27.5, 2, "1970_1990", price, key)
+
+
+def test_same_house():
+    pts = [
+        _p(1, 1700.0),
+        _p(2, 1880.0),
+        _p(3, 1690.0),
+        _p(4, 1500.0, "ул у|2"),
+        _p(5, 1600.0, None),
+    ]
+    assert same_house(pts, object_id=1, house_key="ул х|1") == (1690.0, 1880.0)
+    assert same_house(pts, object_id=None, house_key="ул х|1") == (1690.0, 1700.0, 1880.0)
+    assert same_house(pts, object_id=1, house_key=None) == ()
+    assert same_house([], object_id=1, house_key="ул х|1") == ()
