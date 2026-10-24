@@ -331,6 +331,7 @@ def build_check_report(
     )
     assessment = assess(
         comparison=comparison,
+        usd_per_m2=current.usd_per_m2 if current else None,
         bargaining_level=bargaining.level,
         rooms=flat.rooms,
         area=flat.area,

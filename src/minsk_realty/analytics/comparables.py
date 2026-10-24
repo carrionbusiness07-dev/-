@@ -94,9 +94,10 @@ def find_comparison(
         step, radius_km, n, median, used_epoch, used_rooms, district, shown, used_finish=None
     ):
         diff = (usd_per_m2 / median - 1) * 100
+        shown_diff = float(f"{diff:.1f}" if abs(diff) < 10 else f"{diff:.0f}")  # как в fmt.pct
         return Comparison(
             step, radius_km, used_epoch, used_rooms, n, median, usd_per_m2, diff,
-            price_group(diff, cfg), year is not None, district, shown, used_finish,
+            price_group(shown_diff, cfg), year is not None, district, shown, used_finish,
         )  # fmt: skip
 
     # Неточная координата (центр улицы) для радиуса 1,5 км не годится — сразу район.

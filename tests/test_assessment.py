@@ -108,6 +108,17 @@ def test_building_years_latest_wins(session):
     assert load_market(session, object_ids=[other]).building_years == {}
 
 
+def test_building_years_ignores_low_confidence(session):
+    oid = _object(session)
+    trusted = _listing(session, oid, "kufar", "k1")
+    low = _listing(session, oid, "realt", "r1", match_confidence="low")
+    _snap(session, trusted, 0, extra={"year_built": 1975})
+    _snap(session, low, 5, extra={"buildingYear": 1990})  # свежее, но склейка не подтверждена
+
+    assert building_years(session) == {oid: 1975}
+    assert building_years(session, [oid]) == {oid: 1975}
+
+
 @pytest.mark.parametrize(
     ("label", "kind"),
     [
@@ -250,6 +261,17 @@ def test_comparison_near():
     assert c.diff_pct == pytest.approx((1500 / c.median - 1) * 100)
 
 
+@pytest.mark.parametrize(
+    ("usd_per_m2", "group"),
+    [(1500 * 0.754, "suspicious"), (1500 * 0.756, "below")],
+)
+def test_group_follows_displayed_percent(usd_per_m2, group):
+    # median = 1505.5 (12 точек 1500..1511): подгоняем цену под разницу ≈ −24.6 / −24.4
+    c = _compare(_pts(12), usd_per_m2=usd_per_m2 * 1505.5 / 1500)
+    assert c.group == group
+    assert c.diff_pct == pytest.approx((c.usd_per_m2 / c.median - 1) * 100)  # не округлён
+
+
 def test_comparison_widens_to_3km():
     c = _compare(_pts(5) + _pts(7, dist_m=2500, first_id=100))
     assert (c.step, c.radius_km, c.n, len(c.points)) == ("wide", 3.0, 12, 12)
@@ -369,6 +391,7 @@ def _loc(walk_min=10, *, far=False, approx=False) -> Location:
 def _assess(**kw):
     args = {
         "comparison": _cmp(),
+        "usd_per_m2": 1700.0,
         "bargaining_level": "unknown",
         "rooms": 2,
         "area": 54.0,
@@ -409,6 +432,12 @@ def test_verdict_unknown_without_comparison():
     a = _assess(comparison=None, bargaining_level="high")
     assert a.kind == "unknown"
     assert a.verdict == "Похожих квартир рядом мало, сравнить цену не можем"
+
+
+def test_verdict_unknown_without_price_per_m2():
+    a = _assess(comparison=None, usd_per_m2=None, bargaining_level="high")
+    assert a.kind == "unknown"
+    assert a.verdict == "Цену за м² посчитать не можем: в объявлении нет площади или цены"
 
 
 def _minuses(**kw):
@@ -683,7 +712,7 @@ def test_text_follows_spec_layout(session, stations):
     )
     price_block = text.split("\n\n")[4]
     assert price_block.splitlines()[:2] == [
-        "📊 Цена: $1 703/м² — на уровне похожих",
+        "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
         "   (12 двушек в домах 1970–90-х в радиусе 1,5 км, медиана $1 835/м²)",
     ]
     assert price_block.splitlines()[2].startswith("🏢 Ещё в этом доме продаётся 1 квартира: $1 6")
@@ -695,6 +724,7 @@ def test_text_without_location(session, stations):
     text = _text(session)
     assert "📍" not in text and "👍 Плюсы:\n   • метро рядом" not in text
     assert "Дом 1978" not in text and "📊 Цена:" in text
+    assert "👥 Подойдёт: паре или небольшой семье" in text
 
 
 def test_text_approx_location(session, stations):
@@ -765,8 +795,13 @@ def test_text_house_line(session, stations):
             "   (3 трёшки в домах после 2010 г. в радиусе 1,5 км, медиана $1 835/м²)",
         ),
         (
-            {"epoch": "1991_2010", "group": "market", "diff_pct": 1.0},
+            {"epoch": "1991_2010", "group": "market", "diff_pct": 0.5},
             "📊 Цена: $1 703/м² — на уровне похожих",
+            "   (12 двушек в домах 1991–2010 гг. в радиусе 1,5 км, медиана $1 835/м²)",
+        ),
+        (
+            {"epoch": "1991_2010", "group": "market", "diff_pct": 9.9},
+            "📊 Цена: $1 703/м² — на 9.9% выше похожих",
             "   (12 двушек в домах 1991–2010 гг. в радиусе 1,5 км, медиана $1 835/м²)",
         ),
         (
@@ -782,7 +817,7 @@ def test_text_house_line(session, stations):
         (
             {"rooms": 1, "n": 1, "epoch": "building", "finish": "done"},
             "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
-            "   (1 однушка с ремонтом в строящихся домах в радиусе 1,5 км, медиана $1 835/м²)",
+            "   (1 однушка с отделкой в строящихся домах в радиусе 1,5 км, медиана $1 835/м²)",
         ),
         (
             {"step": "district", "radius_km": None, "epoch": None, "district": "Фрунзенский"},
@@ -843,7 +878,7 @@ def test_text_first_time_has_assessment_before_the_note(session, stations):
     r = build_check_report(session, KUFAR_URL, NOW)
     lines = render_check_text(replace(r, data_level="first_time")).splitlines()
     note = lines.index("ℹ️ Эту квартиру мы видим впервые. Истории пока нет.")
-    assert lines.index("📊 Цена: $1 703/м² — на уровне похожих") < note
+    assert lines.index("📊 Цена: $1 703/м² — на 7.2% ниже похожих") < note
     assert lines[1] == "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство"
     assert not any(line.startswith(("⏳", "📉", "💬")) for line in lines)
     assert lines[-3] == "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."

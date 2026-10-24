@@ -46,8 +46,12 @@ def _ref(comparison: Comparison) -> str:
     return "медианы района" if comparison.district else "медианы по Минску"
 
 
-def _verdict(comparison: Comparison | None, bargaining_level: str) -> tuple[str, str]:
+def _verdict(
+    comparison: Comparison | None, bargaining_level: str, usd_per_m2: float | None
+) -> tuple[str, str]:
     if comparison is None:
+        if usd_per_m2 is None:
+            return "unknown", "Цену за м² посчитать не можем: в объявлении нет площади или цены"
         return "unknown", "Похожих квартир рядом мало, сравнить цену не можем"
     kind = comparison.group
     ref = _ref(comparison)
@@ -130,6 +134,7 @@ def _audience(rooms, area, location) -> tuple[str, ...]:
 def assess(
     *,
     comparison: Comparison | None,
+    usd_per_m2: float | None,
     bargaining_level: str,
     rooms: int | None,
     area: float | None,
@@ -139,7 +144,7 @@ def assess(
     now_year: int,
     location: Location | None,
 ) -> Assessment:
-    kind, verdict = _verdict(comparison, bargaining_level)
+    kind, verdict = _verdict(comparison, bargaining_level, usd_per_m2)
     return Assessment(
         kind=kind,
         verdict=verdict,

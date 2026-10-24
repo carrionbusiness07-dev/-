@@ -97,7 +97,7 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
     top = [_header(report, icons), _now_line(report)]
     blocks = [
         _assessment_lines(report, icons),
-        _place_lines(report, icons),
+        [*_place_lines(report, icons), *_audience_lines(report, icons)],
         _minus_plus_lines(report, icons),
         [*_comparison_lines(report, icons), *_house_lines(report, icons)],
     ]
@@ -331,11 +331,12 @@ def _place_lines(report: CheckReport, icons: bool) -> list[str]:
         text += f". Дом {f.year} г.{floors_text}"
     elif floors:
         text += f". {floors}-этажный дом"
-    lines = [_icon("place", icons) + text]
+    return [_icon("place", icons) + text]
+
+
+def _audience_lines(report: CheckReport, icons: bool) -> list[str]:
     a = report.assessment
-    if a and a.audience:
-        lines.append(f"{_icon('who', icons)}Подойдёт: {_audience(a)}")
-    return lines
+    return [f"{_icon('who', icons)}Подойдёт: {_audience(a)}"] if a and a.audience else []
 
 
 def _audience(a) -> str:
@@ -381,8 +382,7 @@ _EPOCH_PHRASES = {
     "post2010": "в домах после 2010 г.",
     "building": "в строящихся домах",
 }
-_FINISH_PHRASES = {"none": " без отделки", "done": " с ремонтом"}
-_SIDE = {"suspicious": "ниже", "below": "ниже", "above": "выше"}
+_FINISH_PHRASES = {"none": " без отделки", "done": " с отделкой"}
 
 
 def _comparison_lines(report: CheckReport, icons: bool) -> list[str]:
@@ -391,10 +391,10 @@ def _comparison_lines(report: CheckReport, icons: bool) -> list[str]:
         return []
     district = c.step == "district"
     ref = ("медианы района" if c.district else "медианы по Минску") if district else "похожих"
-    if c.group == "market":
+    if abs(c.diff_pct) < 1:
         diff = f"на уровне {ref}"
     else:
-        diff = f"на {pct(c.diff_pct, signed=False)} {_SIDE[c.group]} {ref}"
+        diff = f"на {pct(c.diff_pct, signed=False)} {"ниже" if c.diff_pct < 0 else "выше"} {ref}"
     if district:
         where = district_label(c.district) if c.district else "по Минску"
         detail = f"{where}, {rooms_label(c.rooms)}: медиана {ppm(c.median)}, {objects_text(c.n)}"

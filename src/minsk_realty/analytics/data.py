@@ -477,7 +477,11 @@ def building_years(session: Session, object_ids: Iterable[int] | None = None) ->
     q = (
         select(Listing.object_id, Listing.source, Snapshot.extra)
         .join(Listing, Listing.id == Snapshot.listing_id)
-        .where(Listing.source.in_(tuple(YEAR_KEYS)), Listing.object_id.is_not(None))
+        .where(
+            Listing.source.in_(tuple(YEAR_KEYS)),
+            Listing.object_id.is_not(None),
+            Listing.match_confidence.in_(TRUSTED),
+        )
         .order_by(Snapshot.seen_at, Snapshot.id)
     )
     if object_ids is not None:

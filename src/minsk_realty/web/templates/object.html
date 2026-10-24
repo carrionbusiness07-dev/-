@@ -148,7 +148,7 @@
   (function () {
     var d = JSON.parse(document.getElementById("map-data").textContent);
     var map = L.map("map", {scrollWheelZoom: false});
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap"}).addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
     var bounds = [d.flat];
     L.marker(d.flat, {alt: "Квартира"}).addTo(map);
     if (d.station) {
