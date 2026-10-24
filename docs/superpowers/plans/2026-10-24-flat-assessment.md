@@ -307,3 +307,30 @@
 - [ ] **Step 1: Падающие тесты:** `finishing_kind` на подписях «Без отделки», «Строительная отделка», «Косметический», «Дизайнерский», None, ""; сравнение для цели `none` не берёт точки `done` и `None`; без отделки у цели — фильтра нет; текст «однушек без отделки»; статистика по отделке.
 - [ ] **Step 2: Реализовать.**
 - [ ] **Step 3: Весь набор, ruff.** Commit `feat: compare flats with the same finishing`.
+
+---
+
+## Дополнение 24.10: хеши фото (спека, раздел 11)
+
+### Task 14: Ссылки на фото в снимках (Sam)
+
+**Files:** Modify `src/minsk_realty/db/repository.py` (или адаптеры — где проще и без дублирования); Test `tests/test_db.py`, тесты адаптеров.
+
+**Interfaces:** Produces `extra["photo_urls"]: list[str]` — первые 6 ссылок, в стабильном виде (без меняющихся параметров подписи, если такие есть у площадки); константа `PHOTO_URLS_KEEP = 6`.
+
+- [ ] Падающие тесты: снимок с 10 ссылками → в `extra` ровно первые 6; повторный снимок с теми же ссылками → `extra` не меняется; ссылка с меняющимся параметром подписи (если найден у какой-то площадки по фикстурам) → хранится стабильный вид.
+- [ ] Проверить по фикстурам каждой площадки, стабильны ли ссылки (одинаковы ли для одного объявления в разных выгрузках); вывод — в отчёт.
+- [ ] Реализовать, весь набор, ruff, commit `feat: keep first photo URLs in snapshot extra`.
+
+### Task 15: Шаг хешей фото после прохода (Sam + Emma)
+
+**Files:** Create `src/minsk_realty/collector/photos.py`; Modify `src/minsk_realty/collector/__main__.py` (вызов между `collect` и `process_after_run`), конфиг сборщика; Test `tests/test_photos.py` (или существующий файл тестов фото).
+
+**Interfaces:**
+- `photo_backlog(session, source: str, *, limit_listings: int, now) -> list[tuple[int, list[str]]]` — (listing_id, ссылки) по приоритету спеки §11;
+- `hash_photos(session_factory, source: str, *, budget: int = 150, pause: tuple[float, float] = (1.0, 2.0), client=None, now=...) -> PhotoStats` — скачивает в пределах бюджета, считает `phash_from_bytes`, пишет `save_photo_hashes`; `PhotoStats(listings, photos, hashes, failed, refused)`; лог одной строкой на проход;
+- выключатель `PHOTO_HASHING` (по умолчанию включено; «0» — выключено).
+
+- [ ] Падающие тесты (сеть подменена `httpx.MockTransport`, картинки — маленькие PNG/JPEG, созданные Pillow в тесте): приоритет групп; не больше 6 фото и не больше бюджета; объявление с хешами не берётся повторно; 404 и не-картинка — пропуск без падения; три 403 подряд — остановка площадки на этот проход и алерт; `PHOTO_HASHING=0` — ничего не скачивается; ни одного файла на диске.
+- [ ] Реализовать; вежливый клиент — по образцу `PoliteClient` (без дублирования логики backoff, если её можно переиспользовать).
+- [ ] Весь набор, ruff, commit `feat: hash listing photos after each pass`.
