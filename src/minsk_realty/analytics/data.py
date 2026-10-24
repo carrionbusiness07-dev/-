@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
+from itertools import pairwise
 from typing import Any
 
 from sqlalchemy import func, select
@@ -24,6 +25,8 @@ from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.fmt import normalize_district
 from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, SourceRun
+from minsk_realty.matching.config import DEFAULT_CONFIG
+from minsk_realty.matching.events import baseline_ends
 from minsk_realty.matching.rules import TRUSTED
 
 
@@ -148,6 +151,13 @@ class MarketData:
     snapshots: dict[int, list[SnapRow]] = field(default_factory=dict)  # по seen_at
     events: dict[int, list[EventRow]] = field(default_factory=dict)  # по объекту, по at
     source_starts: dict[str, datetime] = field(default_factory=dict)
+    # Объявления, у которых сама площадка показывает снижение цены, в том числе случившееся
+    # до начала наших наблюдений (Realt — направление последнего изменения, Domovita —
+    # история цены). Только для проверки гипотезы: история до 23.10 у нас обрезана.
+    platform_drops: frozenset[int] = frozenset()
+    # Конец исходного среза по площадкам (matching.events.baseline_ends): объекты, впервые
+    # замеченные позже, мы видим с самого появления на рынке.
+    baseline_ends: dict[str, datetime] = field(default_factory=dict)
     _by_object: dict[int, list[ListingRow]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
@@ -383,13 +393,45 @@ def load_market(
                 trusted=e.trusted,
             )
         )
+    full = object_ids is None and listing_ids is None
     return MarketData(
         objects=objects,
         listings=listings,
         snapshots=dict(snapshots),
         events=dict(events),
         source_starts=source_starts(session),
+        platform_drops=platform_reported_drops(session) if full else frozenset(),
+        baseline_ends=baseline_ends(session, DEFAULT_CONFIG) if full else {},
     )
+
+
+# Снижение по истории Domovita: история в долларах, а продавец мог ставить цену в рублях —
+# меньше процента может оказаться курсом, а не решением продавца.
+PLATFORM_DROP_MIN = 0.99
+
+
+def platform_reported_drops(session: Session) -> frozenset[int]:
+    """Объявления, у которых площадка сама показывает снижение цены (последний снимок)."""
+    rows = session.execute(
+        select(Snapshot.listing_id, Snapshot.extra)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(Listing.source.in_(("realt", "domovita")))
+        .order_by(Snapshot.listing_id, Snapshot.seen_at, Snapshot.id)
+    )
+    latest = {listing_id: extra or {} for listing_id, extra in rows}
+    return frozenset(lid for lid, extra in latest.items() if _platform_drop(extra))
+
+
+def _platform_drop(extra: dict[str, Any]) -> bool:
+    if extra.get("priceChangeDirection") == -1:  # Realt: последнее изменение цены — снижение
+        return True
+    usd = [
+        row[1]
+        for row in extra.get("price_history") or []
+        if isinstance(row, list | tuple) and len(row) == 2 and isinstance(row[1], int | float)
+    ]
+    # Domovita: история от новых к старым.
+    return any(newer < older * PLATFORM_DROP_MIN for newer, older in pairwise(usd))
 
 
 def source_starts(session: Session) -> dict[str, datetime]:

@@ -607,11 +607,50 @@ def test_hypothesis_decisions():
     boring = compute_hypothesis(_hypothesis_market(relisted=0, cross=0, drops=1), NOW, cfg=cfg)
     assert boring.decision == "stop"
     mixed = compute_hypothesis(_hypothesis_market(relisted=3, cross=0, drops=0), NOW, cfg=cfg)
-    assert mixed.decision == "borderline"
+    # 99 дней — уже больше 12 недель: пограничная картина по правилу означает остановку.
+    assert mixed.decision == "stop"
     assert any("есть снижения цены" in r for r in mixed.reasons)
+    assert any("после 12 недель" in r for r in mixed.reasons)
+    longer = replace(cfg, extended_weeks=20)
+    extend = compute_hypothesis(_hypothesis_market(relisted=3, cross=0, drops=0), NOW, cfg=longer)
+    assert extend.decision == "extend"
+    assert render_hypothesis_text(extend).count("ПРОДЛЕВАЕМ") == 1
     text = render_hypothesis_text(good)
     assert "Рекомендация: ПРОДОЛЖАЕМ" in text and "| Перевыкладывались ИЛИ cross_listed" in text
     assert "3 из 20 (15.0%)" in text
+
+
+def test_platform_reported_drops_count_for_the_drops_criterion():
+    """История до начала наблюдений обрезана, но Realt и Domovita сами показывают снижения:
+    они идут в критерий снижений и отдельной строкой в отчёте."""
+    cfg = replace(DEFAULT_ANALYTICS, min_objects=10, insight_min=0.25)
+    data = _hypothesis_market(drops=0)
+    first_listings = [data.object_listings(oid)[0].id for oid in range(18, 21)]
+    data.platform_drops = frozenset(first_listings)
+    h = compute_hypothesis(data, NOW, cfg=cfg)
+    assert (h.with_drops.count, h.with_drops_platform.count, h.with_drops_any.count) == (0, 3, 3)
+    drops = next(c for c in h.criteria if c.key == "with_drops")
+    assert drops.passed and drops.value == 0.15
+    assert "Снижение показывает площадка" in render_hypothesis_text(h)
+
+
+def test_platform_drop_detection():
+    from minsk_realty.analytics.data import _platform_drop
+
+    assert _platform_drop({"priceChangeDirection": -1})
+    assert not _platform_drop({"priceChangeDirection": 1})
+    assert _platform_drop({"price_history": [["2026-08-14", 68306], ["2026-07-30", 69089]]})
+    # Меньше процента в долларах — может быть курсом, а не решением продавца.
+    assert not _platform_drop({"price_history": [["2026-08-14", 68900], ["2026-07-30", 69089]]})
+
+
+def test_new_objects_cohort():
+    data = _hypothesis_market()
+    source = data.object_listings(1)[0].source
+    cutoff = min(r.first_seen for r in data.listings.values())
+    data.baseline_ends = {source: cutoff}  # всё, что позже самого первого, — «новое»
+    h = compute_hypothesis(data, NOW)
+    assert h.new_objects > 0 and h.relisted_or_cross_new.total == h.new_objects
 
 
 def test_hypothesis_on_db(docs):

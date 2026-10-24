@@ -7,19 +7,26 @@
 - relisted         — доля объектов с событием `relisted` или `returned` под новым объявлением;
 - cross_listed     — доля объектов с `cross_listed` (2+ площадки или 2+ продавца одновременно);
 - relisted_or_cross — объединение двух предыдущих (это и есть «≥10%» из идеи);
-- with_drops       — доля объектов с хотя бы одним `price_drop`;
+- with_drops       — доля объектов с хотя бы одним `price_drop` (мы видели снижение сами);
+- with_drops_platform — доля объектов, у которых снижение показывает сама площадка, в том
+                     числе до начала наблюдений (Realt, Domovita: `MarketData.platform_drops`);
+- with_drops_any   — объединение двух предыдущих: по нему решается критерий снижений.
+                     История до 23.10 у нас обрезана, а площадки часть её знают;
 - with_insight     — доля объектов, где /check покажет то, чего нет на сайте: перевыкладывание,
                      дубль, снижение цены или срок на рынке больше счётчика сайта на 7+ дней;
 - те же доли среди «зрелых» объектов (видим ≥ 14 дней): новым объектам ещё некогда было
   перевыложиться, поэтому общая доля на старте занижена;
+- те же доли среди «новых» объектов — впервые замеченных после исходного среза
+  (`MarketData.baseline_ends`): их мы видим с самого появления на рынке, без обрезки;
 - распределение срока экспозиции (все объекты, для снятых — до снятия) и доля «как минимум».
 
-Решение:
+Решение (правила записаны заранее, 24.10.2026, docs/01-idea.md, раздел 9):
 - too_early  — меньше 6 недель наблюдения или меньше 200 объектов (метрики показываем);
-- continue   — relisted_or_cross ≥ 10%, with_drops ≥ 10%, with_insight ≥ 50%;
+- continue   — relisted_or_cross ≥ 10%, with_drops_any ≥ 10%, with_insight ≥ 50%;
 - stop       — relisted_or_cross < 5% и with_insight < 50%;
-- borderline — остальное: решает пользователь, причины перечислены.
-Пороги кроме «≥10%» — допущения (см. config.py), их стоит подтвердить с пользователем.
+- extend     — остальное до 12 недель: продлеваем наблюдение, а не решаем по пограничным
+               цифрам 6 недель (перевыкладывания с циклом длиннее окна ещё не видны);
+- stop и после 12 недель, если картина так и осталась пограничной.
 """
 
 from __future__ import annotations
@@ -37,7 +44,7 @@ from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData, load_market
 from minsk_realty.analytics.exposure import compute_exposure
 
-Decision = Literal["continue", "stop", "borderline", "too_early"]
+Decision = Literal["continue", "stop", "extend", "too_early"]
 
 BUCKETS = ((0, 7, "до 7 дней"), (7, 30, "7–30"), (30, 90, "30–90"), (90, 180, "90–180"))
 BUCKET_LAST = (180, None, "180+")
@@ -95,11 +102,16 @@ class HypothesisReport:
     cross_listed: Share
     relisted_or_cross: Share
     with_drops: Share
+    with_drops_platform: Share
+    with_drops_any: Share
     with_insight: Share
     returned: Share
     removed: Share
     relisted_or_cross_mature: Share
     with_drops_mature: Share
+    new_objects: int
+    relisted_or_cross_new: Share
+    with_drops_new: Share
     exposure: Distribution
     sample_object_ids: tuple[int, ...]  # для ручной проверки через /check
     decision: Decision
@@ -128,7 +140,8 @@ def compute_hypothesis(
 ) -> HypothesisReport:
     objects = [oid for oid in data.objects if data.object_listings(oid)]
     flags: dict[str, set[int]] = {k: set() for k in ("relisted", "cross", "drops", "insight")}
-    flags |= {"returned": set(), "removed": set()}
+    flags |= {"returned": set(), "removed": set(), "drops_platform": set()}
+    new: set[int] = set()
     mature: set[int] = set()
     days: list[int] = []
     at_least: list[bool] = []
@@ -140,8 +153,14 @@ def compute_hypothesis(
         exp = compute_exposure(listings, events, now, data.source_starts, current=current, cfg=cfg)
         days.append(exp.days)
         at_least.append(exp.at_least)
-        if min(r.first_seen for r in listings) <= now - cfg.mature_after:
+        first = min(listings, key=lambda r: (r.first_seen, r.id))
+        if first.first_seen <= now - cfg.mature_after:
             mature.add(oid)
+        end = data.baseline_ends.get(first.source)
+        if end is not None and first.first_seen > end:
+            new.add(oid)
+        if any(r.id in data.platform_drops for r in listings):
+            flags["drops_platform"].add(oid)
         if types["relisted"] or exp.returned_new_listing:
             flags["relisted"].add(oid)
         if types["cross_listed"]:
@@ -180,11 +199,16 @@ def compute_hypothesis(
         "cross_listed": Share(len(flags["cross"]), total),
         "relisted_or_cross": Share(len(either), total),
         "with_drops": Share(len(flags["drops"]), total),
+        "with_drops_platform": Share(len(flags["drops_platform"]), total),
+        "with_drops_any": Share(len(flags["drops"] | flags["drops_platform"]), total),
         "with_insight": Share(len(flags["insight"]), total),
         "returned": Share(len(flags["returned"]), total),
         "removed": Share(len(flags["removed"]), total),
         "relisted_or_cross_mature": Share(len(either & mature), len(mature)),
         "with_drops_mature": Share(len(flags["drops"] & mature), len(mature)),
+        "new_objects": len(new),
+        "relisted_or_cross_new": Share(len(either & new), len(new)),
+        "with_drops_new": Share(len(flags["drops"] & new), len(new)),
         "exposure": distribution(days, at_least),
         "sample_object_ids": sample,
     }
@@ -206,7 +230,12 @@ def decide(
             m["relisted_or_cross"],
             cfg.relist_or_cross_min,
         ),
-        crit("with_drops", "есть снижения цены", m["with_drops"], cfg.drops_min),
+        crit(
+            "with_drops",
+            "есть снижения цены (видели сами или показывает площадка)",
+            m["with_drops_any"],
+            cfg.drops_min,
+        ),
         crit(
             "with_insight",
             "отчёт показывает то, чего нет на сайте",
@@ -246,8 +275,18 @@ def decide(
         decision = "continue"
     elif either < cfg.stop_max and insight < cfg.insight_min:
         decision = "stop"
+    elif m["observation_days"] < cfg.extended_weeks * 7:
+        decision = "extend"
+        reasons.append(
+            f"цифры пограничные: продлеваем наблюдение до {cfg.extended_weeks} недель "
+            "(перевыкладывания с циклом длиннее окна ещё не видны) и решаем по тем же порогам"
+        )
     else:
-        decision = "borderline"
+        decision = "stop"
+        reasons.append(
+            f"и после {cfg.extended_weeks} недель картина пограничная — правило, записанное "
+            "заранее: продукт останавливаем, сбор остаётся личным инструментом"
+        )
     return decision, criteria, tuple(reasons)
 
 

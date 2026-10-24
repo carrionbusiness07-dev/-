@@ -410,7 +410,7 @@ DECISIONS = {
         "ОСТАНАВЛИВАЕМ продукт (инструмент остаётся личным): "
         "перевыкладываний и расхождений почти нет"
     ),
-    "borderline": "ПОГРАНИЧНО: часть критериев не выполнена, решение за пользователем",
+    "extend": "ПРОДЛЕВАЕМ: цифры пограничные, наблюдаем до 12 недель и решаем по тем же порогам",
     "too_early": "РАНО СУДИТЬ: данных для решения пока мало (метрики предварительные)",
 }
 
@@ -428,8 +428,13 @@ def render_hypothesis_text(r: HypothesisReport) -> str:
         ("На нескольких площадках / у нескольких продавцов (cross_listed)", r.cross_listed),
         ("Перевыкладывались ИЛИ cross_listed", r.relisted_or_cross),
         ("  — среди объектов, которые видим ≥ 14 дней", r.relisted_or_cross_mature),
-        ("Есть снижения цены", r.with_drops),
+        ("Есть снижения цены (видели сами)", r.with_drops),
         ("  — среди объектов, которые видим ≥ 14 дней", r.with_drops_mature),
+        ("Снижение показывает площадка (в т. ч. до 23.10)", r.with_drops_platform),
+        ("Есть снижения: сами ИЛИ со слов площадки", r.with_drops_any),
+        (f"Новые объекты (после исходного среза): {r.new_objects}", None),
+        ("  — перевыкладывались ИЛИ cross_listed", r.relisted_or_cross_new),
+        ("  — есть снижения цены", r.with_drops_new),
         ("Отчёт показывает то, чего нет на сайте", r.with_insight),
         ("Возвращались после снятия", r.returned),
         ("Сейчас сняты", r.removed),
@@ -445,7 +450,10 @@ def render_hypothesis_text(r: HypothesisReport) -> str:
         "",
         "| Метрика | Значение |",
         "|---|---|",
-        *(f"| {label.ljust(width)} | {_share(share)} |" for label, share in rows),
+        *(
+            f"| {label.ljust(width)} | {_share(share) if share is not None else ''} |"
+            for label, share in rows
+        ),
         "",
         "Срок экспозиции (дней, для снятых — до снятия):",
     ]
