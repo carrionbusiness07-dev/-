@@ -38,6 +38,7 @@ from minsk_realty.analytics.fmt import (
 from minsk_realty.analytics.fmt import pct as _pct
 from minsk_realty.collector.run import INTERRUPTED, STALE_RUN_AFTER
 from minsk_realty.db.models import Event, RealtyObject, SourceRun
+from minsk_realty.db.models import Snapshot as DbSnapshot
 
 DEMO_MARKER = "demo"
 
@@ -663,6 +664,70 @@ def map_data(report, data: MarketData) -> dict | None:
         "station": {"name": st.name, "lat": st.lat, "lon": st.lon} if st else None,
         "similar": similar,
     }
+
+
+PHOTO_LIMIT = 6
+
+
+def _photo_urls(session: Session, listing_ids: list[int]) -> dict[int, list[str]]:
+    """Ссылки на фото из последнего снимка каждого объявления (extra читаем только у них).
+
+    Только https://: ссылка с площадки идёт в src без прокси, чужую схему не пропускаем."""
+    out: dict[int, list[str]] = {}
+    for lid in listing_ids:
+        extra = session.scalar(
+            select(DbSnapshot.extra)
+            .where(DbSnapshot.listing_id == lid)
+            .order_by(DbSnapshot.seen_at.desc(), DbSnapshot.id.desc())
+            .limit(1)
+        )
+        urls = (extra or {}).get("photo_urls")
+        urls = urls if isinstance(urls, list) else []
+        out[lid] = [u for u in urls if isinstance(u, str) and u.startswith("https://")]
+    return out
+
+
+def photos(session: Session, report) -> list[dict]:
+    """До 6 фото квартиры: из проверяемого объявления, иначе из первого другого надёжного,
+    где они есть. Фото не храним и не проксируем — браузер берёт их с площадки."""
+    if report.listing is None:
+        return []
+    trusted = [o for o in report.others if o.confidence in ("high", "medium")]
+    ids = [report.listing.listing_id, *(o.listing_id for o in trusted)]
+    urls = _photo_urls(session, ids)
+    sources = {report.listing.listing_id: report.listing.source}
+    sources.update({o.listing_id: o.source for o in trusted})
+    for lid in ids:
+        if urls[lid]:
+            return [{"url": u, "source": sources[lid]} for u in urls[lid][:PHOTO_LIMIT]]
+    return []
+
+
+def other_rows(session: Session, data: MarketData, report) -> list[dict]:
+    """Строки таблицы «на других площадках»: объявление + данные его последнего снимка."""
+    approx = DEFAULT_ANALYTICS.approx_coord_sources
+    thumbs = _photo_urls(session, [o.listing_id for o in report.others])
+    rows = []
+    for o in report.others:
+        snap = data.last_snapshot(o.listing_id)
+        point = data.listing_point(o.listing_id, approx)
+        rows.append(
+            {
+                "o": o,
+                "thumb": thumbs[o.listing_id][0] if thumbs[o.listing_id] else None,
+                "address": snap.address_raw if snap else None,
+                "floor": snap.floor if snap else None,
+                "floors_total": snap.floors_total if snap else None,
+                "area": snap.area if snap else None,
+                # Точка неточной площадки — общая для двора, на карте её не показываем.
+                "map_url": (
+                    f"https://yandex.by/maps/?pt={point[1]},{point[0]}&z=17"
+                    if point and not point[2]
+                    else None
+                ),
+            }
+        )
+    return rows
 
 
 def timeline(snap: Snapshot, report) -> Timeline | None:

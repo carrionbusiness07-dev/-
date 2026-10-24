@@ -18,6 +18,59 @@
     </div>
   </header>
 
+  {% if photos %}
+  {% set photo_src = sources.get(photos[0].source, photos[0].source) %}
+  <section class="photos" aria-label="Фото квартиры">
+    <ul class="photo-strip">
+      {% for ph in photos %}
+      <li class="photo"><button type="button" data-full="{{ ph.url }}" aria-label="Открыть фото {{ loop.index }} крупно"><img src="{{ ph.url }}" alt="Фото {{ loop.index }}, {{ photo_src }}" loading="lazy" referrerpolicy="no-referrer" onerror="photoGone(this)"></button></li>
+      {% endfor %}
+    </ul>
+    <p class="photo-caption">Фото с {{ photo_src }}</p>
+    <dialog class="lightbox" aria-label="Фото квартиры">
+      <button type="button" class="lb-close" aria-label="Закрыть">×</button>
+      <button type="button" class="lb-prev" aria-label="Предыдущее фото">‹</button>
+      <button type="button" class="lb-next" aria-label="Следующее фото">›</button>
+    </dialog>
+  </section>
+  <script>
+    function photoGone(img) {
+      var li = img.closest(".photo");
+      li.hidden = true;
+      var sec = li.closest(".photos");
+      if (!sec.querySelector(".photo:not([hidden])")) sec.hidden = true;
+    }
+    (function () {
+      var sec = document.querySelector(".photos"), dlg = sec.querySelector("dialog"), big = document.createElement("img"), at = 0;
+      big.referrerPolicy = "no-referrer";
+      dlg.prepend(big);  // картинку создаём здесь: в разметке нет <img> без настоящего src
+      function items() { return Array.prototype.filter.call(sec.querySelectorAll(".photo:not([hidden]) button"), Boolean); }
+      function show(i) {
+        var list = items();
+        if (!list.length) return dlg.close();
+        at = (i + list.length) % list.length;
+        big.src = list[at].dataset.full;
+        big.alt = list[at].querySelector("img").alt;
+      }
+      sec.addEventListener("click", function (e) {
+        var b = e.target.closest(".photo button");
+        if (!b) return;
+        dlg.showModal();
+        show(items().indexOf(b));
+      });
+      dlg.querySelector(".lb-close").addEventListener("click", function () { dlg.close(); });
+      dlg.querySelector(".lb-prev").addEventListener("click", function () { show(at - 1); });
+      dlg.querySelector(".lb-next").addEventListener("click", function () { show(at + 1); });
+      dlg.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowLeft") { e.preventDefault(); show(at - 1); }
+        else if (e.key === "ArrowRight") { e.preventDefault(); show(at + 1); }
+      });
+      // Клик по затемнению (вне картинки и кнопок) закрывает окно.
+      dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+    })();
+  </script>
+  {% endif %}
+
   {% if blocks.verdict %}
   <section class="assessment" aria-labelledby="assessment-title">
     <h2 id="assessment-title">{{ blocks.verdict | nb }}</h2>
@@ -138,19 +191,23 @@
   </section>
   {% endif %}
 
-  {% if r.others %}
+  {% if other_rows %}
   <section aria-labelledby="others-title">
     <h2 id="others-title" class="section-title">Эта квартира на других площадках</h2>
     <table class="history">
-      <thead><tr><th scope="col">Площадка</th><th scope="col" class="folded">Продавец</th><th scope="col" class="num">Цена</th><th scope="col" class="folded">Склейка</th><th scope="col"><span class="visually-hidden">Ссылка</span></th></tr></thead>
+      <thead><tr><th scope="col"><span class="visually-hidden">Фото</span></th><th scope="col">Площадка</th><th scope="col" class="folded">Адрес</th><th scope="col" class="folded">Продавец</th><th scope="col" class="folded">Этаж</th><th scope="col" class="num folded">Площадь</th><th scope="col" class="num">Цена</th><th scope="col" class="folded">Склейка</th><th scope="col"><span class="visually-hidden">Ссылки</span></th></tr></thead>
       <tbody>
-      {% for o in r.others %}
+      {% for row in other_rows %}{% set o = row.o %}
         <tr>
-          <td>{{ sources.get(o.source, o.source) }}<span class="sub fold">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% endif %}</span></td>
+          <td class="thumb-cell">{% if row.thumb %}<img class="thumb" src="{{ row.thumb }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">{% endif %}</td>
+          <td>{{ sources.get(o.source, o.source) }}<span class="sub fold">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% endif %}</span><span class="sub fold">{{ row.address or "" }}</span></td>
+          <td class="folded">{{ row.address or "—" }}</td>
           <td class="folded">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% else %}—{% endif %}</td>
+          <td class="folded">{% if row.floor and row.floors_total %}{{ row.floor }}/{{ row.floors_total }}{% elif row.floor %}{{ row.floor }}{% else %}—{% endif %}</td>
+          <td class="num folded">{% if row.area %}{{ ("%.1f" % row.area).replace(".0", "").replace(".", ",") }} м²{% else %}—{% endif %}</td>
           <td class="num strong">{{ o.amount | money(o.currency) if o.amount else "—" }}{% if o.cheaper_by and o.cheaper_by > 0 %} <span class="delta delta-down">дешевле на {{ o.cheaper_by | money(o.cheaper_currency) }}</span>{% endif %}</td>
           <td class="folded">{{ {"high": "надёжная", "medium": "вероятная", "low": "возможно"}.get(o.confidence, "—") }}</td>
-          <td><a href="{{ o.url }}" rel="noopener" target="_blank">открыть</a></td>
+          <td><a href="{{ o.url }}" rel="noopener" target="_blank">открыть</a>{% if row.map_url %}<br><a href="{{ row.map_url }}" rel="noopener" target="_blank">на карте</a>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

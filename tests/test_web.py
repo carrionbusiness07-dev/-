@@ -225,3 +225,137 @@ def test_object_page_shows_assessment_cards(client):
                 assert title in col and 'class="card-title"' in col
     assert any('class="card-detail"' in p for p in shown)
     assert any("Кому подойдёт" in p and "note-audience" in p for p in shown)
+
+
+# --- Фото и таблица площадок --------------------------------------------------------------
+
+
+def _photo_world(tmp_path, extras):
+    """Объект из нескольких объявлений; extras — {source: extra последнего снимка}."""
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from minsk_realty.db.models import Base, Listing, Snapshot
+    from minsk_realty.db.session import make_engine, make_session_factory
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'p.db'}")
+    Base.metadata.create_all(engine)
+    session = make_session_factory(engine)()
+    t0 = datetime(2026, 10, 20, tzinfo=UTC)
+    ids = {}
+    for i, (source, extra) in enumerate(extras.items(), 1):
+        listing = Listing(
+            source=source, external_id=str(i), url=f"https://{source}.test/{i}", first_seen=t0,
+            last_seen=t0, seller_type="owner",
+        )
+        session.add(listing)
+        session.flush()
+        ids[source] = listing.id
+        for day, ex in enumerate(extra):  # от старого к новому
+            session.add(
+                Snapshot(listing_id=listing.id, seen_at=t0 + timedelta(days=day), extra=ex,
+                         content_hash=f"h{listing.id}{day}")
+            )
+    session.commit()
+
+    def report(current, *others):
+        return SimpleNamespace(
+            listing=SimpleNamespace(listing_id=ids[current], source=current),
+            others=tuple(
+                SimpleNamespace(listing_id=ids[s], source=s, confidence=c) for s, c in others
+            ),
+        )
+
+    return session, report
+
+
+def test_photos_order_limit_and_https_only(tmp_path):
+    from minsk_realty.web import views
+
+    urls = [f"https://img.test/{n}.jpg" for n in range(8)]
+    session, report = _photo_world(
+        tmp_path,
+        {"kufar": [{"photo_urls": ["https://old.test/x.jpg"]}, {"photo_urls": ["http://bad/1", *urls]}]},
+    )
+    got = views.photos(session, report("kufar"))
+    assert [p["url"] for p in got] == urls[:6]  # последний снимок, http:// отброшен, лимит 6
+    assert {p["source"] for p in got} == {"kufar"}
+
+
+def test_photos_fall_back_to_trusted_other_listing(tmp_path):
+    from minsk_realty.web import views
+
+    session, report = _photo_world(
+        tmp_path,
+        {
+            "kufar": [{}],
+            "realt": [{"photo_urls": ["https://r.test/1.jpg"]}],
+            "onliner": [{"photo_urls": ["https://o.test/1.jpg"]}],
+        },
+    )
+    got = views.photos(session, report("kufar", ("realt", "low"), ("onliner", "high")))
+    assert got == [{"url": "https://o.test/1.jpg", "source": "onliner"}]  # low не берём
+
+
+def test_photos_empty(tmp_path):
+    from types import SimpleNamespace
+
+    from minsk_realty.web import views
+
+    session, report = _photo_world(tmp_path, {"kufar": [{}], "realt": [{"photo_urls": []}]})
+    assert views.photos(session, report("kufar", ("realt", "high"))) == []
+    assert views.photos(session, SimpleNamespace(listing=None, others=())) == []
+
+
+def test_object_page_photo_strip(client, monkeypatch):
+    from minsk_realty.web import app as web_app
+
+    shown = [{"url": "https://i.kufar.test/1.jpg?a=1&b=2", "source": "kufar"},
+             {"url": "https://i.kufar.test/2.jpg", "source": "kufar"}]
+    monkeypatch.setattr(web_app.views, "photos", lambda session, report: shown)
+    page = client.get("/objects/1").text
+    assert 'class="photo-strip"' in page and "Фото с Kufar" in page
+    assert 'alt="Фото 2, Kufar"' in page
+    assert page.count('referrerpolicy="no-referrer"') == 2 and "referrerPolicy" in page and 'loading="lazy"' in page
+    assert "<dialog" in page and "a=1&amp;b=2" in page and "onerror=" in page
+    assert "<img" not in page.split("<dialog", 1)[1].split("</dialog>", 1)[0]  # без <img> без src
+
+    monkeypatch.setattr(web_app.views, "photos", lambda session, report: [])
+    assert 'class="photos"' not in client.get("/objects/1").text
+
+
+def test_other_rows_and_table(client, monkeypatch):
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    from minsk_realty.analytics.report import OtherListing
+    from minsk_realty.web import app as web_app
+    from minsk_realty.web import views
+
+    def other(lid, source):
+        return OtherListing(
+            listing_id=lid, source=source, url=f"https://{source}.test/{lid}", seller_type="owner",
+            agency_name=None, amount=Decimal(100000), currency="USD", usd=Decimal(100000),
+            confidence="high", other_seller=True, cheaper_by=None, cheaper_currency=None,
+        )
+
+    snaps = {
+        1: SimpleNamespace(address_raw="Минск, ул. Тестовая, 5", floor=3, floors_total=9, area=54.0),
+        2: SimpleNamespace(address_raw=None, floor=None, floors_total=None, area=None),
+    }
+    data = SimpleNamespace(
+        last_snapshot=lambda lid: snaps[lid],
+        listing_point=lambda lid, approx: (53.9, 27.5, lid == 2),
+    )
+    report = SimpleNamespace(others=(other(1, "kufar"), other(2, "realt")))
+    monkeypatch.setattr(views, "_photo_urls", lambda s, ids: {1: ["https://t.test/1.jpg"], 2: []})
+    rows = views.other_rows(None, data, report)
+    assert rows[0]["thumb"] == "https://t.test/1.jpg" and rows[0]["address"] == "Минск, ул. Тестовая, 5"
+    assert (rows[0]["floor"], rows[0]["floors_total"], rows[0]["area"]) == (3, 9, 54.0)
+    assert rows[0]["map_url"] == "https://yandex.by/maps/?pt=27.5,53.9&z=17"
+    assert rows[1]["thumb"] is None and rows[1]["map_url"] is None  # неточная площадка
+
+    monkeypatch.setattr(web_app.views, "other_rows", lambda *a: rows)
+    page = client.get("/objects/1").text
+    assert "Минск, ул. Тестовая, 5" in page and "3/9" in page and "54 м²" in page
+    assert page.count("на карте") == 1 and 'class="thumb"' in page
