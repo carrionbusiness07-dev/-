@@ -91,6 +91,8 @@ def build_router(cfg: BotConfig) -> Router:
         await _typing(bot, message.chat.id)
         reply = await asyncio.to_thread(service.check_text, message.chat.id, command.args)
         await message.answer(reply.text, reply_markup=reply.keyboard)
+        if reply.location:
+            await message.answer_location(*reply.location)
 
     @users.message(Command("watch"))
     async def watch(message: Message, command: CommandObject, service: BotService) -> None:
@@ -123,6 +125,8 @@ def build_router(cfg: BotConfig) -> Router:
         await _typing(bot, message.chat.id)
         reply = await asyncio.to_thread(service.check_text, message.chat.id, text)
         await message.answer(reply.text, reply_markup=reply.keyboard)
+        if reply.location:
+            await message.answer_location(*reply.location)
 
     @users.message()
     async def other(message: Message) -> None:

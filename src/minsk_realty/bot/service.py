@@ -54,6 +54,13 @@ def utcnow() -> datetime:
 class Reply:
     text: str
     keyboard: InlineKeyboardMarkup | None = None
+    location: tuple[float, float] | None = None  # точка дома для пина после отчёта
+
+
+def reply_location(report: CheckReport) -> tuple[float, float] | None:
+    """Координаты дома для пина; приблизительную (центр района) не показываем."""
+    loc = report.location
+    return (loc.lat, loc.lon) if loc is not None and not loc.approx else None
 
 
 class BaselineCache:
@@ -148,7 +155,8 @@ class BotService:
             watching=can_watch and is_watching(session, telegram_id, object_id),
             suggest_watch=report.suggest_watch,
         )
-        return Reply(texts.report_text(report, can_watch=can_watch, prefix=note), markup)
+        text = texts.report_text(report, can_watch=can_watch, prefix=note)
+        return Reply(text, markup, reply_location(report))
 
     def _log_check(
         self, session: Session, telegram_id: int, report: CheckReport, url: str, now: datetime

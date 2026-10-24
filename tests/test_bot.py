@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import AnswerCallbackQuery, SendMessage
+from aiogram.methods import AnswerCallbackQuery, SendLocation, SendMessage
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TgUser
 from alembic import command
@@ -46,7 +46,7 @@ from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
-from minsk_realty.bot.service import BotService
+from minsk_realty.bot.service import BotService, reply_location
 from minsk_realty.db.models import (
     Base,
     ChannelPost,
@@ -224,6 +224,27 @@ def test_check_report_from_link(docs):
     assert user.telegram_id == TG
     assert set(User.__table__.columns.keys()) == {"id", "telegram_id", "created_at"}
     assert check.user_id == user.id and check.listing_id == listing_id(docs, "1000201")
+
+
+def test_reply_location(docs):
+    with docs() as session:
+        report = build_check_report(session, f"listing:{listing_id(docs, '1000201')}", NOW)
+    assert report.location is not None and not report.location.approx
+    assert reply_location(report) == (report.location.lat, report.location.lon)
+    approx = replace(report, location=replace(report.location, approx=True))
+    assert reply_location(approx) is None
+    assert reply_location(replace(report, location=None)) is None
+
+
+def test_check_sends_location_after_report(docs):
+    service, _ = make_service(docs)
+    with docs() as session:
+        loc = build_check_report(session, f"listing:{listing_id(docs, '1000201')}", NOW).location
+    _, calls = _feed(service, _message(KUFAR_URL))
+    kinds = [type(c) for c in calls if isinstance(c, SendMessage | SendLocation)]
+    assert kinds == [SendMessage, SendLocation]
+    pin = next(c for c in calls if isinstance(c, SendLocation))
+    assert (pin.latitude, pin.longitude) == (loc.lat, loc.lon)
 
 
 def test_check_not_found_does_not_promise_watching(docs):
@@ -620,6 +641,12 @@ class FakeTelegram(BaseSession):
                     type="private",
                 ),
                 text=method.text,
+            )
+        if isinstance(method, SendLocation):
+            return Message(
+                message_id=len(self.calls),
+                date=NOW,
+                chat=Chat(id=method.chat_id, type="private"),
             )
         return True
 
