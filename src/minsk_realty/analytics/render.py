@@ -334,12 +334,24 @@ def _place_lines(report: CheckReport, icons: bool) -> list[str]:
     lines = [_icon("place", icons) + text]
     a = report.assessment
     if a and a.audience:
-        lines.append(f"{_icon('who', icons)}Подойдёт: {', '.join(a.audience)}")
+        lines.append(f"{_icon('who', icons)}Подойдёт: {_audience(a)}")
     return lines
+
+
+def _audience(a) -> str:
+    return ", ".join(a.audience)
 
 
 def _lower(text: str) -> str:
     return text[:1].lower() + text[1:]
+
+
+def _minus_items(a) -> list[str]:
+    return [_lower(m.text) + (f" — {m.hint}" if m.hint else "") for m in a.minuses]
+
+
+def _plus_items(a) -> list[str]:
+    return [_lower(p) for p in a.pluses]
 
 
 def _minus_plus_lines(report: CheckReport, icons: bool) -> list[str]:
@@ -349,10 +361,10 @@ def _minus_plus_lines(report: CheckReport, icons: bool) -> list[str]:
     lines = []
     if a.minuses:
         lines.append(f"{_icon('warn', icons)}Минусы:")
-        lines += [f"   • {_lower(m.text)}" + (f" — {m.hint}" if m.hint else "") for m in a.minuses]
+        lines += [f"   • {m}" for m in _minus_items(a)]
     if a.pluses:
         lines.append(f"{_icon('plus', icons)}Плюсы:")
-        lines += [f"   • {_lower(p)}" for p in a.pluses]
+        lines += [f"   • {p}" for p in _plus_items(a)]
     return lines
 
 
@@ -419,6 +431,21 @@ def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
         f"{_icon('verdict', icons)}Торг: {', '.join(shorts)}.",
         f"   {b.recommendation}",
     ]
+
+
+def web_blocks(report: CheckReport) -> dict:
+    """Те же блоки оценки, что в тексте бота, но чистой строкой для страницы кабинета."""
+    a = report.assessment
+    place = _place_lines(report, False)
+    return {
+        "verdict": a.verdict if a else None,
+        "place": place[0] if place else None,
+        "minuses": _minus_items(a) if a else [],
+        "pluses": _plus_items(a) if a else [],
+        "audience": _audience(a) if a and a.audience else None,
+        "comparison": [line.strip() for line in _comparison_lines(report, False)],
+        "house": next(iter(_house_lines(report, False)), None),
+    }
 
 
 def _match_line(report: CheckReport) -> str:

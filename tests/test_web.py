@@ -106,3 +106,55 @@ def test_share_format():
     from minsk_realty.web.views import share
 
     assert (share(None), share(0.004), share(0.1), share(0.123)) == ("—", "0,4%", "10%", "12%")
+
+
+def _loc(approx=False, station=None):
+    from minsk_realty.analytics.geo import Location
+
+    return Location(53.9, 27.55, approx, station, None, None)
+
+
+def test_map_data_none_without_precise_location():
+    from types import SimpleNamespace
+
+    from minsk_realty.web import views
+
+    assert views.map_data(SimpleNamespace(location=None, comparison=None)) is None
+    assert views.map_data(SimpleNamespace(location=_loc(approx=True), comparison=None)) is None
+
+
+def test_map_data_collects_points():
+    from types import SimpleNamespace
+
+    from minsk_realty.analytics.comparables import ComparePoint
+    from minsk_realty.analytics.geo import Station
+    from minsk_realty.web import views
+
+    point = ComparePoint(7, 53.91, 27.56, 2, "1970_1990", 2100.4, None)
+    report = SimpleNamespace(
+        location=_loc(station=Station("Парк Челюскинцев", 53.92, 27.58)),
+        comparison=SimpleNamespace(points=(point,)),
+    )
+    assert views.map_data(report) == {
+        "flat": [53.9, 27.55],
+        "station": {"name": "Парк Челюскинцев", "lat": 53.92, "lon": 27.58},
+        "similar": [[53.91, 27.56, 2100]],
+    }
+    report.location, report.comparison = _loc(), None
+    assert views.map_data(report) == {"flat": [53.9, 27.55], "station": None, "similar": []}
+
+
+def test_object_page_has_map(client):
+    hrefs = client.get("/objects").text.split('href="/objects/')[1:]
+    pages = [client.get("/objects/" + h.split('"', 1)[0]).text for h in hrefs]
+    page = next(p for p in pages if 'id="map-data"' in p)
+    assert "/static/leaflet/leaflet.js" in page and 'id="map"' in page
+    assert 'aria-labelledby="assessment-title"' in page
+    assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
+    assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
+    assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
+
+
+def test_leaflet_static_served(client):
+    for path in ("leaflet.js", "leaflet.css", "images/marker-icon.png"):
+        assert client.get(f"/static/leaflet/{path}").status_code == 200

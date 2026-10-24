@@ -36,6 +36,7 @@ from minsk_realty.analytics.fmt import (
     street_label,
 )
 from minsk_realty.analytics.fmt import pct as _pct
+from minsk_realty.analytics.render import web_blocks  # noqa: F401  (для object.html)
 from minsk_realty.collector.run import INTERRUPTED, STALE_RUN_AFTER
 from minsk_realty.db.models import Event, RealtyObject, SourceRun
 
@@ -615,6 +616,20 @@ class Timeline:
     x_labels: list[tuple[float, str]]
     dots: list[tuple[float, float, str, str]]  # x, y, kind, подпись
     marks: list[Mark]
+
+
+def map_data(report) -> dict | None:
+    """Данные для карты на странице квартиры; None — координаты неточные или их нет."""
+    loc = report.location
+    if loc is None or loc.approx:
+        return None
+    st = loc.station
+    similar = report.comparison.points if report.comparison else ()
+    return {
+        "flat": [loc.lat, loc.lon],
+        "station": {"name": st.name, "lat": st.lat, "lon": st.lon} if st else None,
+        "similar": [[p.lat, p.lon, round(p.usd_per_m2)] for p in similar],
+    }
 
 
 def timeline(snap: Snapshot, report) -> Timeline | None:

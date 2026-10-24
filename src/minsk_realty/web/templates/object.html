@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set r = report %}
 {% block title %}{{ fmt.rooms_label(r.flat.rooms) }} {{ r.flat.street or "" }}{% endblock %}
+{% block head %}{% if map_data %}<link rel="stylesheet" href="/static/leaflet/leaflet.css">{% endif %}{% endblock %}
 {% block content %}
 <main class="object">
   <a class="back" href="/"><svg aria-hidden="true" width="14" height="14"><use href="#i-arrow-left"/></svg>Сводка</a>
@@ -16,6 +17,13 @@
       <a class="source-link" href="{{ r.listing.url }}" rel="noopener" target="_blank">Открыть на {{ sources.get(r.listing.source, r.listing.source) }}<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
     </div>
   </header>
+
+  {% if blocks.verdict %}
+  <section class="assessment" aria-labelledby="assessment-title">
+    <h2 id="assessment-title">{{ blocks.verdict | nb }}</h2>
+    {% if blocks.comparison %}<p class="assessment-detail">{{ blocks.comparison | join(" ") | nb }}</p>{% endif %}
+  </section>
+  {% endif %}
 
   {% if r.bargaining %}
   <section class="verdict verdict-{{ r.bargaining.level }}" aria-labelledby="verdict-title">
@@ -36,6 +44,40 @@
     {% if r.moves %}<span>снижений <b>{{ r.moves.drops }}</b></span>{% endif %}
     {% if r.median and r.median.diff_pct is not none %}<span>к медиане района <b>{{ r.median.diff_pct | pct }}</b></span>{% endif %}
   </p>
+
+  {% if blocks.minuses or blocks.pluses or blocks.audience or blocks.house %}
+  <div class="notes">
+    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses)] if items %}
+    <section aria-labelledby="{{ key }}-title">
+      <h2 id="{{ key }}-title" class="rubric">{{ title }}</h2>
+      <ul>{% for item in items %}<li>{{ item | nb }}</li>{% endfor %}</ul>
+    </section>
+    {% endfor %}
+    {% if blocks.audience %}
+    <section aria-labelledby="audience-title">
+      <h2 id="audience-title" class="rubric">Кому подойдёт</h2>
+      <p>{{ blocks.audience | nb }}</p>
+    </section>
+    {% endif %}
+    {% if blocks.house %}<p class="house-note">{{ blocks.house | nb }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if blocks.place or map_data %}
+  <section class="place" aria-labelledby="place-title">
+    <h2 id="place-title" class="section-title">Где находится</h2>
+    <p class="place-address">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+    {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
+    {% if map_data %}
+    <div id="map" role="region" aria-label="Карта: квартира, ближайшее метро и похожие квартиры"></div>
+    <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
+    <p class="place-links">
+      <a href="https://yandex.by/maps/?pt={{ map_data.flat[1] }},{{ map_data.flat[0] }}&amp;z=16" rel="noopener" target="_blank">Яндекс.Карты<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
+      <a href="https://www.google.com/maps?q={{ map_data.flat[0] }},{{ map_data.flat[1] }}" rel="noopener" target="_blank">Google Maps<svg aria-hidden="true" width="12" height="12"><use href="#i-external"/></svg></a>
+    </p>
+    {% endif %}
+  </section>
+  {% endif %}
 
   {% if timeline %}
   <section class="chronicle" aria-labelledby="chronicle-title">
@@ -98,3 +140,24 @@
   </p>
 </main>
 {% endblock %}
+{% block scripts %}{% if map_data %}
+<script src="/static/leaflet/leaflet.js"></script>
+<script>
+  (function () {
+    var d = JSON.parse(document.getElementById("map-data").textContent);
+    var map = L.map("map", {scrollWheelZoom: false});
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap"}).addTo(map);
+    var bounds = [d.flat];
+    L.marker(d.flat, {alt: "Квартира"}).addTo(map);
+    if (d.station) {
+      L.circleMarker([d.station.lat, d.station.lon], {radius: 7, className: "map-station"}).bindTooltip(d.station.name).addTo(map);
+      bounds.push([d.station.lat, d.station.lon]);
+    }
+    d.similar.forEach(function (s) {
+      L.circleMarker([s[0], s[1]], {radius: 5, className: "map-similar"}).bindTooltip("$" + s[2].toLocaleString("ru-RU") + "/м²").addTo(map);
+      bounds.push([s[0], s[1]]);
+    });
+    map.fitBounds(bounds, {padding: [24, 24], maxZoom: 16});
+  })();
+</script>
+{% endif %}{% endblock %}

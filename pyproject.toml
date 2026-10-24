@@ -31,7 +31,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-minsk_realty = ["web/templates/*.html", "web/static/*.css", "web/static/fonts/*", "analytics/*.json"]
+minsk_realty = ["web/templates/*.html", "web/static/*.css", "web/static/fonts/*", "web/static/leaflet/*", "web/static/leaflet/images/*", "analytics/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

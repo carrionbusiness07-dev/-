@@ -422,6 +422,10 @@ table { width: 100%; border-collapse: collapse; }
 .verdict-low, .verdict-unknown { background: var(--paper-2); color: var(--ink); }
 .verdict-low .verdict-reasons, .verdict-unknown .verdict-reasons { color: var(--ink-2); }
 
+.assessment { margin-top: var(--s5); }
+.assessment h2 { font: 700 30px/1.1 var(--head); letter-spacing: -0.005em; max-width: 30ch; }
+.assessment-detail { margin-top: var(--s2); font-size: 14px; color: var(--ink-2); max-width: 75ch; }
+
 .object-facts {
   display: flex; flex-wrap: wrap; gap: var(--s1) 0;
   margin-top: var(--s5); padding: var(--s3) 0;
@@ -431,6 +435,22 @@ table { width: 100%; border-collapse: collapse; }
 .object-facts span { white-space: nowrap; }
 .object-facts span + span::before { content: "·"; margin: 0 var(--s3); color: var(--ink-3); }
 .object-facts b { font-weight: 700; font-size: 25px; color: var(--ink); }
+
+.notes {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s5);
+  margin-top: var(--s5);
+}
+.notes .rubric { font: 700 18px/1.1 var(--head); letter-spacing: 0.01em; margin-bottom: var(--s2); }
+.notes ul { margin: 0; padding-left: 1.1em; display: grid; gap: var(--s1); }
+.notes p { max-width: 55ch; }
+
+.place p { max-width: 75ch; }
+.place-address { color: var(--ink-2); }
+#map { height: 300px; margin-top: var(--s3); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); background: var(--paper-2); font-family: var(--body); }
+.map-station { stroke: var(--spot-deep); fill: var(--spot); fill-opacity: 1; }
+.map-similar { stroke: var(--ink-3); fill: var(--ink-3); fill-opacity: 0.55; }
+.place-links { display: flex; gap: var(--s4); margin-top: var(--s2); font-size: 14px; }
+.place-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--spot); }
 
 .section-title {
   margin: var(--s6) 0 var(--s3);
@@ -567,6 +587,7 @@ code { font-size: 0.9em; background: var(--paper-2); padding: 1px 4px; border-ra
   .price-now { font-size: 21px; }
   .verdict { grid-template-columns: minmax(0, 1fr); }
   .verdict h2 { grid-row: auto; font-size: 26px; }
+  .assessment h2 { font-size: 25px; }
   .object-price { text-align: left; }
   .object-price .price-meta { justify-content: flex-start; }
   .object-price-now { font-size: 38px; }

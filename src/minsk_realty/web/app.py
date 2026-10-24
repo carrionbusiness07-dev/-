@@ -29,6 +29,7 @@ from minsk_realty.analytics import (
     fmt,
     source_health_summary,
 )
+from minsk_realty.analytics.render import web_blocks
 from minsk_realty.db.session import database_url, make_engine, make_session_factory
 from minsk_realty.web import views
 
@@ -220,6 +221,8 @@ def _report_page(request: Request, session: Session, snap: views.Snapshot, ref: 
         snap,
         session,
         report=report,
+        blocks=web_blocks(report),
+        map_data=views.map_data(report),
         timeline=views.timeline(snap, report),
         history=views.history_rows(report),
         nav_hint="objects",
