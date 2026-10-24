@@ -90,6 +90,10 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
         .limit(1)
     )
     if last is not None and last.content_hash == digest:
+        # extra в хеш не входит: новые поля площадки доходят до уже собранных объявлений
+        # обновлением на месте, без нового снимка (matching и события не запускаются).
+        if (last.extra or {}) != (snap.extra or {}):
+            last.extra = snap.extra
         return listing, None
 
     snapshot = Snapshot(

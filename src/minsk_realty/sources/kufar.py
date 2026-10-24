@@ -48,6 +48,7 @@ EXTRA_PARAMS = frozenset(
         "house_type",
         "flat_new_building",
         "new_buildings_apartment_complex",
+        "flat_repair",
     }
 )
 
@@ -123,6 +124,7 @@ class KufarAdapter:
             extra={
                 **{key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
                 **({"microdistrict": md} if (md := _label(params, "re_district")) else {}),
+                **({"repair": rp} if (rp := _label(params, "flat_repair")) else {}),
             },
         )
 

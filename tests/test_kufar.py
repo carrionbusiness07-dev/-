@@ -79,3 +79,14 @@ def test_search_cut_by_max_pages_is_not_complete(fixtures_dir):
     adapter = KufarAdapter(client)
     assert len(list(adapter.search(max_pages=2))) == 4
     assert not adapter.last_search_complete
+
+
+def test_flat_repair_goes_to_extra_with_code_and_label(fixtures_dir):
+    data = json.loads(
+        (fixtures_dir / "kufar" / "search_sell_minsk.2026-10-23.json").read_text(encoding="utf-8")
+    )
+    ad = next(a for a in data["ads"] if any(p["p"] == "flat_repair" for p in a["ad_parameters"]))
+    param = next(p for p in ad["ad_parameters"] if p["p"] == "flat_repair")
+    snap = KufarAdapter(client=object()).parse(to_raw(ad))
+    assert snap.extra["flat_repair"] == param["v"]
+    assert snap.extra["repair"] == param["vl"]

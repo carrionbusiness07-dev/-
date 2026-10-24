@@ -47,3 +47,22 @@ def test_resolve_url():
     adapter = RealtAdapter(client=object())
     assert adapter.resolve_url("https://realt.by/sale-flats/object/4242994/") == "4242994"
     assert adapter.resolve_url("https://realt.by/rent-flat-for-long/object/1/") is None
+
+
+def test_repair_state_goes_to_extra(fixtures_dir):
+    data = json.loads(
+        (fixtures_dir / "realt" / "sale_flats.2026-10-23.json").read_text(encoding="utf-8")
+    )
+    obj = next(o for o in data["objects"] if o.get("repairState") is not None)
+    snap = RealtAdapter(client=object()).parse(to_raw(obj))
+    assert snap.extra["repairState"] == obj["repairState"]
+    bare = next(o for o in data["objects"] if o.get("repairState") is None)
+    assert "repairState" not in RealtAdapter(client=object()).parse(to_raw(bare)).extra
+
+
+def test_repair_labels_match_realt_own_dictionary(fixtures_dir):
+    from minsk_realty.sources.realt import REALT_REPAIR_LABELS
+
+    path = fixtures_dir / "realt" / "repair_state_options.2026-10-24.json"
+    options = json.loads(path.read_text(encoding="utf-8"))["repairState"]
+    assert REALT_REPAIR_LABELS == {o["value"]: o["label"] for o in options}

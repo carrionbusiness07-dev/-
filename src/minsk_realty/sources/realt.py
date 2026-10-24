@@ -28,6 +28,21 @@ URL_RE = re.compile(r"realt\.by/(?:[a-z-]+-region/)?sale-flats/object/(\d+)")
 CURRENCY_BY_CODE = {933: "BYN", 840: "USD", 978: "EUR", 643: "RUB"}
 USD_CODE = "840"
 
+# Подписи кодов `repairState`: словарь самого Realt из __NEXT_DATA__ страницы
+# https://realt.by/sale/flats/ (filters, repairState), снят 24.10.2026, см.
+# tests/fixtures/realt/repair_state_options.2026-10-24.json. Не выдумывать, а сверять с ним.
+REALT_REPAIR_LABELS: dict[int, str] = {
+    0: "евроремонт",
+    1: "отличный",
+    2: "хороший",
+    3: "нормальный",
+    4: "удовлетворительный",
+    5: "плохое состояние",
+    6: "аварийное состояние",
+    7: "без отделки",
+    8: "строительная отделка",
+}
+
 
 class RealtAdapter:
     source = "realt"
@@ -103,6 +118,7 @@ class RealtAdapter:
                     "priceChangeDirection",
                     "buildingYear",
                     "metroStationName",
+                    "repairState",
                 )
                 if obj.get(key) is not None
             },

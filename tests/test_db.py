@@ -134,3 +134,26 @@ def test_migrations_match_models(tmp_path, monkeypatch):
     tables = set(inspect(make_engine(url)).get_table_names())
     assert {"objects", "listings", "snapshots", "events", "photo_hashes", "source_runs"} <= tables
     command.downgrade(config, "base")
+
+
+def test_extra_only_change_refreshes_last_snapshot_in_place(session, snap):
+    save_snapshot(session, snap)
+    later = T0 + timedelta(hours=1)
+    refreshed = snap.model_copy(
+        update={
+            "seen_at": later,
+            "extra": {**snap.extra, "flat_repair": "20", "repair": "Без отделки"},
+        }
+    )
+    listing, snapshot = save_snapshot(session, refreshed)
+    assert snapshot is None
+    assert len(listing.snapshots) == 1
+    assert listing.snapshots[0].extra == refreshed.extra
+    assert listing.snapshots[0].seen_at == T0
+
+
+def test_same_extra_leaves_snapshot_untouched(session, snap):
+    listing, first = save_snapshot(session, snap)
+    before = dict(first.extra)
+    save_snapshot(session, snap.model_copy(update={"seen_at": T0 + timedelta(hours=1)}))
+    assert listing.snapshots[0].extra == before
