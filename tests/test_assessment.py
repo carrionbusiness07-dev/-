@@ -325,7 +325,7 @@ def test_no_price_no_comparison():
 
 
 def test_price_group_bounds():
-    assert [price_group(x, CFG) for x in (-15, -14.9, -5, -4.9, 4.9, 5)] == [
+    assert [price_group(x, CFG) for x in (-25, -24.9, -10, -9.9, 9.9, 10)] == [
         "suspicious", "below", "below", "market", "market", "above",
     ]  # fmt: skip
 
@@ -558,15 +558,15 @@ def test_report_has_comparison_and_assessment(session, stations):
     assert r.flat.year == 1978 and r.flat.house_key == "ул притыцкого|10"
     c = r.comparison
     assert (c.step, c.epoch, c.rooms) == ("near", "1970_1990", 2)
-    assert c.group == "below" and c.diff_pct == pytest.approx(-7.2, abs=0.2)
+    assert c.group == "market" and c.diff_pct == pytest.approx(-7.2, abs=0.2)
     assert r.object_id not in {p.object_id for p in c.points}
-    assert r.assessment.kind == "below"
+    assert r.assessment.kind == "market"
     assert r.location.station.name == "Тестовая" and r.location.walk_min == 5
     assert r.same_house == ()
     assert r.bargaining.level == "high"
     payload = to_jsonable(r)
     assert payload["comparison"]["step"] == "near"
-    assert payload["assessment"]["kind"] == "below"
+    assert payload["assessment"]["kind"] == "market"
 
 
 def test_bargaining_uses_similar_flats(session, stations):
@@ -670,7 +670,7 @@ def test_text_follows_spec_layout(session, stations):
     text = _text(session)
     head = text.split("\n\n")[:4]
     assert head[0].splitlines()[0].startswith("🏠 2-комн.")
-    assert head[1] == "✅ Стоит смотреть: цена на 7.2% ниже похожих, торг реален"
+    assert head[1] == "✅ Цена в рынке, торг реален"
     assert head[2] == (
         "📍 Метро «Тестовая» — ~5 мин пешком (50 м). Дом 1978 г., 9 этажей\n"
         "👥 Подойдёт: паре или небольшой семье"
@@ -679,12 +679,11 @@ def test_text_follows_spec_layout(session, stations):
         "⚠️ Минусы:\n"
         "   • дом 1978 г. — узнайте, был ли капремонт и меняли ли стояки\n"
         "👍 Плюсы:\n"
-        "   • метро рядом\n"
-        "   • цена ниже похожих"
+        "   • метро рядом"
     )
     price_block = text.split("\n\n")[4]
     assert price_block.splitlines()[:2] == [
-        "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
+        "📊 Цена: $1 703/м² — на уровне похожих",
         "   (12 двушек в домах 1970–90-х в радиусе 1,5 км, медиана $1 835/м²)",
     ]
     assert price_block.splitlines()[2].startswith("🏢 Ещё в этом доме продаётся 1 квартира: $1 6")
@@ -800,7 +799,7 @@ def test_text_house_line(session, stations):
 def test_comparison_line_wording(session, stations, changes, first, second):
     _docs(session)
     r = build_check_report(session, KUFAR_URL, NOW)
-    base = {"usd_per_m2": 1703.0, "median": 1835.0, "diff_pct": -7.2, "n": 12}
+    base = {"usd_per_m2": 1703.0, "median": 1835.0, "diff_pct": -7.2, "n": 12, "group": "below"}
     c = replace(r.comparison, **{**base, **changes})
     lines = render_check_text(replace(r, comparison=c)).splitlines()
     assert lines[lines.index(first) + 1] == second
@@ -844,7 +843,7 @@ def test_text_first_time_has_assessment_before_the_note(session, stations):
     r = build_check_report(session, KUFAR_URL, NOW)
     lines = render_check_text(replace(r, data_level="first_time")).splitlines()
     note = lines.index("ℹ️ Эту квартиру мы видим впервые. Истории пока нет.")
-    assert lines.index("📊 Цена: $1 703/м² — на 7.2% ниже похожих") < note
+    assert lines.index("📊 Цена: $1 703/м² — на уровне похожих") < note
     assert lines[1] == "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство"
     assert not any(line.startswith(("⏳", "📉", "💬")) for line in lines)
     assert lines[-3] == "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."
