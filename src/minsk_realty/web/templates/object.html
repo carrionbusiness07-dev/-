@@ -128,12 +128,12 @@
     <h2 id="place-title" class="section-title">Где находится</h2>
     {% if map_data %}
     <div id="map" role="region" aria-label="Карта: квартира, ближайшее метро и похожие квартиры"></div>
-    <div class="map-legend">
-      {%- if map_data.flat.ppm %}
-      <span><i class="pin-key pin-cheap"></i>дешевле этой квартиры более чем на 5%</span>
+    <div class="map-legend" id="map-legend">
+      {%- if map_data.similar and map_data.flat.ppm %}
+      <span><i class="pin-key pin-cheap"></i>▼ дешевле этой квартиры более чем на 5%</span>
       <span><i class="pin-key pin-same"></i>примерно так же</span>
-      <span><i class="pin-key pin-dear"></i>дороже более чем на 5%</span>
-      {%- else %}
+      <span><i class="pin-key pin-dear"></i>▲ дороже более чем на 5%</span>
+      {%- elif map_data.similar %}
       <span><i class="pin-key pin-same"></i>похожие квартиры, цена за м²</span>
       {%- endif %}
       {%- if map_data.radius_km %}
@@ -236,10 +236,10 @@
       var r = ppm / d.flat.ppm - 1;
       return r < -NEAR ? "cheap" : r > NEAR ? "dear" : "same";
     }
-    function pin(lat, lon, cls, html, title, z) {
+    function pin(lat, lon, cls, html, title, z, keys) {
       return L.marker([lat, lon], {
         icon: L.divIcon({className: "pin-anchor", html: '<span class="' + cls + '">' + html + "</span>", iconSize: [0, 0]}),
-        title: title, zIndexOffset: z || 0, riseOnHover: true
+        title: title, zIndexOffset: z || 0, riseOnHover: true, keyboard: !!keys
       }).addTo(map);
     }
     function el(tag, cls, text) {
@@ -270,16 +270,18 @@
     d.similar.forEach(function (g) {
       var n = g.items.length + g.more, low = g.items[0].ppm;
       var label = n > 1 ? n + " кв. · от " + usd(low) : usd(low);
-      pin(g.lat, g.lon, "pin pin-" + tone(low), label, label + " за м²").bindPopup(popup(g), {maxHeight: 240, minWidth: 220});
+      var t = tone(low), mark = t === "cheap" ? "▼ " : t === "dear" ? "▲ " : "";
+      // Попап собирается по клику: групп может быть сотни.
+      pin(g.lat, g.lon, "pin pin-" + t, mark + label, label + " за м²", 0, true).bindPopup(function () { return popup(g); }, {maxHeight: 240, minWidth: 220});
       bounds.push([g.lat, g.lon]);
     });
     if (d.station) {
-      pin(d.station.lat, d.station.lon, "pin-metro-wrap", '<b class="pin-metro">М</b><span class="pin-name">' + el("i", "", d.station.name).innerHTML + "</span>", d.station.name, 500);
+      pin(d.station.lat, d.station.lon, "pin-metro-wrap", '<b class="pin-metro">М</b><span class="pin-name">' + el("i", "", d.station.name).innerHTML + "</span>", d.station.name, 500, false);
       bounds.push([d.station.lat, d.station.lon]);
     }
     pin(d.flat.lat, d.flat.lon, "pin-flat",
       '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5V20h-6v-5H9v5H3z" fill="currentColor"/></svg>',
-      "Эта квартира", 1000);
+      "Эта квартира", 1000, false);
     map.fitBounds(bounds, {padding: [32, 32], maxZoom: 16});
 
     // Легенда — обычный текст под картой; со скриптом переезжает в угол карты.
@@ -291,6 +293,7 @@
       var toggle = el("button", "legend-toggle", "Легенда");
       toggle.type = "button";
       toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-controls", "map-legend");
       toggle.addEventListener("click", function () {
         toggle.setAttribute("aria-expanded", String(legend.classList.toggle("is-open")));
       });

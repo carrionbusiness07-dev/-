@@ -619,6 +619,7 @@ class Timeline:
 
 
 MAP_GROUP_LIMIT = 10
+MAP_GROUPS_MAX = 300
 
 
 def map_data(report, data: MarketData) -> dict | None:
@@ -648,7 +649,10 @@ def map_data(report, data: MarketData) -> dict | None:
             }
         )
     similar = []
-    for (lat, lon), items in groups.items():
+    # shortcut: не больше 300 групп, оставляем ближайшие к квартире (не самые дешёвые, чтобы
+    # карта не искажалась); поднять, если на карте начнёт не хватать точек.
+    near = sorted(groups.items(), key=lambda g: (g[0][0] - loc.lat) ** 2 + (g[0][1] - loc.lon) ** 2)
+    for (lat, lon), items in near[:MAP_GROUPS_MAX]:
         items.sort(key=lambda i: i["ppm"])
         similar.append(
             {"lat": lat, "lon": lon, "items": items[:MAP_GROUP_LIMIT],

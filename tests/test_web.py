@@ -170,6 +170,24 @@ def test_map_data_groups_points_by_coordinates():
     }
 
 
+def test_map_data_caps_groups_keeping_nearest():
+    from types import SimpleNamespace
+
+    from minsk_realty.analytics.comparables import ComparePoint
+    from minsk_realty.web import views
+
+    # 305 разных точек по линии от квартиры (53.9, 27.55); самые дорогие стоят дальше всех.
+    points = [ComparePoint(i, 53.9 + (i + 1) * 0.001, 27.55, 2, None, 1500.0 + i, None) for i in range(305)]
+    report = SimpleNamespace(
+        location=_loc(),
+        comparison=SimpleNamespace(points=tuple(points), radius_km=3),
+        listing=None,
+    )
+    got = views.map_data(report, SimpleNamespace(objects={}))["similar"]
+    assert len(got) == views.MAP_GROUPS_MAX == 300
+    assert {g["items"][0]["id"] for g in got} == set(range(300))
+
+
 def test_object_page_has_map(client):
     hrefs = client.get("/objects").text.split('href="/objects/')[1:]
     pages = [client.get("/objects/" + h.split('"', 1)[0]).text for h in hrefs]
@@ -179,7 +197,9 @@ def test_object_page_has_map(client):
     assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
     assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in page and "cartocdn" not in page
-    assert 'class="map-legend"' in page and "дешевле" in page and "дороже" in page
+    assert 'class="map-legend"' in page and 'id="map-legend"' in page
+    # Строки «дешевле/дороже» только когда на карте есть похожие.
+    assert all("▼ дешевле" not in p for p in pages if '"similar": []' in p)
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
     assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
 
