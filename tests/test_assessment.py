@@ -3,9 +3,12 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from analytics_data import NOW
+from analytics_data import KUFAR_URL, NOW, add_background, build_docs_scenario
+from sqlalchemy import select, update
+from test_analytics import FRUNZ_PPM, OUTLIERS
 from test_analytics import _market as _flat_market
 
+from minsk_realty.analytics import to_jsonable
 from minsk_realty.analytics.assessment import assess, same_house
 from minsk_realty.analytics.comparables import (
     ComparePoint,
@@ -25,8 +28,10 @@ from minsk_realty.analytics.data import (
 )
 from minsk_realty.analytics.geo import Location, Station
 from minsk_realty.analytics.medians import MedianCell, compute_baseline
+from minsk_realty.analytics.report import build_check_report
 from minsk_realty.db.models import Base, Listing, RealtyObject, Snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
+from minsk_realty.matching import process_after_run
 
 T0 = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
 
@@ -426,3 +431,81 @@ def test_same_house():
     assert same_house(pts, object_id=None, house_key="ул х|1") == (1690.0, 1700.0, 1880.0)
     assert same_house(pts, object_id=1, house_key=None) == ()
     assert same_house([], object_id=1, house_key="ул х|1") == ()
+
+
+# --- Отчёт /check: сравнение с похожими, вывод, метро ---
+
+SCENARIO_POINT = (53.9050, 27.4785)  # Притыцкого, 10
+STATIONS = (Station("Тестовая", 53.9050, 27.4785),)
+
+
+def _docs(session, *, year=1978, coords=True, scale=1.0) -> None:
+    """Сценарий docs + фон Фрунзенского района (в радиусе 1 км, тот же год постройки)."""
+    build_docs_scenario(session, year=year, coords=coords)
+    near = SCENARIO_POINT if coords else None
+    ppm = [v * scale for v in FRUNZ_PPM]
+    add_background(session, len(ppm), ppm_values=ppm, year=year, near=near)
+    add_background(session, 2, ppm_values=OUTLIERS, prefix="out", year=year, near=near)
+    process_after_run(session, None, now=NOW, full=True)
+
+
+@pytest.fixture
+def stations(monkeypatch):
+    monkeypatch.setattr("minsk_realty.analytics.geo.load_stations", lambda: STATIONS)
+
+
+def test_report_has_comparison_and_assessment(session, stations):
+    _docs(session)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.year == 1978 and r.flat.house_key == "ул притыцкого|10"
+    c = r.comparison
+    assert (c.step, c.epoch, c.rooms) == ("near", "1970_1990", 2)
+    assert c.group == "below" and c.diff_pct == pytest.approx(-7.2, abs=0.2)
+    assert r.object_id not in {p.object_id for p in c.points}
+    assert r.assessment.kind == "below"
+    assert r.location.station.name == "Тестовая" and r.location.walk_min == 5
+    assert r.same_house == ()
+    assert r.bargaining.level == "high"
+    payload = to_jsonable(r)
+    assert payload["comparison"]["step"] == "near"
+    assert payload["assessment"]["kind"] == "below"
+
+
+def test_bargaining_uses_similar_flats(session, stations):
+    _docs(session, scale=0.8)  # похожие дешевле: квартира заметно дороже медианы
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert (r.comparison.step, r.comparison.group) == ("near", "above")
+    [reason] = [x for x in r.bargaining.reasons if x.code == "above_median"]
+    assert "медианы похожих квартир" in reason.text
+
+
+def test_report_for_removed_listing_still_compares(session, stations):
+    _docs(session)
+    item = session.scalar(select(Listing).where(Listing.external_id == "1000201"))
+    # Снятая квартира: все объявления объекта неактивны, но отчёт строится.
+    session.execute(
+        update(Listing).where(Listing.object_id == item.object_id).values(status="inactive")
+    )
+    r = build_check_report(session, item.id, NOW)
+    assert r.status == "ok" and r.comparison is not None
+    assert item.object_id not in {p.object_id for p in r.comparison.points}
+
+
+def test_report_without_coordinates(session, stations):
+    _docs(session, coords=False)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.location is None
+    assert r.comparison.step == "district" and r.comparison.points == ()
+    assert r.assessment is not None
+
+
+def test_report_same_house_prices(session, stations):
+    _docs(session)
+    oid = session.scalar(select(Listing.object_id).where(Listing.external_id == "1000201"))
+    other = session.scalar(
+        select(RealtyObject).where(RealtyObject.id != oid).order_by(RealtyObject.id)
+    )
+    other.street_norm, other.house = "ул притыцкого", "10"
+    session.flush()
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert len(r.same_house) == 1 and r.same_house[0] == pytest.approx(FRUNZ_PPM[0], abs=1)

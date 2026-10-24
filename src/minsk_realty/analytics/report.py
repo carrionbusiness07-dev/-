@@ -25,16 +25,19 @@ from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from minsk_realty.analytics.assessment import Assessment, assess, same_house
 from minsk_realty.analytics.bargaining import (
     Bargaining,
     BargainInputs,
     CheaperOffer,
     bargaining_index,
 )
+from minsk_realty.analytics.comparables import Comparison, find_comparison, house_key
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import ListingRow, MarketData, load_market, source_starts
 from minsk_realty.analytics.exposure import Exposure, compute_exposure
 from minsk_realty.analytics.fmt import normalize_district, plural, street_label
+from minsk_realty.analytics.geo import Location, locate
 from minsk_realty.analytics.history import PriceMoves, PricePoint, build_price_history, price_moves
 from minsk_realty.analytics.medians import MarketBaseline, MedianCell, compute_baseline
 from minsk_realty.db.models import Listing
@@ -96,6 +99,8 @@ class FlatInfo:
     floors_total: int | None
     street: str | None  # для показа: «ул. Притыцкого» (без номера дома)
     district: str | None  # «Фрунзенский»
+    year: int | None = None  # год постройки; для scope="listing" не подставляем
+    house_key: str | None = None  # «улица|дом» как у ComparePoint.house_key; для "listing" None
 
 
 @dataclass(frozen=True)
@@ -175,6 +180,10 @@ class CheckReport:
     median: MedianComparison | None = None
     exposure_median: MedianCell | None = None
     bargaining: Bargaining | None = None
+    location: Location | None = None
+    comparison: Comparison | None = None
+    assessment: Assessment | None = None
+    same_house: tuple[float, ...] = ()  # $/м² других объектов в том же доме, по возрастанию
     # Подчеркнуть кнопку «Следить»: истории мало или объявление ещё не в базе.
     suggest_watch: bool = True
 
@@ -272,6 +281,30 @@ def build_check_report(
         median = MedianComparison(median_cell, ppm, diff)
     exposure_cell = baseline.exposure_for(flat.district)
 
+    point = (
+        data.object_point(oid, cfg.approx_coord_sources)
+        if scope == "object"
+        else data.listing_point(target.id, cfg.approx_coord_sources)
+    )
+    location = locate(point[0], point[1], approx=point[2]) if point else None
+    # Объект исключается из своей выборки и при склейке low (год и дом для него не берём).
+    comparison = find_comparison(
+        baseline.points,
+        object_id=oid,
+        point=point,
+        rooms=flat.rooms,
+        year=flat.year,
+        usd_per_m2=current.usd_per_m2 if current else None,
+        district_cell=median_cell,
+        now_year=now.year,
+        cfg=cfg,
+    )
+    similar = comparison is not None and comparison.step in ("near", "wide")
+    if comparison is not None:
+        vs_median = comparison.diff_pct
+    else:
+        vs_median = median.diff_pct if median and median.cell.enough else None
+
     data_level = _data_level(exposure, moves, included, others, now)
     has_trusted_others = any(o.confidence in ("high", "medium") for o in others)
     bargaining = bargaining_index(
@@ -285,12 +318,25 @@ def build_check_report(
             ups=moves.ups,
             relists=(exposure.relist_count + exposure.returned_new_listing) if exposure else 0,
             cheaper=cheaper,
-            vs_median_pct=median.diff_pct if median and median.cell.enough else None,
-            median_scope=_scope_word(median_cell, "района", "по Минску"),
+            vs_median_pct=vs_median,
+            median_scope=(
+                "похожих квартир" if similar else _scope_word(median_cell, "района", "по Минску")
+            ),
             current_amount=current.amount if current else None,
             currency=current.currency if current else None,
         ),
         cfg,
+    )
+    assessment = assess(
+        comparison=comparison,
+        bargaining_level=bargaining.level,
+        rooms=flat.rooms,
+        area=flat.area,
+        floor=flat.floor,
+        floors_total=flat.floors_total,
+        year=flat.year,
+        now_year=now.year,
+        location=location,
     )
 
     possible = None
@@ -331,6 +377,10 @@ def build_check_report(
         median=median,
         exposure_median=exposure_cell,
         bargaining=bargaining,
+        location=location,
+        comparison=comparison,
+        assessment=assessment,
+        same_house=same_house(baseline.points, object_id=oid, house_key=flat.house_key),
         suggest_watch=data_level != "full" or bargaining.level == "unknown",
     )
 
@@ -375,6 +425,8 @@ def _flat_info(data: MarketData, oid: int | None, target: ListingRow) -> FlatInf
         ),
         street=street,
         district=district,
+        year=data.building_years.get(oid) if oid else None,
+        house_key=house_key(obj.street_norm, obj.house) if obj else None,
     )
 
 

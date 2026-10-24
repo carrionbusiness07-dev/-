@@ -30,6 +30,11 @@ def epoch(year: int | None, now_year: int) -> str | None:
     return "1991_2010" if year <= 2010 else "post2010"
 
 
+def house_key(street_norm: str | None, house: str | None) -> str | None:
+    """Ключ дома «улица|дом»; None, если чего-то из двух нет."""
+    return f"{street_norm}|{house}" if street_norm and house else None
+
+
 @dataclass(frozen=True)
 class ComparePoint:
     object_id: int

@@ -141,28 +141,46 @@ def start_observation(session, at: datetime = OBS_START, sources=("kufar", "real
     session.flush()
 
 
-def build_docs_scenario(session) -> None:
+def build_docs_scenario(session, *, year: int | None = None, coords: bool = True) -> None:
     """Квартира на Притыцкого: Realt с 20.07 ($98 000 → $95 000), снята 30.09, тем же агентством
-    перевыложена на Kufar 03.10 за $92 500, другое агентство на Onliner за $91 000."""
+    перевыложена на Kufar 03.10 за $92 500, другое агентство на Onliner за $91 000.
+    `year` — год постройки в снимках Kufar и Realt; `coords=False` — снимки без координат."""
+
+    def snap(make, ext: str, year_key: str | None, **kw) -> ListingSnapshot:
+        if year is not None and year_key:
+            kw["extra"] = {year_key: year}
+        if not coords:
+            kw |= {"lat": None, "lon": None}
+        return make(ext, **kw)
+
+    def r(ext, **kw):
+        return snap(realt, ext, "buildingYear", **kw)
+
+    def k(ext, **kw):
+        return snap(kufar, ext, "year_built", **kw)
+
+    def o(ext, **kw):
+        return snap(onliner, ext, None, **kw)
+
     start_observation(session)
     photos = hashes(1)
     jul20 = datetime(2026, 7, 20, 9, 0, tzinfo=UTC)
-    observe(session, "realt", jul20, realt("101"), photos={"101": photos})
+    observe(session, "realt", jul20, r("101"), photos={"101": photos})
     aug28 = datetime(2026, 8, 28, 9, 0, tzinfo=UTC)
     observe(
-        session, "realt", aug28, realt("101", price_amount=Decimal(95000), price_usd=Decimal(95000))
+        session, "realt", aug28, r("101", price_amount=Decimal(95000), price_usd=Decimal(95000))
     )
     sep29 = datetime(2026, 9, 29, 9, 0, tzinfo=UTC)
     observe(
-        session, "realt", sep29, realt("101", price_amount=Decimal(95000), price_usd=Decimal(95000))
+        session, "realt", sep29, r("101", price_amount=Decimal(95000), price_usd=Decimal(95000))
     )
     observe(session, "realt", sep29 + DAY)  # снято
     oct3 = datetime(2026, 10, 3, 9, 0, tzinfo=UTC)
-    observe(session, "kufar", oct3, kufar("1000201"), photos={"1000201": blurred(photos)[:3]})
+    observe(session, "kufar", oct3, k("1000201"), photos={"1000201": blurred(photos)[:3]})
     oct5 = datetime(2026, 10, 5, 9, 0, tzinfo=UTC)
-    observe(session, "onliner", oct5, onliner("301"), photos={"301": blurred(photos, 2)})
-    for source, snap in (("kufar", kufar("1000201")), ("onliner", onliner("301"))):
-        observe(session, source, NOW - HOUR, snap)
+    observe(session, "onliner", oct5, o("301"), photos={"301": blurred(photos, 2)})
+    for source, snap_ in (("kufar", k("1000201")), ("onliner", o("301"))):
+        observe(session, source, NOW - HOUR, snap_)
 
 
 def add_background(
@@ -176,8 +194,12 @@ def add_background(
     start: datetime = OBS_START,
     step: timedelta = 7 * DAY,
     prefix: str = "bg",
+    year: int | None = None,
+    near: tuple[float, float] | None = None,
 ) -> list[int]:
-    """`n` фоновых объектов: по одному активному объявлению, площадь 50 м², цена из ppm."""
+    """`n` фоновых объектов: по одному активному объявлению, площадь 50 м², цена из ppm.
+    `year` — год постройки (Kufar: extra.year_built); `near` — координаты рядом с этой точкой
+    (шаг 20 м на объект), по умолчанию без координат."""
     ppm_values = ppm_values or [1780 + 10 * i for i in range(n)]
     ids = []
     for i in range(n):
@@ -219,6 +241,9 @@ def add_background(
                 area_total=50.0,
                 district=district,
                 town="Минск",
+                lat=near[0] + 0.0002 * i if near else None,
+                lon=near[1] if near else None,
+                extra={"year_built": year} if year else {},
             )
         )
         ids.append(obj.id)

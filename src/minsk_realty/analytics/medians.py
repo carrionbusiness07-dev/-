@@ -145,7 +145,7 @@ def compute_baseline(
 ) -> MarketBaseline:
     ppm_groups: dict[tuple[str | None, RoomsKey], list[float]] = defaultdict(list)
     exp_groups: dict[str | None, list[float]] = defaultdict(list)
-    from minsk_realty.analytics.comparables import ComparePoint, epoch  # цикл импортов
+    from minsk_realty.analytics.comparables import ComparePoint, epoch, house_key  # цикл импортов
 
     points: list[ComparePoint] = []
     active = truncated = 0
@@ -176,13 +176,11 @@ def compute_baseline(
         coords = data.object_point(object_id, cfg.approx_coord_sources)
         if bucket is not None and coords is not None:
             obj = data.objects.get(object_id)
-            house_key = (
-                f"{obj.street_norm}|{obj.house}" if obj and obj.street_norm and obj.house else None
-            )
+            key = house_key(obj.street_norm, obj.house) if obj else None
             points.append(
                 ComparePoint(
                     object_id, coords[0], coords[1], bucket,
-                    epoch(data.building_years.get(object_id), at.year), value, house_key,
+                    epoch(data.building_years.get(object_id), at.year), value, key,
                 )
             )  # fmt: skip
 
