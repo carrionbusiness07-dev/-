@@ -6,10 +6,10 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect, select
+from sqlalchemy import event, inspect, select
 
 from minsk_realty.db.models import Base, Listing, Snapshot, SourceRun
-from minsk_realty.db.repository import mark_unseen_inactive, save_snapshot
+from minsk_realty.db.repository import PHOTO_URLS_KEEP, mark_unseen_inactive, save_snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.sources.kufar import KufarAdapter, to_raw
 
@@ -148,7 +148,10 @@ def test_extra_only_change_refreshes_last_snapshot_in_place(session, snap):
     listing, snapshot = save_snapshot(session, refreshed)
     assert snapshot is None
     assert len(listing.snapshots) == 1
-    assert listing.snapshots[0].extra == refreshed.extra
+    assert listing.snapshots[0].extra == {
+        **refreshed.extra,
+        "photo_urls": snap.photo_urls[:PHOTO_URLS_KEEP],
+    }
     assert listing.snapshots[0].seen_at == T0
 
 
@@ -157,3 +160,41 @@ def test_same_extra_leaves_snapshot_untouched(session, snap):
     before = dict(first.extra)
     save_snapshot(session, snap.model_copy(update={"seen_at": T0 + timedelta(hours=1)}))
     assert listing.snapshots[0].extra == before
+
+
+def test_first_photo_urls_kept_in_extra(session, snap):
+    urls = [f"https://rms.kufar.by/v1/gallery/adim1/{i}.jpg" for i in range(10)]
+    _, snapshot = save_snapshot(session, snap.model_copy(update={"photo_urls": urls}))
+    assert snapshot.extra["photo_urls"] == urls[:PHOTO_URLS_KEEP] and PHOTO_URLS_KEEP == 6
+
+
+def test_no_photos_means_no_key(session, snap):
+    _, snapshot = save_snapshot(session, snap.model_copy(update={"photo_urls": []}))
+    assert "photo_urls" not in snapshot.extra
+
+
+def test_same_photo_urls_do_not_touch_snapshot(session, snap):
+    urls = [f"https://rms.kufar.by/v1/gallery/adim1/{i}.jpg" for i in range(10)]
+    save_snapshot(session, snap.model_copy(update={"photo_urls": urls}))
+    session.commit()
+    updates = []
+    event.listen(
+        session.get_bind(),
+        "before_cursor_execute",
+        lambda conn, cur, stmt, *args: (
+            updates.append(stmt) if stmt.startswith("UPDATE snapshots") else None
+        ),
+    )
+    again = snap.model_copy(update={"photo_urls": urls, "seen_at": T0 + timedelta(hours=1)})
+    save_snapshot(session, again)
+    session.commit()
+    assert updates == []
+
+
+def test_photo_urls_added_to_existing_snapshot_in_place(session, snap):
+    listing, _ = save_snapshot(session, snap.model_copy(update={"photo_urls": []}))
+    urls = ["https://rms.kufar.by/v1/gallery/adim1/a.jpg"]
+    save_snapshot(
+        session, snap.model_copy(update={"photo_urls": urls, "seen_at": T0 + timedelta(hours=1)})
+    )
+    assert len(listing.snapshots) == 1 and listing.snapshots[0].extra["photo_urls"] == urls

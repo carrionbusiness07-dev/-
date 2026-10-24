@@ -32,6 +32,9 @@ SIGNIFICANT_FIELDS = (
 # и правка набора полей не порождает разом новые снимки у всех объявлений.
 HASH_VERSION = "v1"
 
+# Сколько первых ссылок на фото хранить в extra["photo_urls"] (читает шаг хеширования фото).
+PHOTO_URLS_KEEP = 6
+
 
 def content_hash(snap: ListingSnapshot) -> str:
     data = {field: _canonical(getattr(snap, field)) for field in SIGNIFICANT_FIELDS}
@@ -54,6 +57,14 @@ def save_snapshot(session: Session, snap: ListingSnapshot) -> tuple[Listing, Sna
     Возвращает объявление и новый снимок (или None, если ничего не поменялось).
     Цена сравнивается в исходной валюте объявления: курс в хеш не входит.
     """
+    # Ссылки на фото кладём в extra здесь, в одном месте. Ни у одной площадки в ссылках нет
+    # меняющихся параметров (проверено по фикстурам), так что extra стабилен между проходами.
+    # Нет фото — ключа нет. extra в хеш не входит.
+    extra = {k: v for k, v in (snap.extra or {}).items() if k != "photo_urls"}
+    if snap.photo_urls:
+        extra["photo_urls"] = list(snap.photo_urls[:PHOTO_URLS_KEEP])
+    snap = snap.model_copy(update={"extra": extra})
+
     listing = session.scalar(
         select(Listing).where(
             Listing.source == snap.source, Listing.external_id == snap.external_id
