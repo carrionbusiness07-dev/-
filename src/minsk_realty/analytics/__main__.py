@@ -5,12 +5,14 @@ python -m minsk_realty.analytics weekly [--now ...] [--json]
 python -m minsk_realty.analytics check https://re.kufar.by/vi/1000000001 [--json]
 python -m minsk_realty.analytics overview [--json]
 python -m minsk_realty.analytics health [--json]
+python -m minsk_realty.analytics assessment [--now ...] [--seed 1] [--json]
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import time
 from datetime import UTC, datetime
 
 from minsk_realty.analytics import (
@@ -24,6 +26,9 @@ from minsk_realty.analytics import (
     to_jsonable,
     weekly_summary,
 )
+from minsk_realty.analytics.assessment_stats import assessment_stats, render_stats_text
+from minsk_realty.analytics.data import load_market
+from minsk_realty.analytics.medians import compute_baseline
 from minsk_realty.db.session import make_engine, make_session_factory
 
 
@@ -43,10 +48,13 @@ def main(argv: list[str] | None = None) -> int:
         ("overview", "обзор рынка для кабинета"),
         ("health", "здоровье источников"),
         ("check", "отчёт /check по ссылке или listing:<id>"),
+        ("assessment", "как оценка «цена против похожих» раскладывает весь рынок"),
     ):
         p = sub.add_parser(name, help=help_)
         if name == "check":
             p.add_argument("ref")
+        if name == "assessment":
+            p.add_argument("--seed", type=int, default=1, help="для списка случайных объектов")
         p.add_argument("--now", help="момент расчёта, ISO 8601 (по умолчанию — сейчас)")
         p.add_argument("--json", action="store_true", help="структура вместо текста")
     args = parser.parse_args(argv)
@@ -64,6 +72,14 @@ def main(argv: list[str] | None = None) -> int:
             ref = int(args.ref) if args.ref.isdigit() else args.ref
             result = build_check_report(session, ref, now)
             text = render_check_text
+        elif args.cmd == "assessment":
+            started = time.perf_counter()
+            stats = assessment_stats(
+                data := load_market(session), compute_baseline(data, now), now, seed=args.seed
+            )
+            seconds = round(time.perf_counter() - started, 1)
+            result = {"stats": stats, "seconds": seconds}
+            text = lambda _: render_stats_text(stats, seconds)
         elif args.cmd == "overview":
             result, text = market_overview(session, now), None
         else:

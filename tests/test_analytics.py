@@ -724,6 +724,11 @@ def test_cli(docs, tmp_path, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["week"] == 43
     assert main(["health", "--now", NOW.isoformat()]) == 0
     assert '"source": "kufar"' in capsys.readouterr().out
+    assert main(["assessment", "--now", NOW.isoformat()]) == 0
+    out = capsys.readouterr().out
+    assert "suspicious" in out and "near" in out and "посчитано за" in out
+    assert main(["assessment", "--now", NOW.isoformat(), "--json", "--seed", "2"]) == 0
+    assert json.loads(capsys.readouterr().out)["stats"]["total"] > 0
 
 
 def test_report_builds_fast_enough(docs):

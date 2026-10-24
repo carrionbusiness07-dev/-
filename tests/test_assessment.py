@@ -738,3 +738,31 @@ def test_text_verdict_icon_by_kind(session, stations, kind, icon):
     r = build_check_report(session, KUFAR_URL, NOW)
     text = render_check_text(replace(r, assessment=replace(r.assessment, kind=kind)))
     assert f"{icon} {r.assessment.verdict}" in text.splitlines()
+
+
+# --- Статистика оценки по всему рынку ---
+
+
+def test_assessment_stats_counts_add_up():
+    from minsk_realty.analytics.assessment_stats import assessment_stats
+
+    data = _flat_market(12)
+    for i, snaps in data.snapshots.items():
+        data.snapshots[i] = [replace(s, lat=53.9 + i / 10_000, lon=27.5) for s in snaps]
+    data.snapshots[12] = [replace(s, lat=None, lon=None) for s in data.snapshots[12]]  # без точки
+    data.snapshots[11] = [replace(s, usd=None, amount=None) for s in data.snapshots[11]]  # без цены
+    data.listings[10] = replace(data.listings[10], source="realt")  # неточная точка
+    data.reindex()
+    st = assessment_stats(data, compute_baseline(data, NOW), NOW, seed=1)
+
+    assert st.total == 12
+    assert sum(b.n for b in st.groups.values()) == 12
+    assert set(st.groups) == {"suspicious", "below", "market", "above", "unknown"}
+    assert st.groups["unknown"].n == 1  # цены нет
+    assert st.no_coords.n == 1 and st.approx.n == 1
+    # 12-я без координат: сравнение только по району, а не по радиусу
+    assert st.steps["district"].n >= 1
+    assert st.steps["near"].n + st.steps["wide"].n + st.steps["district"].n == 11
+    assert st.groups["market"].share == pytest.approx(st.groups["market"].n / 12)
+    assert len(st.sample) == 10 and set(st.sample) <= set(data.objects)
+    assert st == assessment_stats(data, compute_baseline(data, NOW), NOW, seed=1)
