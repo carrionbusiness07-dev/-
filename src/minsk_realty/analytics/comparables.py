@@ -64,9 +64,12 @@ class Comparison:
     finish: str | None = None  # отделка, по которой отобраны похожие; None — не учитывалась
 
 
-def price_group(diff_pct: float, cfg: AnalyticsConfig = DEFAULT_ANALYTICS) -> str:
+def price_group(
+    diff_pct: float, cfg: AnalyticsConfig = DEFAULT_ANALYTICS, *, new_building: bool = False
+) -> str:
+    # В новостройке большая скидка к похожим — норма (застройщик, этаж, стадия): не «подозрительно».
     if diff_pct <= cfg.group_suspicious_pct:
-        return "suspicious"
+        return "below" if new_building else "suspicious"
     if diff_pct <= cfg.group_below_pct:
         return "below"
     return "above" if diff_pct >= cfg.group_above_pct else "market"
@@ -84,6 +87,7 @@ def find_comparison(
     now_year: int,
     cfg: AnalyticsConfig = DEFAULT_ANALYTICS,
     finish: str | None = None,
+    new_building: bool = False,
 ) -> Comparison | None:
     if usd_per_m2 is None:
         return None
@@ -97,7 +101,7 @@ def find_comparison(
         shown_diff = float(f"{diff:.1f}" if abs(diff) < 10 else f"{diff:.0f}")  # как в fmt.pct
         return Comparison(
             step, radius_km, used_epoch, used_rooms, n, median, usd_per_m2, diff,
-            price_group(shown_diff, cfg), year is not None, district, shown, used_finish,
+            price_group(shown_diff, cfg, new_building=new_building), year is not None, district, shown, used_finish,
         )  # fmt: skip
 
     # Неточная координата (центр улицы) для радиуса 1,5 км не годится — сразу район.

@@ -14,6 +14,7 @@ from minsk_realty.analytics.comparables import find_comparison
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData
 from minsk_realty.analytics.medians import MarketBaseline
+from minsk_realty.analytics.report import is_new_building
 
 GROUPS = ("suspicious", "below", "market", "above", "unknown")
 STEPS = ("near", "wide", "district")
@@ -70,6 +71,9 @@ def assessment_stats(
             district_cell=baseline.price_for(data.object_district(oid), rooms),
             now_year=at.year,
             cfg=cfg,
+            new_building=is_new_building(
+                data.building_years.get(oid), data.new_buildings.get(oid), at.year
+            ),
         )
         group = comparison.group if comparison else "unknown"
         groups[group] += 1

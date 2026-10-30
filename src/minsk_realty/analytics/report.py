@@ -26,12 +26,6 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.assessment import Assessment, assess, same_house
-from minsk_realty.analytics.bargaining import (
-    Bargaining,
-    BargainInputs,
-    CheaperOffer,
-    bargaining_index,
-)
 from minsk_realty.analytics.comparables import Comparison, epoch, find_comparison, house_key
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import ListingRow, MarketData, load_market, source_starts
@@ -182,7 +176,6 @@ class CheckReport:
     sellers: SellersInfo | None = None
     median: MedianComparison | None = None
     exposure_median: MedianCell | None = None
-    bargaining: Bargaining | None = None
     location: Location | None = None
     comparison: Comparison | None = None
     assessment: Assessment | None = None
@@ -272,7 +265,6 @@ def build_check_report(
     # При склейке low объект может оказаться другой квартирой: его поля не подставляем.
     flat = _flat_info(data, oid if scope == "object" else None, target, now.year)
     others = _others(data, oid, target, current) if scope == "object" else []
-    cheaper = _cheapest_other(others, current, cfg)
 
     median_cell = baseline.price_for(flat.district, flat.rooms)
     median = None
@@ -302,45 +294,14 @@ def build_check_report(
         now_year=now.year,
         cfg=cfg,
         finish=flat.finish,
+        # Как в _flat_info: при склейке low поля объекта не берём.
+        new_building=is_new_building(
+            flat.year, data.new_buildings.get(oid) if scope == "object" else None, now.year
+        ),
     )
-    similar = comparison is not None and comparison.step in ("near", "wide")
-    if comparison is not None:
-        vs_median = comparison.diff_pct
-    else:
-        vs_median = median.diff_pct if median and median.cell.enough else None
 
     data_level = _data_level(exposure, moves, included, others, now)
-    has_trusted_others = any(o.confidence in ("high", "medium") for o in others)
-    bargaining = bargaining_index(
-        BargainInputs(
-            has_history=data_level != "first_time" or has_trusted_others,
-            days_on_market=exposure.days if exposure else None,
-            at_least=exposure.at_least if exposure else False,
-            exposure_median_days=exposure_cell.median if exposure_cell else None,
-            exposure_scope=_scope_word(exposure_cell, "по району", "по Минску"),
-            drops=moves.drops,
-            ups=moves.ups,
-            relists=(exposure.relist_count + exposure.returned_new_listing) if exposure else 0,
-            cheaper=cheaper,
-            vs_median_pct=vs_median,
-            median_scope=(
-                "похожих квартир" if similar else _scope_word(median_cell, "района", "по Минску")
-            ),
-            current_amount=current.amount if current else None,
-            currency=current.currency if current else None,
-        ),
-        cfg,
-    )
-    assessment = assess(
-        comparison=comparison,
-        usd_per_m2=current.usd_per_m2 if current else None,
-        bargaining_level=bargaining.level,
-        floor=flat.floor,
-        floors_total=flat.floors_total,
-        year=flat.year,
-        now_year=now.year,
-        location=location,
-    )
+    assessment = assess(comparison=comparison, usd_per_m2=current.usd_per_m2 if current else None)
 
     possible = None
     if scope == "listing" and oid and trusted:
@@ -379,17 +340,12 @@ def build_check_report(
         sellers=_sellers(included),
         median=median,
         exposure_median=exposure_cell,
-        bargaining=bargaining,
         location=location,
         comparison=comparison,
         assessment=assessment,
         same_house=same_house(baseline.points, object_id=oid, house_key=flat.house_key),
-        suggest_watch=data_level != "full" or bargaining.level == "unknown",
+        suggest_watch=data_level != "full",
     )
-
-
-def _scope_word(cell: MedianCell | None, district_word: str, city_word: str) -> str:
-    return district_word if cell is not None and cell.district else city_word
 
 
 def _current_price(data: MarketData, target: ListingRow) -> CurrentPrice | None:
@@ -409,13 +365,20 @@ def _current_price(data: MarketData, target: ListingRow) -> CurrentPrice | None:
     )
 
 
+def is_new_building(year: int | None, new_flag: bool | None, now_year: int) -> bool:
+    """Новостройка: флаг Kufar, строящийся дом или дом не старше двух лет."""
+    if year is None:
+        return bool(new_flag)
+    return bool(new_flag) or year >= now_year - 2
+
+
 def housing_label(year: int | None, new_flag: bool | None, now_year: int) -> str | None:
     """Новостройка или вторичка: по году постройки и флагу Kufar; неизвестно — None."""
     if year is None:
         return "новостройка" if new_flag else None
     if epoch(year, now_year) == "building":
         return f"новостройка, дом сдаётся в {year}"
-    if new_flag or year >= now_year - 2:
+    if is_new_building(year, new_flag, now_year):
         return f"новостройка, дом {year} г."
     return f"вторичка, дом {year} г."
 
@@ -486,34 +449,6 @@ def _others(
         )
     out.sort(key=lambda o: (o.confidence not in ("high", "medium"), o.usd or Decimal(10**12)))
     return out
-
-
-def _cheapest_other(
-    others: list[OtherListing], current: CurrentPrice | None, cfg: AnalyticsConfig
-) -> CheaperOffer | None:
-    if current is None:
-        return None
-    best = None
-    for o in others:
-        if o.confidence not in ("high", "medium") or o.cheaper_by is None or o.cheaper_by <= 0:
-            continue
-        base = current.amount if o.cheaper_currency == current.currency else current.usd
-        if not base or o.cheaper_by / base * 100 < Decimal(str(cfg.cheaper_min_pct)):
-            continue
-        if best is None or o.cheaper_by > best.cheaper_by:
-            best = o
-    if best is None:
-        return None
-    same = best.cheaper_currency == best.currency
-    return CheaperOffer(
-        listing_id=best.listing_id,
-        source=best.source,
-        amount=best.amount if same else best.usd,
-        currency=best.currency if same else "USD",
-        diff=best.cheaper_by,
-        url=best.url,
-        other_seller=best.other_seller,
-    )
 
 
 def _data_level(

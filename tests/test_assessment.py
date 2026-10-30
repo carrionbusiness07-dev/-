@@ -10,7 +10,7 @@ from test_analytics import FRUNZ_PPM, OUTLIERS
 from test_analytics import _market as _flat_market
 
 from minsk_realty.analytics import render_check_text, to_jsonable
-from minsk_realty.analytics.assessment import Plus, assess, same_house
+from minsk_realty.analytics.assessment import assess, same_house
 from minsk_realty.analytics.comparables import (
     ComparePoint,
     Comparison,
@@ -33,7 +33,7 @@ from minsk_realty.analytics.data import (
 from minsk_realty.analytics.geo import Location, Station
 from minsk_realty.analytics.medians import MedianCell, compute_baseline
 from minsk_realty.analytics.render import web_blocks
-from minsk_realty.analytics.report import build_check_report, housing_label
+from minsk_realty.analytics.report import build_check_report, housing_label, is_new_building
 from minsk_realty.db.models import Base, Listing, RealtyObject, Snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.matching import process_after_run
@@ -348,6 +348,23 @@ def test_no_price_no_comparison():
     assert _compare(_pts(12), usd_per_m2=None) is None
 
 
+def test_new_building_never_suspicious():
+    assert price_group(-31, CFG, new_building=True) == "below"
+    assert price_group(-31, CFG) == "suspicious"
+    assert price_group(-9, CFG, new_building=True) == "market"
+
+
+@pytest.mark.parametrize(
+    ("year", "flag", "expected"),
+    [(None, True, True), (None, False, False), (None, None, False), (2027, None, True),
+     (2024, None, True), (2023, None, False), (2010, True, True), (1978, False, False)],
+)  # fmt: skip
+def test_is_new_building_agrees_with_housing_label(year, flag, expected):
+    assert is_new_building(year, flag, 2026) is expected
+    label = housing_label(year, flag, 2026)
+    assert bool(label and label.startswith("новостройка")) is expected
+
+
 def test_price_group_bounds():
     assert [price_group(x, CFG) for x in (-25, -24.9, -10, -9.9, 9.9, 10)] == [
         "suspicious", "below", "below", "market", "market", "above",
@@ -374,7 +391,7 @@ def test_baseline_has_points():
     assert compute_baseline(_flat_market(12), NOW).points == ()
 
 
-# --- Вывод, минусы, плюсы, аудитория, дом (спека 4.1, 4.2, 4.4, 4.5) ---
+# --- Вывод и дом (спека 4.1, 4.5) ---
 
 
 def _cmp(group="market", diff=0.0) -> Comparison:
@@ -394,58 +411,38 @@ def _assess(**kw):
     args = {
         "comparison": _cmp(),
         "usd_per_m2": 1700.0,
-        "bargaining_level": "unknown",
-        "floor": 5,
-        "floors_total": 9,
-        "year": 2005,
-        "now_year": 2026,
-        "location": None,
     }
     args.update(kw)
     return assess(**args)
 
 
 @pytest.mark.parametrize(
-    ("group", "diff", "level", "kind", "verdict"),
+    ("group", "diff", "kind", "verdict"),
     [
-        ("suspicious", -35.0, "unknown", "suspicious",
+        ("suspicious", -35.0, "suspicious",
          "Подозрительно дёшево: на 35% ниже похожих. Узнайте причину до просмотра (доля, состояние, документы)"),
-        ("suspicious", -35.0, "high", "suspicious",
-         "Подозрительно дёшево: на 35% ниже похожих. Узнайте причину до просмотра (доля, состояние, документы)"),
-        ("below", -7.0, "unknown", "below", "Стоит смотреть: цена на 7% ниже похожих"),
-        ("below", -7.4, "medium", "below", "Стоит смотреть: цена на 7.4% ниже похожих"),
-        ("below", -7.0, "high", "below", "Стоит смотреть: цена на 7% ниже похожих, торг реален"),
-        ("market", 1.0, "unknown", "market", "Цена в рынке"),
-        ("market", 1.0, "high", "market", "Цена в рынке, торг реален"),
-        ("market", 1.0, "low", "market", "Цена в рынке, большой скидки не ждите"),
-        ("above", 12.0, "unknown", "above", "Дороже похожих на 12%: смотреть, если готовы торговаться"),
-        ("above", 12.0, "low", "above",
-         "Дороже похожих на 12%: смотреть, если готовы торговаться, большой скидки не ждите"),
+        ("below", -7.0, "below", "Стоит смотреть: цена на 7% ниже похожих"),
+        ("below", -7.4, "below", "Стоит смотреть: цена на 7.4% ниже похожих"),
+        ("market", 1.0, "market", "Цена в рынке"),
+        ("above", 12.0, "above", "Дороже похожих на 12%"),
     ],
 )  # fmt: skip
-def test_verdict_texts(group, diff, level, kind, verdict):
-    a = _assess(comparison=_cmp(group, diff), bargaining_level=level)
+def test_verdict_texts(group, diff, kind, verdict):
+    a = _assess(comparison=_cmp(group, diff))
     assert (a.kind, a.verdict) == (kind, verdict)
+    assert not hasattr(a, "minuses") and not hasattr(a, "pluses")
 
 
 def test_verdict_unknown_without_comparison():
-    a = _assess(comparison=None, bargaining_level="high")
+    a = _assess(comparison=None)
     assert a.kind == "unknown"
     assert a.verdict == "Похожих квартир рядом мало, сравнить цену не можем"
 
 
 def test_verdict_unknown_without_price_per_m2():
-    a = _assess(comparison=None, usd_per_m2=None, bargaining_level="high")
+    a = _assess(comparison=None, usd_per_m2=None)
     assert a.kind == "unknown"
     assert a.verdict == "Цену за м² посчитать не можем: в объявлении нет площади или цены"
-
-
-def _minuses(**kw):
-    return [(m.text, m.hint) for m in _assess(**kw).minuses]
-
-
-FIRST = ("Первый этаж", "спросите про подвал, сырость и решётки")
-LAST = ("Последний этаж", "спросите про крышу и протечки")
 
 
 def _district(group, diff, name="Фрунзенский") -> Comparison:
@@ -456,13 +453,11 @@ def _district(group, diff, name="Фрунзенский") -> Comparison:
     ("name", "ref"), [("Фрунзенский", "медианы района"), (None, "медианы по Минску")]
 )
 def test_district_step_wording(name, ref):
-    below = _assess(comparison=_district("below", -7.0, name), bargaining_level="unknown")
+    below = _assess(comparison=_district("below", -7.0, name))
     assert below.verdict == f"Стоит смотреть: цена на 7% ниже {ref}"
-    assert [x.text for x in below.pluses] == [f"Цена ниже {ref}"]
-    above = _assess(comparison=_district("above", 12.0, name), bargaining_level="unknown")
-    assert above.verdict == f"Дороже {ref} на 12%: смотреть, если готовы торговаться"
-    assert [m.text for m in above.minuses] == [f"Дороже {ref}"]
-    cheap = _assess(comparison=_district("suspicious", -30.0, name), bargaining_level="high")
+    above = _assess(comparison=_district("above", 12.0, name))
+    assert above.verdict == f"Дороже {ref} на 12%"
+    cheap = _assess(comparison=_district("suspicious", -30.0, name))
     assert cheap.verdict.startswith(f"Подозрительно дёшево: на 30% ниже {ref}. Узнайте причину")
     assert "похож" not in cheap.verdict + below.verdict + above.verdict
     assert _assess(comparison=_district("market", 1.0, name)).verdict == "Цена в рынке"
@@ -470,97 +465,7 @@ def test_district_step_wording(name, ref):
 
 def test_wide_step_keeps_similar_wording():
     wide = replace(_cmp("below", -7.0), step="wide", radius_km=3.0)
-    assert _assess(comparison=wide, bargaining_level="unknown").verdict.endswith("ниже похожих")
-
-
-def test_minuses_rules():
-    assert _minuses(floor=1) == [FIRST]
-    assert _minuses(floor=9, floors_total=9) == [LAST]
-    assert _minuses(floor=3, floors_total=5, year=1985) == [
-        ("Скорее всего без лифта", None),
-        ("Дом 1985 г.", "узнайте, был ли капремонт и меняли ли стояки"),
-    ]
-    assert _minuses(year=1990) == [("Дом 1990 г.", "узнайте, был ли капремонт и меняли ли стояки")]
-    assert _minuses(year=1991) == []
-    assert _minuses(floor=3, floors_total=5, year=2000) == []
-    assert _minuses(floor=3, floors_total=5, year=None) == []
-    assert _minuses(year=2028) == [("Дом ещё строится", "сдача в 2028, проверьте застройщика")]
-    assert _minuses(location=_loc(far=True)) == [("Далеко от метро", None)]
-    assert _minuses(location=_loc(25)) == [("Далеко от метро", None)]
-    assert _minuses(location=_loc(20)) == []
-    assert _minuses(location=_loc(None, approx=True)) == []
-    assert _minuses(comparison=_cmp("above", 10.0)) == [("Дороже похожих", None)]
-    assert _minuses(comparison=None, floor=None, floors_total=None, year=None) == []
-
-
-def test_one_storey_house_has_no_last_floor():
-    assert _minuses(floor=1, floors_total=1) == [FIRST]
-
-
-def test_minuses_capped_at_four():
-    got = _minuses(
-        floor=1, floors_total=5, year=1980, location=_loc(far=True), comparison=_cmp("above", 9.0)
-    )
-    assert [t for t, _ in got] == [
-        "Первый этаж",
-        "Скорее всего без лифта",
-        "Дом 1980 г.",
-        "Далеко от метро",
-    ]
-
-
-def _plus_texts(**kw):
-    return [p.text for p in _assess(**kw).pluses]
-
-
-def test_pluses_rules():
-    assert _plus_texts(location=_loc(10)) == ["Метро рядом"]
-    assert _plus_texts(location=_loc(15)) == []
-    assert _plus_texts(location=_loc(None, approx=True)) == []
-    assert _plus_texts(year=2012) == ["Новый дом"]
-    assert _plus_texts(comparison=_cmp("below", -8.0)) == ["Цена ниже похожих"]
-    assert _plus_texts(year=2015, location=_loc(5), comparison=_cmp("below", -8.0)) == [
-        "Метро рядом",
-        "Новый дом",
-        "Цена ниже похожих",
-    ]
-
-
-def test_plus_details():
-    [metro] = _assess(location=_loc(10)).pluses
-    assert metro == Plus("Метро рядом", "«Спортивная», ~10 мин пешком")
-    [new] = _assess(year=2018).pluses
-    assert new == Plus("Новый дом", "дом 2018 г.")
-    [cheap] = _assess(comparison=_cmp("below", -7.0)).pluses
-    assert cheap.detail == "на 7% ниже медианы похожих ($1 800/м²)"
-    [cheap_d] = _assess(comparison=_district("below", -7.0)).pluses
-    assert cheap_d.detail == "на 7% ниже медианы района ($1 800/м²)"
-    [cheap_m] = _assess(comparison=_district("below", -7.0, None)).pluses
-    assert cheap_m.detail == "на 7% ниже медианы по Минску ($1 800/м²)"
-
-
-def _details(**kw):
-    return {m.text: m.detail for m in _assess(**kw).minuses}
-
-
-def test_minus_details():
-    assert _details(floor=1, floors_total=9) == {"Первый этаж": "этаж 1 из 9"}
-    assert _details(floor=1, floors_total=None) == {"Первый этаж": "этаж 1"}
-    assert _details(floor=9, floors_total=9) == {"Последний этаж": "этаж 9 из 9"}
-    assert _details(floor=3, floors_total=5, year=1985)["Скорее всего без лифта"] == (
-        "5-этажный дом 1985 г."
-    )
-    far = Location(53.9, 27.5, False, Station("Каменная Горка", 53.9, 27.5), 3000.0, 45)
-    assert _details(location=far) == {
-        "Далеко от метро": "до «Каменная Горка» ~45 мин пешком (3 000 м)"
-    }
-    assert _details(location=_loc(far=True)) == {"Далеко от метро": "ближайшее метро дальше 3 км"}
-    assert _details(comparison=_cmp("above", 12.0)) == {
-        "Дороже похожих": "на 12% дороже медианы похожих ($1 800/м²)"
-    }
-    assert _details(comparison=_district("above", 12.0)) == {
-        "Дороже медианы района": "на 12% дороже медианы района ($1 800/м²)"
-    }
+    assert _assess(comparison=wide).verdict.endswith("ниже похожих")
 
 
 def _p(oid, price, key="ул х|1") -> ComparePoint:
@@ -613,18 +518,22 @@ def test_report_has_comparison_and_assessment(session, stations):
     assert r.assessment.kind == "market"
     assert r.location.station.name == "Тестовая" and r.location.walk_min == 5
     assert r.same_house == ()
-    assert r.bargaining.level == "high"
     payload = to_jsonable(r)
     assert payload["comparison"]["step"] == "near"
     assert payload["assessment"]["kind"] == "market"
 
 
-def test_bargaining_uses_similar_flats(session, stations):
-    _docs(session, scale=0.8)  # похожие дешевле: квартира заметно дороже медианы
+@pytest.mark.parametrize(
+    ("year", "group", "start"),
+    [(1978, "suspicious", "Подозрительно дёшево"), (NOW.year + 1, "below", "Стоит смотреть")],
+)
+def test_report_new_building_verdict(session, stations, year, group, start):
+    # Цена на ~30% ниже похожих: вторичка — «подозрительно», новостройка — «стоит смотреть».
+    _docs(session, year=year, scale=1.4)
     r = build_check_report(session, KUFAR_URL, NOW)
-    assert (r.comparison.step, r.comparison.group) == ("near", "above")
-    [reason] = [x for x in r.bargaining.reasons if x.code == "above_median"]
-    assert "медианы похожих квартир" in reason.text
+    assert r.comparison.diff_pct <= -25
+    assert (r.comparison.group, r.assessment.kind) == (group, group)
+    assert r.assessment.verdict.startswith(start)
 
 
 def _set_kufar_repair(session, target: str | None, background: str | None) -> None:
@@ -791,17 +700,11 @@ def test_text_follows_spec_layout(session, stations):
     other.street_norm, other.house = "ул притыцкого", "10"
     session.flush()
     text = _text(session)
-    head = text.split("\n\n")[:4]
+    head = text.split("\n\n")[:3]
     assert head[0].splitlines()[0].startswith("🏠 2-комн.")
-    assert head[1] == "✅ Цена в рынке, торг реален"
+    assert head[1] == "✅ Цена в рынке"
     assert head[2] == ("📍 Метро «Тестовая» — ~5 мин пешком (50 м). Дом 1978 г., 9 этажей")
-    assert head[3] == (
-        "⚠️ Минусы:\n"
-        "   • дом 1978 г. — узнайте, был ли капремонт и меняли ли стояки\n"
-        "👍 Плюсы:\n"
-        "   • метро рядом"
-    )
-    price_block = text.split("\n\n")[4]
+    price_block = text.split("\n\n")[3]
     assert price_block.splitlines()[:2] == [
         "📊 Цена: $1 703/м² — на 7.2% ниже похожих",
         "   (12 двушек в домах 1970–90-х в радиусе 1,5 км, медиана $1 835/м²)",
@@ -813,7 +716,7 @@ def test_text_follows_spec_layout(session, stations):
 def test_text_without_location(session, stations):
     _docs(session, coords=False)
     text = _text(session)
-    assert "📍" not in text and "👍 Плюсы:\n   • метро рядом" not in text
+    assert "📍" not in text
     assert "Дом 1978" not in text and "📊 Цена:" in text
     assert "Подойдёт" not in text
 
@@ -1045,13 +948,6 @@ def test_web_blocks_carry_details(session, stations):
     other.street_norm, other.house = "ул притыцкого", "10"
     session.flush()
     blocks = web_blocks(build_check_report(session, KUFAR_URL, NOW))
-    assert blocks["minuses"] == [
-        {
-            "text": "Дом 1978 г.",
-            "hint": "узнайте, был ли капремонт и меняли ли стояки",
-            "detail": None,
-        }
-    ]
-    assert blocks["pluses"] == [{"text": "Метро рядом", "detail": "«Тестовая», ~5 мин пешком"}]
+    assert "minuses" not in blocks and "pluses" not in blocks
     assert "audience" not in blocks
     assert blocks["house"].startswith("Продаётся 1 квартира: $1 6")

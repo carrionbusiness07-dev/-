@@ -5,8 +5,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
-
 from minsk_realty.analytics.fmt import (
     CONFIDENCE_NAMES,
     SELLER_NAMES,
@@ -37,7 +35,6 @@ _ICONS = {
     "history": "📉",
     "cross": "🔁",
     "median": "📊",
-    "verdict": "💬",
     "info": "ℹ️",
     "maybe": "❓",
     "top": "🔻",
@@ -45,7 +42,6 @@ _ICONS = {
     "warn": "⚠️",
     "meh": "🟡",
     "place": "📍",
-    "plus": "👍",
     "house": "🏢",
 }
 
@@ -104,7 +100,6 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
     blocks = [
         _assessment_lines(report, icons),
         _place_lines(report, icons),
-        _minus_plus_lines(report, icons),
         [*_comparison_lines(report, icons), *_house_lines(report, icons)],
     ]
     if report.data_level == "first_time":
@@ -120,7 +115,6 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
             _history_lines(report, icons, max_history),
             _others_lines(report, icons) if report.others else [],
             _possible_lines(report, icons) if report.possible_object else [],
-            _verdict_lines(report, icons),
         ]
     tail = [FOOTER, _match_line(report)]
     if report.data_level == "short":
@@ -340,32 +334,6 @@ def _place_lines(report: CheckReport, icons: bool) -> list[str]:
     return [_icon("place", icons) + text]
 
 
-def _lower(text: str) -> str:
-    return text[:1].lower() + text[1:]
-
-
-def _minus_items(a) -> list[str]:
-    return [_lower(m.text) + (f" — {m.hint}" if m.hint else "") for m in a.minuses]
-
-
-def _plus_items(a) -> list[str]:
-    return [_lower(p.text) for p in a.pluses]
-
-
-def _minus_plus_lines(report: CheckReport, icons: bool) -> list[str]:
-    a = report.assessment
-    if a is None:
-        return []
-    lines = []
-    if a.minuses:
-        lines.append(f"{_icon('warn', icons)}Минусы:")
-        lines += [f"   • {m}" for m in _minus_items(a)]
-    if a.pluses:
-        lines.append(f"{_icon('plus', icons)}Плюсы:")
-        lines += [f"   • {p}" for p in _plus_items(a)]
-    return lines
-
-
 _ROOM_WORDS = {
     1: ("однушка", "однушки", "однушек"),
     2: ("двушка", "двушки", "двушек"),
@@ -428,19 +396,6 @@ def _house_body(report: CheckReport) -> str | None:
     return body[:1].upper() + body[1:]
 
 
-def _verdict_lines(report: CheckReport, icons: bool) -> list[str]:
-    b = report.bargaining
-    if b is None:
-        return []
-    if b.level == "unknown" or not b.reasons:
-        return [f"{_icon('verdict', icons)}Торг: {b.recommendation}"]
-    shorts = [r.short for r in b.reasons]
-    return [
-        f"{_icon('verdict', icons)}Торг: {', '.join(shorts)}.",
-        f"   {b.recommendation}",
-    ]
-
-
 def web_blocks(report: CheckReport) -> dict:
     """Те же блоки оценки, что в тексте бота, но чистой строкой для страницы кабинета."""
     a = report.assessment
@@ -448,8 +403,6 @@ def web_blocks(report: CheckReport) -> dict:
     return {
         "verdict": a.verdict if a else None,
         "place": place[0] if place else None,
-        "minuses": [asdict(m) for m in a.minuses] if a else [],
-        "pluses": [asdict(p) for p in a.pluses] if a else [],
         "comparison": [line.strip() for line in _comparison_lines(report, False)],
         "house": _house_body(report),
     }

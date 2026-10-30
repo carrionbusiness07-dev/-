@@ -86,16 +86,6 @@
   </section>
   {% endif %}
 
-  {% if r.bargaining %}
-  <section class="verdict verdict-{{ r.bargaining.level }}" aria-labelledby="verdict-title">
-    <h2 id="verdict-title">Торг: {{ {"high": "реален", "medium": "возможен", "low": "вряд ли", "unknown": "мало данных"}.get(r.bargaining.level, r.bargaining.level) }}</h2>
-    <p class="verdict-text">{{ r.bargaining.recommendation | nb }}</p>
-    {% if r.bargaining.reasons %}
-    <ul class="verdict-reasons">{% for reason in r.bargaining.reasons %}<li>{{ reason.text | nb }}</li>{% endfor %}</ul>
-    {% endif %}
-  </section>
-  {% endif %}
-
   <p class="object-facts">
     {% if r.exposure %}
     <span>На рынке <b>{% if r.exposure.at_least %}≥ {% endif %}{{ r.exposure.days }}</b> {{ fmt.plural(r.exposure.days, "день", "дня", "дней") }}</span>
@@ -106,22 +96,8 @@
     {% if r.median and r.median.diff_pct is not none %}<span>к медиане района <b>{{ r.median.diff_pct | pct }}</b></span>{% endif %}
   </p>
 
-  {% if blocks.minuses or blocks.pluses or blocks.house %}
+  {% if blocks.house %}
   <div class="notes">
-    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses)] if items %}
-    <section class="note-col note-{{ key }}" aria-labelledby="{{ key }}-title">
-      <h2 id="{{ key }}-title" class="rubric">{{ title }}</h2>
-      <ul class="cards">
-        {% for item in items %}
-        <li class="card">
-          <h3 class="card-title">{{ item.text | nb }}</h3>
-          {% if item.detail or item.reason %}<p class="card-detail">{{ (item.detail or item.reason) | nb }}</p>{% endif %}
-          {% if item.hint %}<p class="card-hint">{{ item.hint | nb }}</p>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </section>
-    {% endfor %}
     {% if blocks.house %}
     <section class="note-col note-house" aria-labelledby="house-title">
       <h2 id="house-title" class="rubric">Ещё в этом доме</h2>

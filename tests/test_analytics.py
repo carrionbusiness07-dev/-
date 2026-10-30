@@ -1,4 +1,4 @@
-"""Аналитика: срок экспозиции, история цены, медианы, индекс торга, отчёт /check, сводки.
+"""Аналитика: срок экспозиции, история цены, медианы, отчёт /check, сводки.
 
 Сети нет. Сценарии /check проходят через настоящую склейку (tests/analytics_data.py),
 чистые функции проверяются на данных в памяти.
@@ -28,8 +28,6 @@ from analytics_data import (
 
 from minsk_realty.analytics import (
     DEFAULT_ANALYTICS,
-    BargainInputs,
-    bargaining_index,
     build_check_report,
     build_price_history,
     compute_baseline,
@@ -48,7 +46,6 @@ from minsk_realty.analytics import (
     source_health_summary,
     to_jsonable,
 )
-from minsk_realty.analytics.bargaining import CheaperOffer
 from minsk_realty.analytics.data import EventRow, ListingRow, MarketData, ObjectRow, SnapRow
 from minsk_realty.analytics.fmt import (
     days_text,
@@ -254,67 +251,6 @@ def test_price_history_in_original_currency():
     ]
 
 
-# --- Индекс торга ---------------------------------------------------------------------------
-
-
-def test_bargaining_unknown_without_history():
-    b = bargaining_index(BargainInputs(has_history=False))
-    assert b.level == "unknown" and not b.reasons and "Следить" in b.recommendation
-
-
-def test_bargaining_high_explains_every_point():
-    cheaper = CheaperOffer(3, "onliner", Decimal(91000), "USD", Decimal(1500), "u", True)
-    b = bargaining_index(
-        BargainInputs(
-            has_history=True,
-            days_on_market=94,
-            exposure_median_days=41,
-            drops=3,
-            relists=2,
-            cheaper=cheaper,
-            vs_median_pct=-6.4,
-            current_amount=Decimal(92500),
-            currency="USD",
-        )
-    )
-    codes = {r.code: r.weight for r in b.reasons}
-    assert codes == {"long_exposure": 2, "price_drops": 2, "relisted": 1, "cheaper_elsewhere": 1}
-    assert b.level == "high" and b.score == 6
-    assert [r.short for r in b.reasons] == [
-        "висит 94 дня",
-        "трижды снижалась",
-        "перевыкладывалась 2 раза",
-        "на Onliner у другого продавца дешевле",
-    ]
-    assert "в 2.3 раза дольше обычного" in b.reasons[0].text
-    # Ориентир — от самой низкой цены квартиры ($91 000): 3–5% ниже, шаг $500.
-    assert (b.offer_low, b.offer_high) == (Decimal(86500), Decimal(88500))
-    assert b.recommendation.startswith("Торг, скорее всего, реален")
-    assert "$86 500–88 500" in b.recommendation and "Onliner" in b.recommendation
-    assert "не гарантия" in b.disclaimer
-
-
-def test_bargaining_low_for_fresh_listing_below_median():
-    b = bargaining_index(
-        BargainInputs(
-            has_history=True,
-            days_on_market=5,
-            exposure_median_days=60,
-            vs_median_pct=-12,
-            current_amount=Decimal(80000),
-            currency="USD",
-        )
-    )
-    assert b.level == "low" and b.score == -2 and b.offer_low is None
-    assert "Поводов для торга мало" in b.recommendation
-
-
-def test_bargaining_uses_absolute_days_without_district_median():
-    b = bargaining_index(BargainInputs(has_history=True, days_on_market=95, drops=1))
-    assert [(r.code, r.weight) for r in b.reasons] == [("long_exposure", 2), ("price_drops", 1)]
-    assert b.level == "medium" and "медианы срока по району пока нет" in b.reasons[0].text
-
-
 # --- Отчёт /check: сценарий из docs ------------------------------------------------------
 
 
@@ -350,16 +286,10 @@ def test_check_report_docs_scenario(docs):
 
     assert r.median.cell.median == 1820 and r.median.cell.district == "Фрунзенский"
     assert round(r.median.diff_pct, 1) == -6.4
-    assert r.bargaining.level == "high"
-    assert {x.code for x in r.bargaining.reasons} >= {
-        "price_drops",
-        "relisted",
-        "cheaper_elsewhere",
-    }
     assert not r.suggest_watch
 
 
-DOCS_BOT_TEXT = "🏠 2-комн., 54.3 м², 5/9 эт., ул. Притыцкого, Фрунзенский р-н\nСейчас: $92 500 ($1 703/м²) — Kufar, агентство\n\n✅ Цена в рынке, торг реален\n\n📍 Метро «Спортивная» — ~5 мин пешком (400 м). 9-этажный дом\n\n👍 Плюсы:\n   • метро рядом\n\n📊 Цена: $1 703/м² — на 6.4% ниже медианы района\n   (Фрунзенский р-н, 2-комн.: медиана $1 820/м², 13 объектов)\n\n⏳ На рынке: 94 дня (впервые замечена 20 июля на Realt)\n   ↻ Перевыкладывалась 1 раз\n   На сайте объявлению 19 дней, на самом деле квартира продаётся 94 дня\n   Продавцов за историю: 2 (2 агентства)\n\n📉 История цены:\n   20.07  $98 000  Realt, агентство\n   28.08  $95 000  Realt (−3.1%)\n   03.10  $92 500  Kufar, агентство (новое объявление, тот же объект, −2.6%)\n   05.10  $91 000  Onliner, агентство (ещё одно объявление этой квартиры)\n   Всего: −5.6% от первой цены\n\n🔁 Сейчас на других площадках:\n   Onliner — $91 000 (другое агентство)  ← дешевле на $1 500\n\n💬 Торг: висит 94 дня, дважды снижалась, перевыкладывалась 1 раз, на Onliner у другого продавца дешевле.\n   Торг, скорее всего, реален. Ориентир для первого предложения — $86 500–88 500, сошлитесь на цену на Onliner.\n\nЦены объявлений, а не сделок. Это рекомендация, а не гарантия.\nУверенность склейки: высокая (адрес + площадь + 3 совпавших фото + тот же продавец)\nНаблюдаем рынок с 15.07.2026"
+DOCS_BOT_TEXT = "🏠 2-комн., 54.3 м², 5/9 эт., ул. Притыцкого, Фрунзенский р-н\nСейчас: $92 500 ($1 703/м²) — Kufar, агентство\n\n✅ Цена в рынке\n\n📍 Метро «Спортивная» — ~5 мин пешком (400 м). 9-этажный дом\n\n📊 Цена: $1 703/м² — на 6.4% ниже медианы района\n   (Фрунзенский р-н, 2-комн.: медиана $1 820/м², 13 объектов)\n\n⏳ На рынке: 94 дня (впервые замечена 20 июля на Realt)\n   ↻ Перевыкладывалась 1 раз\n   На сайте объявлению 19 дней, на самом деле квартира продаётся 94 дня\n   Продавцов за историю: 2 (2 агентства)\n\n📉 История цены:\n   20.07  $98 000  Realt, агентство\n   28.08  $95 000  Realt (−3.1%)\n   03.10  $92 500  Kufar, агентство (новое объявление, тот же объект, −2.6%)\n   05.10  $91 000  Onliner, агентство (ещё одно объявление этой квартиры)\n   Всего: −5.6% от первой цены\n\n🔁 Сейчас на других площадках:\n   Onliner — $91 000 (другое агентство)  ← дешевле на $1 500\n\nЦены объявлений, а не сделок. Это рекомендация, а не гарантия.\nУверенность склейки: высокая (адрес + площадь + 3 совпавших фото + тот же продавец)\nНаблюдаем рынок с 15.07.2026"
 
 
 def test_check_text_docs_scenario_is_pinned(docs):
@@ -373,10 +303,8 @@ def test_check_text_docs_scenario(docs):
     ordered = (  # порядок блоков — спека, раздел 4
         "🏠 2-комн., 54.3 м², 5/9 эт., ул. Притыцкого, Фрунзенский р-н",
         "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство",
-        "✅ Цена в рынке, торг реален",
+        "✅ Цена в рынке",
         "📍 Метро «Спортивная» — ~5 мин пешком (400 м). 9-этажный дом",
-        "👍 Плюсы:",
-        "   • метро рядом",
         "📊 Цена: $1 703/м² — на 6.4% ниже медианы района",
         "   (Фрунзенский р-н, 2-комн.: медиана $1 820/м², 13 объектов)",
         "⏳ На рынке: 94 дня (впервые замечена 20 июля на Realt)",
@@ -391,14 +319,12 @@ def test_check_text_docs_scenario(docs):
     )
     positions = [lines.index(line) for line in ordered]
     assert positions == sorted(positions)
-    [torg] = [i for i, line in enumerate(lines) if line.startswith("💬 Торг: ")]
-    assert positions[-3] < torg < positions[-2]
     assert next(line for line in lines if line.startswith("Уверенность склейки: высокая ("))
     assert "Вывод:" not in text and "realt.by/statistics" not in text
-    assert "Торг, скорее всего, реален" in text and "сошлитесь на цену на Onliner" in text
+    assert not any(w in text for w in ("Торг", "торг", "Плюсы", "Минусы"))
     assert "\n\n\n" not in text and not text.endswith("\n")
     plain = render_check_text(build_check_report(docs, KUFAR_URL, NOW), icons=False)
-    assert plain.startswith("2-комн.") and "Торг: " in plain
+    assert plain.startswith("2-комн.")
     assert not any(ch in plain for ch in "🏠✅⚠📍👥👍📊🏢💬ℹ")
 
 
@@ -471,8 +397,6 @@ def test_low_duplicate_does_not_drive_conclusions(session):
     assert r.scope == "object" and r.match.single and r.match.low_listings == 1
     [other] = r.others
     assert other.confidence == "low" and other.cheaper_by == Decimal(4000)
-    # Дешевле на Kufar — но склейка не подтверждена: в вывод о торге это не идёт.
-    assert "cheaper_elsewhere" not in {x.code for x in r.bargaining.reasons}
     assert r.exposure.relist_count == 0 and r.moves.drops == 0
     text = render_check_text(r)
     assert "возможно, та же квартира, склейка не подтверждена" in text
@@ -485,7 +409,6 @@ def test_first_time_listing_suggests_watch(session):
     observe(session, "realt", NOW - HOUR, realt("555"))
     r = build_check_report(session, "https://realt.by/sale-flats/object/555/", NOW)
     assert r.data_level == "first_time" and r.suggest_watch
-    assert r.bargaining.level == "unknown"
     text = render_check_text(r)
     assert "ℹ️ Эту квартиру мы видим впервые. Истории пока нет." in text
     lines = text.splitlines()

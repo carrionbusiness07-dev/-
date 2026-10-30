@@ -19,7 +19,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.assessment import Assessment
-from minsk_realty.analytics.bargaining import Bargaining, BargainInputs, bargaining_index
 from minsk_realty.analytics.comparables import Comparison
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData, load_market
@@ -100,8 +99,6 @@ __all__ = [
     "DEFAULT_ANALYTICS",
     "AnalyticsConfig",
     "Assessment",
-    "BargainInputs",
-    "Bargaining",
     "CheckReport",
     "Comparison",
     "Exposure",
@@ -114,7 +111,6 @@ __all__ = [
     "PricePoint",
     "SourceHealth",
     "WeeklySummary",
-    "bargaining_index",
     "build_check_report",
     "build_price_history",
     "compute_baseline",

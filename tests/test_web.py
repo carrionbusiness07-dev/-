@@ -197,7 +197,6 @@ def test_object_page_has_map(client):
     page = next(p for p in pages if 'id="map-data"' in p)
     assert "/static/leaflet/leaflet.js" in page and 'id="map"' in page
     assert 'aria-labelledby="assessment-title"' in page
-    assert page.index('id="assessment-title"') < page.index('id="verdict-title"')
     assert "yandex.by/maps/?pt=" in page and "google.com/maps?q=" in page
     assert "tile.openstreetmap.org/{z}/{x}/{y}.png" in page and "cartocdn" not in page
     assert 'class="map-legend"' in page and 'id="map-legend"' in page
@@ -255,19 +254,22 @@ def test_leaflet_static_served(client):
         assert client.get(f"/static/leaflet/{path}").status_code == 200
 
 
-def test_object_page_shows_assessment_cards(client):
+def test_no_minus_plus_bargain_anywhere(client):
     hrefs = client.get("/objects").text.split('href="/objects/')[1:]
     pages = [client.get("/objects/" + h.split('"', 1)[0]).text for h in hrefs]
-    shown = [p for p in pages if 'class="card"' in p]
-    assert shown
-    for page in shown:
-        assert 'class="cards"' in page or "note-house" in page
-        for key, title in (("minuses", "Минусы"), ("pluses", "Плюсы")):
-            if f'id="{key}-title"' in page:
-                col = page.split(f'id="{key}-title"', 1)[1].split("</section>", 1)[0]
-                assert title in col and 'class="card-title"' in col
-    assert any('class="card-detail"' in p for p in shown)
-    assert not any("Кому подойдёт" in p or "note-audience" in p for p in shown)
+    assert pages
+    for page in pages:
+        for word in ("Минусы", "Плюсы", "Торг", "торг реален", "скидки не ждите"):
+            assert word not in page
+    assert any('class="card-detail"' in p for p in pages)  # «Ещё в этом доме» на месте
+
+
+def test_photo_button_height():
+    css = (ROOT / "src" / "minsk_realty" / "web" / "static" / "khronika.css").read_text(
+        encoding="utf-8"
+    )
+    rule = next(line for line in css.splitlines() if line.startswith(".photo button {"))
+    assert "height: auto" in rule
 
 
 # --- Фото и таблица площадок --------------------------------------------------------------
