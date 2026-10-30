@@ -16,7 +16,7 @@
   <header class="object-head">
     <div>
       <h1>{{ fmt.rooms_label(r.flat.rooms) }}{% if r.flat.area %}, {{ ("%.1f" % r.flat.area).replace(".0", "").replace(".", ",") }} м²{% endif %}{% if r.flat.floor and r.flat.floors_total %}, {{ r.flat.floor }}/{{ r.flat.floors_total }} эт.{% endif %}</h1>
-      <p class="page-dek">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+      <p class="page-dek">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}{% if r.flat.housing %} · {{ r.flat.housing }}{% endif %}</p>
     </div>
     <div class="object-price">
       {% set p = r.listing.price %}
@@ -106,9 +106,9 @@
     {% if r.median and r.median.diff_pct is not none %}<span>к медиане района <b>{{ r.median.diff_pct | pct }}</b></span>{% endif %}
   </p>
 
-  {% if blocks.minuses or blocks.pluses or blocks.audience or blocks.house %}
+  {% if blocks.minuses or blocks.pluses or blocks.house %}
   <div class="notes">
-    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses), ("audience", "Кому подойдёт", blocks.audience)] if items %}
+    {% for key, title, items in [("minuses", "Минусы", blocks.minuses), ("pluses", "Плюсы", blocks.pluses)] if items %}
     <section class="note-col note-{{ key }}" aria-labelledby="{{ key }}-title">
       <h2 id="{{ key }}-title" class="rubric">{{ title }}</h2>
       <ul class="cards">
@@ -159,7 +159,7 @@
     {% endif %}
     <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
     {% endif %}
-    <p class="place-address" id="place-address" tabindex="-1">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
+    <p class="place-address" id="place-address" tabindex="-1">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}{% if r.flat.housing %} · {{ r.flat.housing }}{% endif %}</p>
     {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
     {% if map_data %}
     <p class="place-links">

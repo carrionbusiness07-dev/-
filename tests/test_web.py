@@ -1,5 +1,6 @@
 import importlib.util
 import sys
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -207,9 +208,7 @@ def test_object_page_has_map(client):
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
     assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
 
-
 def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
-    from dataclasses import replace
 
     from minsk_realty.web import app as web_app
 
@@ -227,6 +226,24 @@ def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
     assert "place-links" not in page
 
 
+def test_object_page_shows_housing_label(client, monkeypatch):
+    from minsk_realty.web import app as web_app
+
+    real = web_app.build_check_report
+
+    def with_housing(*args, **kwargs):
+        report = real(*args, **kwargs)
+        return replace(report, flat=replace(report.flat, housing="новостройка, дом сдаётся в 2027"))
+
+    page = client.get("/objects/1").text
+    assert "новостройка, дом" not in page and "вторичка, дом" not in page
+    monkeypatch.setattr(web_app, "build_check_report", with_housing)
+    page = client.get("/objects/1").text
+    dek = page.split('class="page-dek">', 1)[1].split("</p>", 1)[0]
+    assert dek.endswith(" · новостройка, дом сдаётся в 2027")
+    assert "Подойдёт" not in page and "Кому подойдёт" not in page
+
+
 def test_leaflet_static_served(client):
     for path in ("leaflet.js", "leaflet.css", "images/marker-icon.png"):
         assert client.get(f"/static/leaflet/{path}").status_code == 200
@@ -242,13 +259,12 @@ def test_object_page_shows_assessment_cards(client):
         for key, title in (
             ("minuses", "Минусы"),
             ("pluses", "Плюсы"),
-            ("audience", "Кому подойдёт"),
         ):
             if f'id="{key}-title"' in page:
                 col = page.split(f'id="{key}-title"', 1)[1].split("</section>", 1)[0]
                 assert title in col and 'class="card-title"' in col
     assert any('class="card-detail"' in p for p in shown)
-    assert any("Кому подойдёт" in p and "note-audience" in p for p in shown)
+    assert not any("Кому подойдёт" in p or "note-audience" in p for p in shown)
 
 
 # --- Фото и таблица площадок --------------------------------------------------------------

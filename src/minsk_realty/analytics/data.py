@@ -167,6 +167,8 @@ class MarketData:
     building_years: dict[int, int] = field(default_factory=dict)
     # Отделка по объекту: "none" (без отделки) или "done" (любой ремонт); неизвестная — нет ключа.
     finishings: dict[int, str] = field(default_factory=dict)
+    # Флаг Kufar «в новостройке» по объекту; нет ключа — площадка флага не отдавала.
+    new_buildings: dict[int, bool] = field(default_factory=dict)
     _by_object: dict[int, list[ListingRow]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
@@ -459,6 +461,9 @@ def load_market(
         finishings=finishings(
             session, None if full else {r.object_id for r in listings.values() if r.object_id}
         ),
+        new_buildings=new_buildings(
+            session, None if full else {r.object_id for r in listings.values() if r.object_id}
+        ),
     )
 
 
@@ -537,6 +542,29 @@ def finishings(session: Session, object_ids: Iterable[int] | None = None) -> dic
         kind = finishing_kind(_finishing_label(source, extra))
         if kind is not None:
             out[object_id] = kind  # порядок по возрастанию seen_at: последний выигрывает
+    return out
+
+
+def new_buildings(session: Session, object_ids: Iterable[int] | None = None) -> dict[int, bool]:
+    """Флаг Kufar «в новостройке» по объектам: из самого свежего снимка надёжных объявлений."""
+    q = (
+        select(Listing.object_id, Snapshot.extra)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(
+            Listing.source == "kufar",
+            Listing.object_id.is_not(None),
+            Listing.match_confidence.in_(TRUSTED),
+        )
+        .order_by(Snapshot.seen_at, Snapshot.id)
+    )
+    if object_ids is not None:
+        q = q.where(Listing.object_id.in_(set(object_ids)))
+    out: dict[int, bool] = {}
+    for object_id, extra in session.execute(q):
+        value = (extra or {}).get("flat_new_building")
+        # Kufar отдаёт true или строку; порядок по seen_at: последний выигрывает
+        if value is not None:
+            out[object_id] = value is True or str(value).strip().lower() in ("true", "1", "да")
     return out
 
 

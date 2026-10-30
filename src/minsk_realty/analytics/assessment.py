@@ -1,4 +1,4 @@
-"""Вывод по квартире: строка-вердикт, минусы, плюсы, «кому подойдёт», соседи по дому.
+"""Вывод по квартире: строка-вердикт, минусы, плюсы, соседи по дому.
 
 Только из фактов, без обращения к БД и сети. Тексты — из спеки (разделы 4.1, 4.2, 4.4, 4.5).
 Иконки («✅», «⚠️» …) рисует отчёт по `kind`, здесь их нет.
@@ -10,16 +10,13 @@ from dataclasses import dataclass
 from typing import Literal
 
 from minsk_realty.analytics.comparables import ComparePoint, Comparison, epoch
-from minsk_realty.analytics.fmt import group_thousands, pct, plural, ppm
+from minsk_realty.analytics.fmt import group_thousands, pct, ppm
 from minsk_realty.analytics.geo import MAX_STATION_M, Location
 
 MAX_MINUSES = 4
 MAX_PLUSES = 3
-MAX_AUDIENCE = 2
 FAR_WALK_MIN = 20  # дальше — «далеко от метро»
 NEAR_WALK_MIN = 10  # не дальше — «метро рядом»
-STUDIO_AREA_M2 = 45
-BIG_AREA_M2 = 70
 
 _BARGAIN_TAIL = {"high": ", торг реален", "low": ", большой скидки не ждите"}
 
@@ -38,18 +35,11 @@ class Plus:
 
 
 @dataclass(frozen=True)
-class Audience:
-    text: str
-    reason: str | None = None
-
-
-@dataclass(frozen=True)
 class Assessment:
     kind: Literal["suspicious", "below", "market", "above", "unknown"]
     verdict: str  # без иконки
     minuses: tuple[Minus, ...]
     pluses: tuple[Plus, ...]
-    audience: tuple[Audience, ...]
 
 
 def _ref(comparison: Comparison) -> str:
@@ -170,46 +160,11 @@ def _pluses(comparison, year, now_year, location) -> tuple[Plus, ...]:
     return tuple(p for ok, p in rows if ok)[:MAX_PLUSES]
 
 
-def _size(rooms, area, tail: str = "") -> str | None:
-    parts = []
-    if rooms:
-        parts.append(f"{rooms} {plural(rooms, 'комната', 'комнаты', 'комнат')}")
-    if area:
-        parts.append(f"{area:g}".replace(".", ",") + " м²")
-    return ", ".join(parts) + tail if parts else None
-
-
-def _audience(rooms, area, location) -> tuple[Audience, ...]:
-    walk = location.walk_min if location else None
-    big = (rooms is not None and rooms >= 3) or (area is not None and area >= BIG_AREA_M2)
-    car = (
-        f"метро дальше {MAX_STATION_M // 1000} км"
-        if location and location.station is None
-        else f"до метро ~{walk} мин пешком"
-    )
-    rows = (
-        (
-            rooms == 1
-            and area is not None
-            and area <= STUDIO_AREA_M2
-            and walk is not None
-            and walk <= 15,
-            Audience("одному или под сдачу", _size(rooms, area, f", метро ~{walk} мин")),
-        ),
-        (rooms in (1, 2), Audience("паре или небольшой семье", _size(rooms, area))),
-        (big and _far_from_metro(location), Audience("семье с машиной", car)),
-        (big, Audience("семье с детьми", _size(rooms, area))),
-    )
-    return tuple(a for ok, a in rows if ok)[:MAX_AUDIENCE]
-
-
 def assess(
     *,
     comparison: Comparison | None,
     usd_per_m2: float | None,
     bargaining_level: str,
-    rooms: int | None,
-    area: float | None,
     floor: int | None,
     floors_total: int | None,
     year: int | None,
@@ -222,7 +177,6 @@ def assess(
         verdict=verdict,
         minuses=_minuses(comparison, floor, floors_total, year, now_year, location),
         pluses=_pluses(comparison, year, now_year, location),
-        audience=_audience(rooms, area, location),
     )
 
 

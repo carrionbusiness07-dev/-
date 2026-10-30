@@ -27,12 +27,13 @@ from minsk_realty.analytics.data import (
     finishing_kind,
     finishings,
     load_market,
+    new_buildings,
     parse_year,
 )
 from minsk_realty.analytics.geo import Location, Station
 from minsk_realty.analytics.medians import MedianCell, compute_baseline
 from minsk_realty.analytics.render import web_blocks
-from minsk_realty.analytics.report import build_check_report
+from minsk_realty.analytics.report import build_check_report, housing_label
 from minsk_realty.db.models import Base, Listing, RealtyObject, Snapshot
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.matching import process_after_run
@@ -394,8 +395,6 @@ def _assess(**kw):
         "comparison": _cmp(),
         "usd_per_m2": 1700.0,
         "bargaining_level": "unknown",
-        "rooms": 2,
-        "area": 54.0,
         "floor": 5,
         "floors_total": 9,
         "year": 2005,
@@ -564,49 +563,6 @@ def test_minus_details():
     }
 
 
-@pytest.mark.parametrize(
-    ("rooms", "area", "location", "expected"),
-    [
-        (1, 40.0, _loc(10), ("одному или под сдачу", "паре или небольшой семье")),
-        (1, 40.0, _loc(20), ("паре или небольшой семье",)),
-        (1, 40.0, None, ("паре или небольшой семье",)),
-        (1, 50.0, _loc(10), ("паре или небольшой семье",)),
-        (2, 54.0, _loc(10), ("паре или небольшой семье",)),
-        (3, 70.0, _loc(far=True), ("семье с машиной", "семье с детьми")),
-        (3, 70.0, _loc(25), ("семье с машиной", "семье с детьми")),
-        (3, 70.0, _loc(8), ("семье с детьми",)),
-        (2, 72.0, _loc(8), ("паре или небольшой семье", "семье с детьми")),
-        (3, None, None, ("семье с детьми",)),
-        (None, None, None, ()),
-    ],
-)
-def test_audience_rules(rooms, area, location, expected):
-    got = _assess(rooms=rooms, area=area, location=location).audience
-    assert tuple(a.text for a in got) == expected
-
-
-def test_audience_reasons():
-    def reasons(**kw):
-        return {a.text: a.reason for a in _assess(**kw).audience}
-
-    assert reasons(rooms=1, area=38.0, location=_loc(10)) == {
-        "одному или под сдачу": "1 комната, 38 м², метро ~10 мин",
-        "паре или небольшой семье": "1 комната, 38 м²",
-    }
-    assert reasons(rooms=2, area=54.3, location=_loc(10)) == {
-        "паре или небольшой семье": "2 комнаты, 54,3 м²"
-    }
-    far = Location(53.9, 27.5, False, Station("Каменная Горка", 53.9, 27.5), 3000.0, 45)
-    assert reasons(rooms=3, area=79.0, location=far) == {
-        "семье с машиной": "до метро ~45 мин пешком",
-        "семье с детьми": "3 комнаты, 79 м²",
-    }
-    assert reasons(rooms=3, area=79.0, location=_loc(far=True))["семье с машиной"] == (
-        "метро дальше 3 км"
-    )
-    assert reasons(rooms=3, area=None, location=None) == {"семье с детьми": "3 комнаты"}
-
-
 def _p(oid, price, key="ул х|1") -> ComparePoint:
     return ComparePoint(oid, 53.9, 27.5, 2, "1970_1990", price, key)
 
@@ -693,6 +649,79 @@ def test_report_compares_with_same_finishing(session, stations):
     assert "12 двушек без отделки в домах 1970–90-х в радиусе 1,5 км" in render_check_text(r)
 
 
+@pytest.mark.parametrize(
+    ("year", "flag", "label"),
+    [
+        (2027, None, "новостройка, дом сдаётся в 2027"),
+        (2027, False, "новостройка, дом сдаётся в 2027"),
+        (2024, None, "новостройка, дом 2024 г."),
+        (2026, None, "новостройка, дом 2026 г."),
+        (2010, True, "новостройка, дом 2010 г."),
+        (2023, False, "вторичка, дом 2023 г."),
+        (1978, None, "вторичка, дом 1978 г."),
+        (1978, False, "вторичка, дом 1978 г."),
+        (None, True, "новостройка"),
+        (None, False, None),
+        (None, None, None),
+    ],
+)
+def test_housing_label(year, flag, label):
+    assert housing_label(year, flag, 2026) == label
+
+
+def test_new_buildings_loader(session):
+    oid, other, weak, only_realt = (_object(session) for _ in range(4))
+    kufar = _listing(session, oid, "kufar", "k1")
+    lone = _listing(session, other, "kufar", "k2")
+    low = _listing(session, weak, "kufar", "k3", match_confidence="low")
+    realt = _listing(session, only_realt, "realt", "r1")
+    _snap(session, kufar, 0, extra={"flat_new_building": False})
+    _snap(session, kufar, 1, extra={"flat_new_building": "True"})  # строка тоже считается
+    _snap(session, kufar, 2, extra={})  # свежий снимок без ключа не затирает
+    _snap(session, lone, 0, extra={"flat_new_building": True})
+    _snap(session, lone, 1, extra={"flat_new_building": False})  # последнее значение выигрывает
+    _snap(session, low, 0, extra={"flat_new_building": True})  # ненадёжная склейка не в счёт
+    _snap(session, realt, 0, extra={"flat_new_building": True})  # только Kufar
+
+    assert new_buildings(session) == {oid: True, other: False}
+    assert new_buildings(session, [other]) == {other: False}
+    assert new_buildings(session, [weak, only_realt]) == {}
+    assert load_market(session).new_buildings == {oid: True, other: False}
+    assert load_market(session, listing_ids=[lone]).new_buildings == {other: False}
+    assert load_market(session, object_ids=[oid]).new_buildings == {oid: True}
+
+
+def _set_kufar_flag(session, value) -> None:
+    for snap in session.scalars(
+        select(Snapshot)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(Listing.external_id == "1000201")
+    ):
+        snap.extra = {**(snap.extra or {}), "flat_new_building": value}
+    session.flush()
+
+
+def test_bot_text_shows_housing_label(session, stations):
+    _docs(session)
+    lines = _text(session).splitlines()
+    assert lines[0].startswith("🏠 2-комн.") and lines[1] == "вторичка, дом 1978 г."
+    assert lines[2].startswith("Сейчас: ")
+    _set_kufar_flag(session, "True")
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.housing == "новостройка, дом 1978 г."
+    assert render_check_text(r).splitlines()[1] == "новостройка, дом 1978 г."
+    assert "Подойдёт" not in render_check_text(r)
+
+
+def test_housing_label_absent_without_year_and_flag(session, stations):
+    _docs(session, year=None)
+    r = build_check_report(session, KUFAR_URL, NOW)
+    assert r.flat.housing is None
+    assert _text(session).splitlines()[1].startswith("Сейчас: ")
+    _set_kufar_flag(session, True)
+    assert build_check_report(session, KUFAR_URL, NOW).flat.housing == "новостройка"
+
+
 def test_report_other_finishing_goes_to_district(session, stations):
     _docs(session)
     _set_kufar_repair(session, "Без отделки", "Косметический")  # у соседей ремонт
@@ -765,10 +794,7 @@ def test_text_follows_spec_layout(session, stations):
     head = text.split("\n\n")[:4]
     assert head[0].splitlines()[0].startswith("🏠 2-комн.")
     assert head[1] == "✅ Цена в рынке, торг реален"
-    assert head[2] == (
-        "📍 Метро «Тестовая» — ~5 мин пешком (50 м). Дом 1978 г., 9 этажей\n"
-        "👥 Подойдёт: паре или небольшой семье"
-    )
+    assert head[2] == ("📍 Метро «Тестовая» — ~5 мин пешком (50 м). Дом 1978 г., 9 этажей")
     assert head[3] == (
         "⚠️ Минусы:\n"
         "   • дом 1978 г. — узнайте, был ли капремонт и меняли ли стояки\n"
@@ -789,7 +815,7 @@ def test_text_without_location(session, stations):
     text = _text(session)
     assert "📍" not in text and "👍 Плюсы:\n   • метро рядом" not in text
     assert "Дом 1978" not in text and "📊 Цена:" in text
-    assert "👥 Подойдёт: паре или небольшой семье" in text
+    assert "Подойдёт" not in text
 
 
 def test_text_approx_location(session, stations):
@@ -944,7 +970,7 @@ def test_text_first_time_has_assessment_before_the_note(session, stations):
     lines = render_check_text(replace(r, data_level="first_time")).splitlines()
     note = lines.index("ℹ️ Эту квартиру мы видим впервые. Истории пока нет.")
     assert lines.index("📊 Цена: $1 703/м² — на 7.2% ниже похожих") < note
-    assert lines[1] == "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство"
+    assert lines[2] == "Сейчас: $92 500 ($1 703/м²) — Kufar, агентство"  # lines[1] — метка дома
     assert not any(line.startswith(("⏳", "📉", "💬")) for line in lines)
     assert lines[-3] == "Цены объявлений, а не сделок. Это рекомендация, а не гарантия."
 
@@ -1027,6 +1053,5 @@ def test_web_blocks_carry_details(session, stations):
         }
     ]
     assert blocks["pluses"] == [{"text": "Метро рядом", "detail": "«Тестовая», ~5 мин пешком"}]
-    [who] = blocks["audience"]
-    assert who["text"] == "паре или небольшой семье" and who["reason"].startswith("2 комнаты, 54")
+    assert "audience" not in blocks
     assert blocks["house"].startswith("Продаётся 1 квартира: $1 6")

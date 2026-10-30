@@ -32,7 +32,7 @@ from minsk_realty.analytics.bargaining import (
     CheaperOffer,
     bargaining_index,
 )
-from minsk_realty.analytics.comparables import Comparison, find_comparison, house_key
+from minsk_realty.analytics.comparables import Comparison, epoch, find_comparison, house_key
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import ListingRow, MarketData, load_market, source_starts
 from minsk_realty.analytics.districts import district_at
@@ -103,6 +103,7 @@ class FlatInfo:
     year: int | None = None  # год постройки; для scope="listing" не подставляем
     house_key: str | None = None  # «улица|дом» как у ComparePoint.house_key; для "listing" None
     finish: str | None = None  # "none" / "done" / None (неизвестна); для "listing" None
+    housing: str | None = None  # готовый текст «вторичка, дом 1978 г.»; для "listing" None
 
 
 @dataclass(frozen=True)
@@ -269,7 +270,7 @@ def build_check_report(
 
     current = _current_price(data, target)
     # При склейке low объект может оказаться другой квартирой: его поля не подставляем.
-    flat = _flat_info(data, oid if scope == "object" else None, target)
+    flat = _flat_info(data, oid if scope == "object" else None, target, now.year)
     others = _others(data, oid, target, current) if scope == "object" else []
     cheaper = _cheapest_other(others, current, cfg)
 
@@ -334,8 +335,6 @@ def build_check_report(
         comparison=comparison,
         usd_per_m2=current.usd_per_m2 if current else None,
         bargaining_level=bargaining.level,
-        rooms=flat.rooms,
-        area=flat.area,
         floor=flat.floor,
         floors_total=flat.floors_total,
         year=flat.year,
@@ -410,7 +409,18 @@ def _current_price(data: MarketData, target: ListingRow) -> CurrentPrice | None:
     )
 
 
-def _flat_info(data: MarketData, oid: int | None, target: ListingRow) -> FlatInfo:
+def housing_label(year: int | None, new_flag: bool | None, now_year: int) -> str | None:
+    """Новостройка или вторичка: по году постройки и флагу Kufar; неизвестно — None."""
+    if year is None:
+        return "новостройка" if new_flag else None
+    if epoch(year, now_year) == "building":
+        return f"новостройка, дом сдаётся в {year}"
+    if new_flag or year >= now_year - 2:
+        return f"новостройка, дом {year} г."
+    return f"вторичка, дом {year} г."
+
+
+def _flat_info(data: MarketData, oid: int | None, target: ListingRow, now_year: int) -> FlatInfo:
     obj = data.objects.get(oid) if oid else None
     snap = data.last_snapshot(target.id)
     district = normalize_district(snap.district) if snap else None
@@ -434,6 +444,9 @@ def _flat_info(data: MarketData, oid: int | None, target: ListingRow) -> FlatInf
         year=data.building_years.get(oid) if oid else None,
         house_key=house_key(obj.street_norm, obj.house) if obj else None,
         finish=data.finishings.get(oid) if oid else None,
+        housing=housing_label(data.building_years.get(oid), data.new_buildings.get(oid), now_year)
+        if oid
+        else None,
     )
 
 

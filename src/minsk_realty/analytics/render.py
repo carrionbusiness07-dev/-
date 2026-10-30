@@ -45,7 +45,6 @@ _ICONS = {
     "warn": "⚠️",
     "meh": "🟡",
     "place": "📍",
-    "who": "👥",
     "plus": "👍",
     "house": "🏢",
 }
@@ -96,10 +95,11 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
             "с задержкой. Попробуйте позже.\n" + (f"{note}\n" if note else "") + obs
         )
 
-    top = [_header(report, icons), _now_line(report)]
+    housing = [report.flat.housing] if report.flat and report.flat.housing else []
+    top = [_header(report, icons), *housing, _now_line(report)]
     blocks = [
         _assessment_lines(report, icons),
-        [*_place_lines(report, icons), *_audience_lines(report, icons)],
+        _place_lines(report, icons),
         _minus_plus_lines(report, icons),
         [*_comparison_lines(report, icons), *_house_lines(report, icons)],
     ]
@@ -336,15 +336,6 @@ def _place_lines(report: CheckReport, icons: bool) -> list[str]:
     return [_icon("place", icons) + text]
 
 
-def _audience_lines(report: CheckReport, icons: bool) -> list[str]:
-    a = report.assessment
-    return [f"{_icon('who', icons)}Подойдёт: {_audience(a)}"] if a and a.audience else []
-
-
-def _audience(a) -> str:
-    return ", ".join(x.text for x in a.audience)
-
-
 def _lower(text: str) -> str:
     return text[:1].lower() + text[1:]
 
@@ -455,7 +446,6 @@ def web_blocks(report: CheckReport) -> dict:
         "place": place[0] if place else None,
         "minuses": [asdict(m) for m in a.minuses] if a else [],
         "pluses": [asdict(p) for p in a.pluses] if a else [],
-        "audience": [asdict(x) for x in a.audience] if a else [],
         "comparison": [line.strip() for line in _comparison_lines(report, False)],
         "house": _house_body(report),
     }
