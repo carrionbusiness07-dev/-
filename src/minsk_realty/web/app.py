@@ -175,7 +175,7 @@ def objects(
     page = min(page, pages)
     start = (page - 1) * views.OBJECTS_PAGE
     active = sum(1 for r in rows if r.state == "active")
-    districts = sorted({r.district_raw for r in views.all_object_rows(snap) if r.district_raw})
+    districts = views.object_districts(snap)
     return _page(
         request,
         "objects.html",

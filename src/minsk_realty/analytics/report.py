@@ -35,6 +35,7 @@ from minsk_realty.analytics.bargaining import (
 from minsk_realty.analytics.comparables import Comparison, find_comparison, house_key
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import ListingRow, MarketData, load_market, source_starts
+from minsk_realty.analytics.districts import district_at
 from minsk_realty.analytics.exposure import Exposure, compute_exposure
 from minsk_realty.analytics.fmt import normalize_district, plural, street_label
 from minsk_realty.analytics.geo import Location, locate
@@ -415,6 +416,8 @@ def _flat_info(data: MarketData, oid: int | None, target: ListingRow) -> FlatInf
     district = normalize_district(snap.district) if snap else None
     if district is None and oid:
         district = data.object_district(oid)
+    if district is None and (point := data.listing_point(target.id, frozenset())):
+        district = district_at(point[0], point[1])
     street = street_label(obj.street_norm) if obj else None
     if street is None and snap and snap.street:
         parsed = normalize_street(snap.street)

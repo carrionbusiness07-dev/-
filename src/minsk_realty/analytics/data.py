@@ -23,6 +23,7 @@ from typing import Any, Literal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from minsk_realty.analytics.districts import district_at
 from minsk_realty.analytics.fmt import normalize_district
 from minsk_realty.analytics.geo import valid_point
 from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, SourceRun
@@ -259,7 +260,9 @@ class MarketData:
             district = normalize_district(snap.district) if snap else None
             if district:
                 return district
-        return None
+        # Последний запасной вариант — по точке; неточная (двор, улица) для района годится.
+        point = self.object_point(object_id, frozenset())
+        return district_at(point[0], point[1]) if point else None
 
     def object_rooms(self, object_id: int) -> int | None:
         obj = self.objects.get(object_id)

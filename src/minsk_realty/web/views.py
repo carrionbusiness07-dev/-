@@ -33,6 +33,7 @@ from minsk_realty.analytics.fmt import (
     district_label,
     local,
     money,
+    normalize_district,
     ppm,
     rooms_label,
     street_label,
@@ -527,7 +528,13 @@ OBJECTS_PAGE = 100
 
 def object_rows(snap: Snapshot, *, district: str | None = None) -> list[ObjectRow]:
     rows = all_object_rows(snap)
-    return [r for r in rows if r.district_raw == district] if district else list(rows)
+    wanted = (normalize_district(district) or district) if district else None
+    return [r for r in rows if r.district_raw == wanted] if wanted else list(rows)
+
+
+def object_districts(snap: Snapshot) -> list[str]:
+    """Районы для фильтра: нормализованные названия, без дублей."""
+    return sorted({r.district_raw for r in all_object_rows(snap) if r.district_raw})
 
 
 def all_object_rows(snap: Snapshot) -> list[ObjectRow]:
