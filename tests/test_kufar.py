@@ -90,3 +90,44 @@ def test_flat_repair_goes_to_extra_with_code_and_label(fixtures_dir):
     snap = KufarAdapter(client=object()).parse(to_raw(ad))
     assert snap.extra["flat_repair"] == param["v"]
     assert snap.extra["repair"] == param["vl"]
+
+
+def test_details_come_from_params_with_lowercase_labels(fixtures_dir):
+    ads = json.loads(
+        (fixtures_dir / "kufar" / "search_sell_minsk.2026-10-23.json").read_text(encoding="utf-8")
+    )["ads"]
+
+    def param(ad, key):
+        return next(p for p in ad["ad_parameters"] if p["p"] == key)
+
+    ad = next(a for a in ads if any(p["p"] == "size_kitchen" for p in a["ad_parameters"]))
+    extra = KufarAdapter(client=object()).parse(to_raw(ad)).extra
+    assert extra["kitchen_m2"] == float(param(ad, "size_kitchen")["v"])
+    assert extra["bathroom"] == param(ad, "bathroom")["vl"].lower()
+    assert extra["walls"] == param(ad, "house_type")["vl"].lower()
+
+    windows = next(a for a in ads if any(p["p"] == "flat_windows_side" for p in a["ad_parameters"]))
+    extra = KufarAdapter(client=object()).parse(to_raw(windows)).extra
+    assert extra["windows_side"] == ", ".join(param(windows, "flat_windows_side")["vl"]).lower()
+
+    ceiling = next(
+        a for a in ads if any(p["p"] == "flat_ceiling_height" for p in a["ad_parameters"])
+    )
+    assert KufarAdapter(client=object()).parse(to_raw(ceiling)).extra["ceiling_m"] > 2
+
+
+def test_unknown_details_add_no_keys_and_exchange_false_is_kept(fixtures_dir):
+    ad = load(fixtures_dir)["ads"][0]
+    extra = KufarAdapter(client=object()).parse(to_raw(ad)).extra
+    assert not {"kitchen_m2", "bathroom", "walls", "windows_side", "exchange", "facts"} & set(extra)
+    ad["ad_parameters"].append({"p": "possible_exchange", "v": False, "vl": "-"})
+    assert KufarAdapter(client=object()).parse(to_raw(ad)).extra["exchange"] is False
+
+
+def test_description_facts_replace_text_in_payload(fixtures_dir):
+    ad = load(fixtures_dir)["ads"][0]
+    ad["body"], ad["body_short"] = "", "Торг. Под ипотеку не подходит"
+    raw = to_raw(ad)
+    assert "body" not in raw.payload and "body_short" not in raw.payload
+    assert raw.payload["_facts"] == ["no_mortgage", "bargain"]
+    assert KufarAdapter(client=object()).parse(raw).extra["facts"] == ["no_mortgage", "bargain"]

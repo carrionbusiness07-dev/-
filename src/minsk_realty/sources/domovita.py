@@ -40,7 +40,7 @@ from selectolax.lexbor import LexborHTMLParser
 
 from minsk_realty.models import ListingSnapshot, RawListing
 from minsk_realty.privacy import scrub, seller_key
-from minsk_realty.sources.base import PoliteClient
+from minsk_realty.sources.base import PoliteClient, description_facts
 
 log = logging.getLogger(__name__)
 
@@ -207,6 +207,7 @@ class DomovitaAdapter:
                     )
                     if item.get(key) is not None
                 },
+                **({"facts": facts} if (facts := item.get("_facts")) else {}),
             },
         )
 
@@ -269,6 +270,8 @@ def compact(item: dict[str, Any]) -> dict[str, Any]:
         "date_reception": item.get("date_reception"),
         "date_revision": item.get("date_revision"),
         "photos": [p["url"] for p in item.get("photos") or [] if p.get("url")],
+        # Текст объявления (`ads_text`) дальше не идёт: остаются только коды фактов.
+        "_facts": description_facts(item.get("ads_text")),
     }
 
 

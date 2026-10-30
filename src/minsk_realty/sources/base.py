@@ -18,6 +18,38 @@ DEFAULT_HEADERS = {
 }
 
 
+# Свободный текст продавца: в payload и БД не попадает, остаются только коды фактов (`_facts`).
+TEXT_KEYS = frozenset(
+    {
+        "body",
+        "body_short",
+        "description",
+        "headline",
+        "title",
+        "comments",
+        "specialComment",
+        "ads_text",
+    }
+)
+
+
+def description_facts(text: str | None, *extra_codes: str) -> list[str]:
+    """Факты из описания плюс коды от самой площадки, в порядке FACT_LABELS, без повторов."""
+    # Импорт здесь: пакет analytics через matching сам импортирует sources (цикл).
+    from minsk_realty.analytics.facts import FACT_LABELS, extract_facts
+
+    codes = {*extract_facts(text), *extra_codes}
+    return [code for code in FACT_LABELS if code in codes]
+
+
+def positive_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
 class SourceBlocked(RuntimeError):
     """Площадка трижды подряд ответила 403/429: источник останавливается до разбора человеком."""
 

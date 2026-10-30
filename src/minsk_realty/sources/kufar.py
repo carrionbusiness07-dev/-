@@ -14,7 +14,7 @@ from typing import Any
 
 from minsk_realty.models import ListingSnapshot, RawListing
 from minsk_realty.privacy import scrub, seller_key
-from minsk_realty.sources.base import PoliteClient
+from minsk_realty.sources.base import TEXT_KEYS, PoliteClient, description_facts, positive_float
 
 SEARCH_URL = "https://api.kufar.by/search-api/v2/search/rendered-paginated"
 SEARCH_PARAMS = {
@@ -125,6 +125,8 @@ class KufarAdapter:
                 **{key: p.get("v") for key, p in params.items() if key in EXTRA_PARAMS},
                 **({"microdistrict": md} if (md := _label(params, "re_district")) else {}),
                 **({"repair": rp} if (rp := _label(params, "flat_repair")) else {}),
+                **_details(params),
+                **({"facts": facts} if (facts := ad.get("_facts")) else {}),
             },
         )
 
@@ -159,7 +161,9 @@ def original_price(ad: dict[str, Any]) -> tuple[str | None, Decimal | None]:
 def to_raw(ad: dict[str, Any]) -> RawListing:
     """Посчитать псевдоним продавца и вырезать персональные данные до того, как ad покинет адаптер."""
     ad_id = str(ad.get("ad_id") or ad.get("list_id"))
-    payload = dict(ad)
+    payload = {key: value for key, value in ad.items() if key not in TEXT_KEYS}
+    # `body` в выдаче пустой, текст — в `body_short` (первые 150 символов).
+    payload["_facts"] = description_facts(ad.get("body") or ad.get("body_short"))
     payload["_seller_key"] = seller_key("kufar", ad.get("account_id"))
     return RawListing(source="kufar", external_id=ad_id, payload=scrub(payload))
 
@@ -178,6 +182,31 @@ def _value(params: dict[str, dict], key: str) -> Any:
 def _label(params: dict[str, dict], key: str) -> str | None:
     value = params.get(key, {}).get("vl")
     return value if isinstance(value, str) and value else None
+
+
+def _details(params: dict[str, dict]) -> dict[str, Any]:
+    """Площади, санузел, балкон, стены, окна, обмен: только известные значения, подписи со строчной."""
+    ceiling = re.search(r"\d+(?:[.,]\d+)?", _label(params, "flat_ceiling_height") or "")
+    windows = params.get("flat_windows_side", {}).get("vl")
+    exchange = _value(params, "possible_exchange")
+    details = {
+        "kitchen_m2": positive_float(_value(params, "size_kitchen")),
+        "living_m2": positive_float(_value(params, "size_living_space")),
+        # shortcut: Kufar отдаёт лишь нижнюю границу («от 2.7 м»), её и берём
+        "ceiling_m": positive_float(ceiling.group().replace(",", ".")) if ceiling else None,
+        "bathroom": _label(params, "bathroom"),
+        "balcony": _label(params, "balcony"),
+        "walls": _label(params, "house_type"),
+        "windows_side": ", ".join(w for w in windows if isinstance(w, str) and w)
+        if isinstance(windows, list)
+        else None,
+        "exchange": exchange if isinstance(exchange, bool) else None,
+    }
+    return {
+        key: value.lower() if isinstance(value, str) else value
+        for key, value in details.items()
+        if value not in (None, "")
+    }
 
 
 def _text(params: dict[str, dict], key: str) -> str | None:

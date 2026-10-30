@@ -66,3 +66,33 @@ def test_repair_labels_match_realt_own_dictionary(fixtures_dir):
     path = fixtures_dir / "realt" / "repair_state_options.2026-10-24.json"
     options = json.loads(path.read_text(encoding="utf-8"))["repairState"]
     assert REALT_REPAIR_LABELS == {o["value"]: o["label"] for o in options}
+
+
+def test_details_and_facts(fixtures_dir):
+    obj = dict(extract_page_props(html(fixtures_dir))["objects"][0])
+    obj |= {
+        "areaKitchen": 9.5,
+        "areaLiving": 30,
+        "balconyType": 2,
+        "furniture": 1,
+        "appliances": 0,
+        "headline": "Торг",
+        "description": "Срочно продаётся, свежий ремонт",
+        "comments": "заметка",
+        "specialComment": "заметка",
+        "title": "заметка",
+    }
+    raw = to_raw(obj)
+    for key in ("headline", "description", "comments", "specialComment", "title"):
+        assert key not in raw.payload
+    extra = RealtAdapter(client=object()).parse(raw).extra
+    assert (extra["kitchen_m2"], extra["living_m2"], extra["balcony"]) == (9.5, 30.0, "лоджия")
+    assert extra["facts"] == ["bargain", "urgent", "furniture", "fresh_repair"]
+    assert "walls" not in extra
+
+
+def test_unknown_balcony_code_and_empty_numbers_add_no_keys(fixtures_dir):
+    obj = dict(extract_page_props(html(fixtures_dir))["objects"][0])
+    obj |= {"balconyType": 999, "areaKitchen": 0, "areaLiving": None}
+    extra = RealtAdapter(client=object()).parse(to_raw(obj)).extra
+    assert not {"balcony", "kitchen_m2", "living_m2", "facts"} & set(extra)

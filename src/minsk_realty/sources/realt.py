@@ -18,7 +18,7 @@ from selectolax.lexbor import LexborHTMLParser
 
 from minsk_realty.models import ListingSnapshot, RawListing
 from minsk_realty.privacy import scrub, seller_key
-from minsk_realty.sources.base import PoliteClient
+from minsk_realty.sources.base import TEXT_KEYS, PoliteClient, description_facts, positive_float
 
 LIST_URL = "https://realt.by/sale/flats/"
 OBJECT_URL = "https://realt.by/sale-flats/object/{code}/"
@@ -42,6 +42,10 @@ REALT_REPAIR_LABELS: dict[int, str] = {
     7: "без отделки",
     8: "строительная отделка",
 }
+
+
+# Подписи кодов `balconyType`: справочник Realt из __NEXT_DATA__ (shortcuts), разведка 30.10.2026.
+REALT_BALCONY_LABELS: dict[int, str] = {0: "нет", 2: "лоджия", 27: "есть"}
 
 
 class RealtAdapter:
@@ -111,16 +115,28 @@ class RealtAdapter:
                 u for u in obj.get("images") or [] if isinstance(u, str) and u.startswith("http")
             ],
             extra={
-                key: obj.get(key)
-                for key in (
-                    "uuid",
-                    "priceChangeDate",
-                    "priceChangeDirection",
-                    "buildingYear",
-                    "metroStationName",
-                    "repairState",
-                )
-                if obj.get(key) is not None
+                **{
+                    key: obj.get(key)
+                    for key in (
+                        "uuid",
+                        "priceChangeDate",
+                        "priceChangeDirection",
+                        "buildingYear",
+                        "metroStationName",
+                        "repairState",
+                    )
+                    if obj.get(key) is not None
+                },
+                **{
+                    key: value
+                    for key, value in (
+                        ("kitchen_m2", positive_float(obj.get("areaKitchen"))),
+                        ("living_m2", positive_float(obj.get("areaLiving"))),
+                        ("balcony", REALT_BALCONY_LABELS.get(obj.get("balconyType"))),
+                        ("facts", obj.get("_facts") or None),
+                    )
+                    if value is not None
+                },
             },
         )
 
@@ -140,7 +156,10 @@ def extract_page_props(html: str) -> dict[str, Any]:
 
 
 def to_raw(obj: dict[str, Any]) -> RawListing:
-    payload = dict(obj)
+    payload = {key: value for key, value in obj.items() if key not in TEXT_KEYS}
+    codes = [code for code in ("furniture", "appliances") if obj.get(code)]
+    text = " ".join(str(obj[key]) for key in ("headline", "description") if obj.get(key))
+    payload["_facts"] = description_facts(text, *codes)
     payload["_seller_key"] = seller_key("realt", obj.get("userUuid"))
     return RawListing(source="realt", external_id=str(obj["code"]), payload=scrub(payload))
 

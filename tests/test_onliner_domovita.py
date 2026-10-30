@@ -11,6 +11,7 @@ import pytest
 from minsk_realty.sources.base import PoliteClient
 from minsk_realty.sources.domovita import (
     DomovitaAdapter,
+    compact,
     extract_next_data,
     listing_cards,
     original_price,
@@ -316,3 +317,15 @@ def test_domovita_404_past_the_end_finishes_the_pass(domovita_items):
     # 4 страницы по 17 своих объявлений + 3 повторяющихся платных = 71 уникальное из 68 заявленных
     assert len(raws) == 71
     assert adapter.last_search_complete
+
+
+def test_domovita_compact_turns_ads_text_into_facts(domovita_items):
+    item = dict(domovita_items[0], ads_text="Срочно, торг", title="заголовок")
+    payload = compact(item)
+    assert "ads_text" not in payload and "title" not in payload
+    assert payload["_facts"] == ["bargain", "urgent"]
+    snap = DomovitaAdapter(client=object()).parse(domovita_raw(item))
+    assert snap.extra["facts"] == ["bargain", "urgent"]
+    assert (
+        "facts" not in DomovitaAdapter(client=object()).parse(domovita_raw(domovita_items[0])).extra
+    )
