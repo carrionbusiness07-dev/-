@@ -159,7 +159,7 @@
     {% endif %}
     <script type="application/json" id="map-data">{{ map_data | tojson }}</script>
     {% endif %}
-    <p class="place-address" id="place-address" tabindex="-1">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}{% if r.flat.housing %} · {{ r.flat.housing }}{% endif %}</p>
+    <p class="place-address" id="place-address" tabindex="-1">{{ r.flat.street or "адрес не указан" }} · {{ fmt.district_label(r.flat.district) }}</p>
     {% if blocks.place %}<p>{{ blocks.place | nb }}</p>{% endif %}
     {% if map_data %}
     <p class="place-links">

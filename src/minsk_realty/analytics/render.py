@@ -95,7 +95,11 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
             "с задержкой. Попробуйте позже.\n" + (f"{note}\n" if note else "") + obs
         )
 
-    housing = [report.flat.housing] if report.flat and report.flat.housing else []
+    housing = (
+        [report.flat.housing[:1].upper() + report.flat.housing[1:]]
+        if report.flat and report.flat.housing
+        else []
+    )
     top = [_header(report, icons), *housing, _now_line(report)]
     blocks = [
         _assessment_lines(report, icons),

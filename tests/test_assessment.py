@@ -704,12 +704,12 @@ def _set_kufar_flag(session, value) -> None:
 def test_bot_text_shows_housing_label(session, stations):
     _docs(session)
     lines = _text(session).splitlines()
-    assert lines[0].startswith("🏠 2-комн.") and lines[1] == "вторичка, дом 1978 г."
+    assert lines[0].startswith("🏠 2-комн.") and lines[1] == "Вторичка, дом 1978 г."
     assert lines[2].startswith("Сейчас: ")
     _set_kufar_flag(session, "True")
     r = build_check_report(session, KUFAR_URL, NOW)
     assert r.flat.housing == "новостройка, дом 1978 г."
-    assert render_check_text(r).splitlines()[1] == "новостройка, дом 1978 г."
+    assert render_check_text(r).splitlines()[1] == "Новостройка, дом 1978 г."
     assert "Подойдёт" not in render_check_text(r)
 
 

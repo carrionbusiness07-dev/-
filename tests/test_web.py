@@ -208,8 +208,8 @@ def test_object_page_has_map(client):
     assert all("leaflet" not in p for p in pages if 'id="map-data"' not in p)
     assert page.index('id="map"') < page.index('class="place-address"') < page.index("place-links")
 
-def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
 
+def test_object_page_without_map_keeps_address_and_metro(client, monkeypatch):
     from minsk_realty.web import app as web_app
 
     real = web_app.build_check_report
@@ -235,12 +235,18 @@ def test_object_page_shows_housing_label(client, monkeypatch):
         report = real(*args, **kwargs)
         return replace(report, flat=replace(report.flat, housing="новостройка, дом сдаётся в 2027"))
 
+    def without_housing(*args, **kwargs):
+        report = real(*args, **kwargs)
+        return replace(report, flat=replace(report.flat, housing=None))
+
+    monkeypatch.setattr(web_app, "build_check_report", without_housing)
     page = client.get("/objects/1").text
-    assert "новостройка, дом" not in page and "вторичка, дом" not in page
+    assert "новостройка" not in page and "вторичка" not in page
     monkeypatch.setattr(web_app, "build_check_report", with_housing)
     page = client.get("/objects/1").text
     dek = page.split('class="page-dek">', 1)[1].split("</p>", 1)[0]
     assert dek.endswith(" · новостройка, дом сдаётся в 2027")
+    assert page.count("новостройка, дом сдаётся в 2027") == 1  # только в шапке
     assert "Подойдёт" not in page and "Кому подойдёт" not in page
 
 
@@ -256,10 +262,7 @@ def test_object_page_shows_assessment_cards(client):
     assert shown
     for page in shown:
         assert 'class="cards"' in page or "note-house" in page
-        for key, title in (
-            ("minuses", "Минусы"),
-            ("pluses", "Плюсы"),
-        ):
+        for key, title in (("minuses", "Минусы"), ("pluses", "Плюсы")):
             if f'id="{key}-title"' in page:
                 col = page.split(f'id="{key}-title"', 1)[1].split("</section>", 1)[0]
                 assert title in col and 'class="card-title"' in col
