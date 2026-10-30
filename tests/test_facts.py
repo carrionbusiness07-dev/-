@@ -111,3 +111,28 @@ def test_every_code_has_label():
     found = extract_facts(samples)
     assert found and set(found) <= set(FACT_LABELS)
     assert found == [c for c in FACT_LABELS if c in found]
+
+
+def test_full_text_ending_in_word_keeps_last_word():
+    long_text = "Просторная светлая квартира в тихом районе рядом с парком и школой. " * 5 + "Торг"
+    assert len(long_text) > 150
+    assert extract_facts(long_text) == ["bargain"]
+
+
+@pytest.mark.parametrize(
+    "text", ["Не против ипотеки", "без первоначального взноса, ипотека", "ипотека не исключена"]
+)
+def test_no_false_no_mortgage(text):
+    assert "no_mortgage" not in extract_facts(text)
+
+
+@pytest.mark.parametrize(
+    "text", ["Право собственности зарегистрировано", "Свободна от прописанных", "Нет прописанных"]
+)
+def test_registered_needs_people(text):
+    assert extract_facts(text) == []
+
+
+def test_registered_with_people():
+    assert extract_facts("В квартире прописаны 2 человека") == ["registered"]
+    assert extract_facts("Прописаны люди") == ["registered"]
