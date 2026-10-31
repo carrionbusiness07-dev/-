@@ -19,7 +19,13 @@ import sqlalchemy as sa
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import AnswerCallbackQuery, EditMessageText, SendMessage, SendVenue
+from aiogram.methods import (
+    AnswerCallbackQuery,
+    EditMessageReplyMarkup,
+    EditMessageText,
+    SendMessage,
+    SendVenue,
+)
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TgUser
 from alembic import command
@@ -39,7 +45,9 @@ from analytics_data import (
 from sqlalchemy import func, select
 
 from minsk_realty.analytics import build_check_report, render_check_text
+from minsk_realty.analytics.data import FlatDetails
 from minsk_realty.analytics.fmt import MINSK_DISTRICTS
+from minsk_realty.analytics.search import SearchItem, SearchQuery
 from minsk_realty.bot import keyboards, links, texts, weekly
 from minsk_realty.bot import service as service_mod
 from minsk_realty.bot.app import build_dispatcher
@@ -48,7 +56,7 @@ from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
-from minsk_realty.bot.search import PROMPTS, parse_search_callback
+from minsk_realty.bot.search import NEW_SEARCH, PROMPTS, parse_search_callback
 from minsk_realty.bot.service import INDEX_RETRY, BotService, IndexCache, reply_venue
 from minsk_realty.bot.watchlist import (
     forget_user,
@@ -1294,7 +1302,7 @@ def test_repeat_last_search(docs):
     for data in ("q:b:2", "q:r:2", "q:ok", "q:da"):
         press(service, data)
     page = service.search_go(TG)
-    assert page.summary and page.cards == [] and page.more is None
+    assert page.summary.startswith("Нашёл") and page.cards
     label = "До $100 000 · 2-комн."
     with docs() as session:
         assert last_search(session, TG)["price_max"] == 100_000
@@ -1372,3 +1380,279 @@ def test_wizard_steps_not_rate_limited(factory):
     assert len(sent) == 2  # две выдачи, третья — «слишком часто»
     answers = [c.text for c in calls if isinstance(c, AnswerCallbackQuery)]
     assert answers.count(texts.TOO_OFTEN) == 1
+
+
+# --- Выдача и карточки ----------------------------------------------------------------------
+
+
+def _card_item(**kw) -> SearchItem:
+    data = {
+        "object_id": 1,
+        "rooms": 2,
+        "area": 54.0,
+        "floor": 7,
+        "floors_total": 9,
+        "district": "Фрунзенский",
+        "new_building": False,
+        "price_amount": Decimal(86500),
+        "price_currency": "USD",
+        "price_usd": 86500.0,
+        "usd_per_m2": 1602.0,
+        "group": "below",
+        "diff_pct": -14.2,
+        "metro": "Кунцевщина",
+        "metro_min": 6,
+        "days": 74,
+        "drops": 2,
+        "sources": ("kufar", "realt"),
+        "owner": True,
+        "url": "https://re.kufar.by/vi/1000201",
+        "url_source": "kufar",
+        "listing_id": 11,
+        "checked_at": NOW - timedelta(minutes=40),
+        "first_seen": NOW - 74 * DAY,
+        "street": "ул. Притыцкого",
+        "year": 1985,
+        "housing": "вторичка, дом 1985 г.",
+        "details": FlatDetails(kitchen_m2=9.0, facts=("share", "bargain")),
+    }
+    return SearchItem(**(data | kw))
+
+
+def _lines(item: SearchItem) -> list[str]:
+    return texts.search_card_text(item, NOW).split("\n")
+
+
+def test_card_text():
+    assert _lines(_card_item()) == [
+        "<b>2-комн., 54 м², 7/9 эт. · ул. Притыцкого</b>",
+        "Фрунзенский р-н · вторичка, дом 1985 г.",
+        "$86 500 · $1 602/м²",
+        "🟢 Стоит смотреть: на 14% дешевле похожих",
+        "Кухня 9 м²",
+        "⚠️ продаётся доля",
+        "📝 Из описания: торг",
+        "🚇 «Кунцевщина» 6 мин пешком",
+        "⏳ На рынке 74 дня, дешевела 2 раза",
+        "Kufar, Realt · собственник · проверено 40 мин назад",
+    ]
+    bare = _card_item(
+        price_amount=Decimal(250000),
+        price_currency="BYN",
+        group=None,
+        diff_pct=None,
+        details=None,
+        drops=0,
+        owner=None,
+        street=None,
+        checked_at=NOW - 5 * HOUR,
+    )
+    lines = _lines(bare)
+    assert lines[0] == "<b>2-комн., 54 м², 7/9 эт.</b>"
+    assert "250 000 BYN (≈ $86 500) · $1 602/м²" in lines  # как в отчёте /check
+    assert "⏳ На рынке 74 дня" in lines
+    assert lines[-1] == "Kufar, Realt · проверено 5 ч назад"
+    assert not any(line.startswith(("🟢", "⚪", "🟠", "🔴", "📝", "⚠️", "Кухня")) for line in lines)
+    assert _lines(_card_item(checked_at=NOW - 3 * DAY))[-1].endswith("проверено 3 дня назад")
+    assert "ул. &lt;b&gt;" in _lines(_card_item(street="ул. <b>"))[0]
+
+
+def test_card_suspicious_and_above():
+    suspicious = _lines(_card_item(group="suspicious", diff_pct=-31.4))
+    assert "🔴 Подозрительно дёшево: на 31% ниже похожих — узнайте причину" in suspicious
+    assert "🟠 Дороже похожих на 18%" in _lines(_card_item(group="above", diff_pct=18.0))
+    assert "⚪ Цена в рынке" in _lines(_card_item(group="market", diff_pct=3.0))
+
+
+def test_card_without_metro_for_approx_sources():
+    # build_index не даёт метро по неточной точке Realt/Domovita: строки 🚇 нет
+    item = _card_item(metro=None, metro_min=None, sources=("realt",), url_source="realt")
+    assert not any(line.startswith("🚇") for line in _lines(item))
+    markup = keyboards.search_card_keyboard(item, watching=False)
+    assert buttons(markup) == {"r:1": "Подробно", "w:11": "👁 Следить", None: "Открыть на Realt ↗"}
+    watching = keyboards.search_card_keyboard(replace(item, url=""), watching=True)
+    assert buttons(watching) == {"r:1": "Подробно", "u:1:r11": "✓ Слежу"}  # без ссылки
+
+
+class FixedIndex:
+    def __init__(self, items) -> None:
+        self.items = tuple(items)
+
+    def get(self, session, now):
+        return self.items
+
+
+@pytest.fixture
+def market(factory):
+    """23 двухкомнатные во Фрунзенском, $89 000–100 000."""
+    with factory() as session:
+        add_background(session, 23, step=3 * DAY)
+        session.commit()
+    return factory
+
+
+def _object_ids(page) -> list[int]:
+    return [
+        int(b.callback_data[2:])
+        for card in page.cards
+        for row in card.keyboard.inline_keyboard
+        for b in row
+        if (b.callback_data or "").startswith("r:")
+    ]
+
+
+def test_first_page(market):
+    service = sync_service(market)
+    service.search_start(TG)
+    page = service.search_go(TG)
+    assert page.summary.startswith("Нашёл 23 квартиры: ")
+    assert page.summary.endswith("Показываю сначала выгодные.")
+    assert len(page.cards) == 5 and buttons(page.more) == {"s:best:5": "Ещё 5"}
+    assert buttons(page.sorts) == {
+        "s:best:0": "✓ Сначала выгодные",
+        "s:cheap:0": "Сначала дешёвые",
+        "s:fresh:0": "Сначала свежие",
+    }
+    assert all(card.preview_url.startswith("https://example.invalid/") for card in page.cards)
+    second = service.search_page(TG, "best", 5)
+    assert second.summary is None and len(second.cards) == 5
+    assert buttons(second.more) == {"s:best:10": "Ещё 5"}
+    assert not set(_object_ids(page)) & set(_object_ids(second))
+    cheap = service.search_page(TG, "cheap", 0)
+    assert cheap.summary.endswith("сначала дешёвые.")
+    assert buttons(cheap.sorts)["s:cheap:0"] == "✓ Сначала дешёвые"
+
+    sent, _ = _feed(service, _press_query("q:go"))
+    assert len(sent) == 6 and "s:cheap:0" in buttons(sent[0].reply_markup)
+    for msg, card in zip(sent[1:], page.cards, strict=True):
+        opts = msg.link_preview_options
+        assert (opts.url, opts.prefer_large_media, opts.show_above_text) == (
+            card.preview_url,
+            True,
+            True,
+        )
+    assert "s:best:5" in buttons(sent[-1].reply_markup)  # «Ещё 5» — под последней карточкой
+    assert "s:best:5" not in buttons(sent[-2].reply_markup)
+    sent, _ = _feed(service, _press_query("s:best:5"), _press_query("s:fresh:0"))
+    assert len(sent) == 5 + 6 and sent[5].text.endswith("сначала свежие.")
+
+
+def test_card_without_link_disables_preview(market):
+    service = sync_service(market)
+    service.search_start(TG)
+    with market() as session:
+        items = service.index.get(session, NOW)
+    service.index = FixedIndex([replace(items[0], url="")])
+    page = service.search_go(TG)
+    assert page.cards[0].preview_url is None
+    sent, _ = _feed(service, _press_query("q:go"))
+    assert sent[1].link_preview_options.is_disabled is True
+    assert None not in buttons(sent[1].reply_markup)  # без «Открыть»
+
+
+def test_last_page_no_more(market):
+    service = sync_service(market)
+    service.search_start(TG)
+    service.search_go(TG)
+    last = service.search_page(TG, "best", 20)
+    assert len(last.cards) == 3 and last.more is None
+    beyond = service.search_page(TG, "best", 25)
+    assert beyond.cards == [] and "Больше квартир нет" in beyond.summary
+    assert buttons(beyond.more) == {"q:new": NEW_SEARCH}
+
+    restarted = sync_service(market)  # черновика в памяти нет — запрос из БД
+    assert len(restarted.search_page(TG, "best", 5).cards) == 5
+    stranger = restarted.search_page(TG + 1, "best", 5)
+    assert stranger.summary == texts.search_stale_text()
+    assert buttons(stranger.more) == {"q:new": NEW_SEARCH}
+
+
+def test_index_shrank_between_pages(market):
+    """Review Focus 3: каждая страница пересчитывается на текущем индексе."""
+    service = sync_service(market)
+    service.search_start(TG)
+    assert service.search_go(TG).more is not None
+    with market() as session:
+        items = service.index.get(session, NOW)
+    service.index = FixedIndex(items[:4])
+    stale = service.search_page(TG, "best", 5)
+    assert stale.cards == [] and "Больше квартир нет" in stale.summary
+    assert count(market, SearchShown) == 5  # отмечены ровно показанные
+
+
+def test_empty_with_suggestions(market):
+    with market() as session:
+        add_background(session, 3, district="Центральный", rooms=3, prefix="c")
+        session.commit()
+    service = sync_service(market)
+    service.search_start(TG)
+    service.drafts[TG].query = SearchQuery(
+        rooms=frozenset({2}), districts=frozenset({"Центральный"})
+    )
+    page = service.search_go(TG)
+    district, rooms = "Если любой район — 23 квартиры", "Если любые комнаты — 3 квартиры"
+    assert page.cards == [] and district in page.summary and rooms in page.summary
+    assert buttons(page.more) == {"q:x:0": district, "q:x:1": rooms, "q:new": NEW_SEARCH}
+    assert count(market, SearchShown) == 0
+
+    sent, _ = _feed(service, _press_query("q:x:1"))
+    assert sent[0].text.startswith("Нашёл 3 квартиры") and len(sent) == 4
+    assert service.drafts[TG].query == SearchQuery(districts=frozenset({"Центральный"}))
+    with market() as session:
+        assert last_search(session, TG)["rooms"] == []
+
+    restarted = sync_service(market)  # после перезапуска подсказка — к сохранённому запросу
+    with market() as session:
+        save_search(session, TG, SearchQuery(rooms=frozenset({3}), price_max=80_000).to_json())
+        session.commit()
+    relaxed = restarted.search_relax(TG, 0)
+    assert relaxed.summary.startswith("Нашёл 3 квартиры")
+    assert restarted.drafts[TG].query == SearchQuery(rooms=frozenset({3}), price_max=100_000)
+
+
+def test_shown_objects_allow_details(docs):
+    service = sync_service(docs)
+    service.search_start(TG)
+    page = service.search_go(TG)
+    with docs() as session:
+        everything = [i.object_id for i in service.index.get(session, NOW)]
+    shown = _object_ids(page)
+    hidden = next(oid for oid in everything if oid not in shown)
+    assert service.report_for_object(TG, shown[0]).text.startswith("<b>🏠")
+    assert service.report_for_object(TG, hidden).text == texts.stale_button_text()
+
+    # «Следить» на карточке: разрешено (объект показан) и меняет только эту кнопку
+    card = page.cards[0]
+    lid = int(next(k for k in buttons(card.keyboard) if (k or "").startswith("w:"))[2:])
+    markup = keyboards.join(card.keyboard, page.more)
+    msg = _message("карточка").model_copy(update={"reply_markup": markup})
+    query = _press_query(f"w:{lid}").model_copy(update={"message": msg})
+    sent, calls = _feed(service, query)
+    assert "Готово, слежу" in sent[0].text and count(docs, Watch) == 1
+    edit = next(c for c in calls if isinstance(c, EditMessageReplyMarkup))
+    redrawn = buttons(edit.reply_markup)
+    assert redrawn[f"u:{shown[0]}:r{lid}"] == "✓ Слежу" and f"w:{lid}" not in redrawn
+    assert redrawn[f"r:{shown[0]}"] == "Подробно" and "s:best:5" in redrawn
+    assert buttons(service.search_page(TG, "best", 0).cards[0].keyboard)[f"u:{shown[0]}:r{lid}"]
+
+    msg = msg.model_copy(update={"reply_markup": edit.reply_markup})
+    query = _press_query(f"u:{shown[0]}:r{lid}").model_copy(update={"message": msg})
+    _, calls = _feed(service, query)
+    edit = next(c for c in calls if isinstance(c, EditMessageReplyMarkup))
+    assert buttons(edit.reply_markup)[f"w:{lid}"] == "👁 Следить" and count(docs, Watch) == 0
+
+
+def test_saved_after_go(market):
+    service = sync_service(market)
+    _feed(service, _message("/search"), _press_query("q:b:3"), _press_query("q:go"))
+    with market() as session:
+        assert SearchQuery.from_json(last_search(session, TG)) == SearchQuery(price_max=130_000)
+
+
+def test_results_callback_parsing():
+    cb = parse_search_callback("s:fresh:5")
+    assert (cb.action, cb.sort, cb.value) == ("page", "fresh", 5)
+    assert parse_search_callback("q:x:1").value == 1
+    for bad in ("s:best", "s:worst:0", "s:best:-5", "s:best:x", "s:best:²", "q:x:2", "q:x"):
+        assert parse_search_callback(bad) is None
+    assert len(b"s:cheap:9995") <= 64

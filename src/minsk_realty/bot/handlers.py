@@ -162,7 +162,9 @@ def build_router(cfg: BotConfig) -> Router:
             await query.answer()
             if message is not None:
                 if result.status in ("added", "already"):
-                    markup = await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
+                    markup = keyboards.card_after_watch(
+                        message.reply_markup, result.object_id, cb.listing_id, watching=True
+                    ) or await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
                     await _edit_markup(message, markup)
                 await message.answer(reply.text)
             return
@@ -177,7 +179,9 @@ def build_router(cfg: BotConfig) -> Router:
                 with suppress(TelegramBadRequest):
                     await message.edit_text(reply.text, reply_markup=reply.keyboard)
             elif cb.context == "r" and cb.listing_id is not None:
-                markup = await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
+                markup = keyboards.card_after_watch(
+                    message.reply_markup, cb.object_id, cb.listing_id, watching=False
+                ) or await asyncio.to_thread(service.report_markup, user_id, cb.listing_id)
                 await _edit_markup(message, markup)
             else:
                 await _edit_markup(

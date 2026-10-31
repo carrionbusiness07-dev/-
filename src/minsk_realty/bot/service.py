@@ -31,6 +31,7 @@ from minsk_realty.analytics.search import (
     Sort,
     build_index,
     parse_budget,
+    suggestions,
     summary_line,
 )
 from minsk_realty.analytics.search import search as find_flats
@@ -47,6 +48,7 @@ from minsk_realty.bot.watchlist import (
     has_seen_object,
     is_watching,
     last_search,
+    mark_shown,
     remove_watch,
     save_search,
     watch_items,
@@ -173,9 +175,12 @@ class Card:
 
 @dataclass(frozen=True)
 class SearchPage:
-    summary: str | None  # первое сообщение выдачи
+    summary: str | None  # первое сообщение выдачи; у следующих страниц его нет
     cards: list[Card]
-    more: InlineKeyboardMarkup | None  # под последним сообщением: «Ещё 5» или «Найти квартиру»
+    # Под последним сообщением страницы: «Ещё 5» (под последней карточкой); без карточек —
+    # под summary: «Найти квартиру» или подсказки пустой выдачи.
+    more: InlineKeyboardMarkup | None
+    sorts: InlineKeyboardMarkup | None = None  # под summary, если есть карточки
 
 
 class BotService:
@@ -342,16 +347,71 @@ class BotService:
         return self.search_page(telegram_id, "best", 0)
 
     def search_page(self, telegram_id: int, sort: Sort, offset: int) -> SearchPage:
-        """Страница выдачи по запросу черновика. Карточки и «Ещё 5» — следующий шаг."""
-        draft = self.drafts.get(telegram_id)
-        if draft is None:
-            return self._stale_page()
+        """Страница выдачи: `PAGE_SIZE` карточек с `offset`, на первой — строка-итог.
+
+        Выдача пересчитывается на текущем индексе при каждом нажатии (запрос — черновика,
+        после перезапуска — сохранённый): если индекс между страницами уменьшился, лишняя
+        страница отвечает «Больше квартир нет». Показанные объекты открывают «Подробно»."""
         with self.factory() as session:
+            now = self.clock()
+            query = self._search_query(session, telegram_id)
+            if query is None:
+                return self._stale_page()
+            index = self.index.get(session, now)
+            if index is None:
+                return SearchPage(texts.search_preparing_text(), [], None)
+            result = find_flats(index, query, sort)
+            items = result.items[offset : offset + search.PAGE_SIZE]
+            if not items and offset:
+                return SearchPage(texts.search_no_more_text(), [], search.new_search_keyboard())
+            if not items:
+                hints = [text for text, _, _ in suggestions(index, query)]
+                return SearchPage(texts.search_empty_text(hints), [], search.hints_keyboard(hints))
+            mark_shown(session, telegram_id, [i.object_id for i in items])
+            cards = [
+                Card(
+                    texts.search_card_text(item, now),
+                    keyboards.search_card_keyboard(
+                        item, watching=is_watching(session, telegram_id, item.object_id)
+                    ),
+                    item.url or None,
+                )
+                for item in items
+            ]
+            session.commit()
+        end = offset + search.PAGE_SIZE
+        more = search.more_keyboard(sort, end) if end < len(result.items) else None
+        if offset:
+            return SearchPage(None, cards, more)
+        summary = texts.esc(summary_line(result, sort))
+        return SearchPage(summary, cards, more, search.sort_keyboard(sort))
+
+    def search_relax(self, telegram_id: int, n: int) -> SearchPage:
+        """Кнопка подсказки пустой выдачи: ослабить запрос, запомнить и показать первую
+        страницу. Подсказки пересчитываются; если такой уже нет — выдача по запросу как есть."""
+        with self.factory() as session:
+            query = self._search_query(session, telegram_id)
             index = self.index.get(session, self.clock())
-        if index is None:
-            return SearchPage(texts.search_preparing_text(), [], None)
-        result = find_flats(index, draft.query, sort)
-        return SearchPage(texts.esc(summary_line(result, sort)), [], None)
+            hints = suggestions(index, query) if query is not None and index is not None else []
+            if n < len(hints):
+                relaxed = hints[n][1]
+                with self._draft_lock:
+                    draft = self.drafts.get(telegram_id)
+                    if draft is None:
+                        self.drafts[telegram_id] = search.SearchDraft(relaxed, step="more")
+                    else:
+                        draft.query = relaxed
+                save_search(session, telegram_id, relaxed.to_json())
+                session.commit()
+        return self.search_page(telegram_id, "best", 0)
+
+    def _search_query(self, session: Session, telegram_id: int) -> SearchQuery | None:
+        """Запрос черновика; черновика нет (перезапуск) — последний сохранённый."""
+        draft = self.drafts.get(telegram_id)
+        if draft is not None:
+            return draft.query
+        last = last_search(session, telegram_id)
+        return SearchQuery.from_json(last) if last else None
 
     def _stale_page(self) -> SearchPage:
         return SearchPage(texts.search_stale_text(), [], search.new_search_keyboard())
@@ -359,12 +419,16 @@ class BotService:
     # --- Список -----------------------------------------------------------------------------
 
     def watch_listing(self, telegram_id: int, listing_id: int) -> tuple[Reply, WatchResult]:
-        """Кнопка «Следить» под отчётом."""
+        """Кнопка «Следить» под отчётом или карточкой выдачи."""
         with self.factory() as session:
-            if not has_checked_listing(session, telegram_id, listing_id):
+            listing = session.get(Listing, listing_id)
+            # объект показан в выдаче (или проверен по другой ссылке) — тоже можно
+            shown = listing is not None and listing.object_id is not None
+            if not has_checked_listing(session, telegram_id, listing_id) and not (
+                shown and has_seen_object(session, telegram_id, listing.object_id)
+            ):
                 result = WatchResult("denied", limit=self.cfg.watch_limit)
                 return Reply(texts.watch_result_text(result)), result
-            listing = session.get(Listing, listing_id)
             result = add_watch(session, telegram_id, listing, self.clock(), self.cfg.watch_limit)
             name = self._name(session, result.object_id)
             session.commit()

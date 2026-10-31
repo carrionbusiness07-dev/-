@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 from minsk_realty.analytics import CheckReport, WeeklySummary, render_check_text
+from minsk_realty.analytics.facts import facts_line
 from minsk_realty.analytics.fmt import (
     SOURCE_NAMES,
     date_full,
@@ -21,8 +22,11 @@ from minsk_realty.analytics.fmt import (
     days_text,
     money,
     pct,
+    ppm,
+    times_text,
 )
-from minsk_realty.analytics.render import render_weekly_text
+from minsk_realty.analytics.render import details_line, render_weekly_text
+from minsk_realty.analytics.search import SearchItem
 from minsk_realty.bot.links import SOURCE_DOMAINS, Link
 from minsk_realty.bot.watchlist import FlatName, WatchItem, WatchResult
 from minsk_realty.sources import names_text
@@ -255,6 +259,95 @@ BUDGET_RETRY = "Не понял сумму. Напишите, например: 
 
 def search_preparing_text() -> str:
     return esc("Готовлю данные, попробуйте через минуту.")
+
+
+def search_no_more_text() -> str:
+    return esc("Больше квартир нет.")
+
+
+def search_empty_text(hints: Sequence[str]) -> str:
+    """Пустая выдача: до двух подсказок «Если любой район — 31 квартира» (они же кнопки)."""
+    if not hints:
+        return esc("Ничего не нашёл.")
+    lines = ["Ничего не нашёл. Можно ослабить одно условие:", *(f"• {h}" for h in hints)]
+    return esc("\n".join(lines))
+
+
+# --- Карточка квартиры в выдаче ------------------------------------------------------------
+
+VERDICTS = {
+    "below": "🟢 Стоит смотреть: на {}% дешевле похожих",
+    "market": "⚪ Цена в рынке",
+    "above": "🟠 Дороже похожих на {}%",
+    "suspicious": "🔴 Подозрительно дёшево: на {}% ниже похожих — узнайте причину",
+}
+
+
+def _ago(then: datetime, now: datetime) -> str:
+    """Минуты до часа, часы до двух суток, дальше дни."""
+    minutes = max(1, int((now - then).total_seconds() // 60))
+    if minutes < 60:
+        return f"{minutes} мин"
+    if minutes < 48 * 60:
+        return f"{minutes // 60} ч"
+    return days_text(minutes // (24 * 60))
+
+
+def search_card_text(item: SearchItem, now: datetime) -> str:
+    """Карточка выдачи (спека поиска, раздел 6): строки без данных пропускаются."""
+    size = ", ".join(
+        p
+        for p in (
+            f"{item.rooms}-комн." if item.rooms else None,
+            f"{item.area:g} м²" if item.area else None,
+            f"{item.floor}/{item.floors_total} эт."
+            if item.floor is not None and item.floors_total
+            else None,
+        )
+        if p
+    )
+    title = " · ".join(p for p in (size, item.street) if p) or "Квартира"
+    place = " · ".join(p for p in (item.district and f"{item.district} р-н", item.housing) if p)
+    price = money(item.price_amount, item.price_currency)
+    if item.price_currency != "USD" and item.price_usd is not None:
+        price += f" (≈ {money(item.price_usd, 'USD')})"
+    if item.usd_per_m2 is not None:
+        price += f" · {ppm(item.usd_per_m2)}"
+    verdict = None
+    if item.group in VERDICTS:
+        verdict = VERDICTS[item.group].format(f"{abs(item.diff_pct or 0):.0f}")
+    metro = None
+    if item.metro and item.metro_min is not None:
+        metro = f"🚇 «{item.metro}» {item.metro_min} мин пешком"
+    market = None
+    if item.days is not None:
+        drops = f", дешевела {times_text(item.drops)}" if item.drops else ""
+        market = f"⏳ На рынке {days_text(item.days)}{drops}"
+    seller = {True: "собственник", False: "агентство"}.get(item.owner)
+    tail = " · ".join(
+        p
+        for p in (
+            ", ".join(source_name(s) for s in item.sources),
+            seller,
+            f"проверено {_ago(item.checked_at, now)} назад",
+        )
+        if p
+    )
+    d = item.details
+    lines = [
+        title,
+        place,
+        price,
+        verdict,
+        details_line(d),
+        facts_line(d.facts) if d else None,
+        metro,
+        market,
+        tail,
+    ]
+    out = [esc(line) for line in lines if line]
+    out[0] = f"<b>{out[0]}</b>"
+    return "\n".join(out)
 
 
 TOO_OFTEN = "Слишком часто. Подождите немного и попробуйте снова."

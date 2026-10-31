@@ -4,7 +4,8 @@ w:<listing_id>              — «Следить» под отчётом
 u:<object_id>:r<listing_id> — «Не следить» под отчётом (вернуть кнопку «Следить»)
 u:<object_id>:l             — «Не следить» в /list (перерисовать список)
 u:<object_id>:n             — «Не следить» под уведомлением
-r:<object_id>               — свежий отчёт по квартире из списка или уведомления
+r:<object_id>               — свежий отчёт по квартире из списка, уведомления или выдачи
+Карточка выдачи поиска использует те же r:, w: и u:<object_id>:r<listing_id>.
 f:yes | f:no                — подтверждение /forget
 """
 
@@ -15,6 +16,8 @@ from dataclasses import dataclass
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from minsk_realty.analytics.fmt import SOURCE_NAMES
+from minsk_realty.analytics.search import SearchItem
 from minsk_realty.bot.watchlist import WatchItem
 
 OPEN = "Открыть объявление"
@@ -106,6 +109,47 @@ def without_unwatch(markup: InlineKeyboardMarkup | None, object_id: int):
         [b for b in row if b.callback_data != f"u:{object_id}:n"] for row in markup.inline_keyboard
     ]
     rows = [row for row in rows if row]
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
+def _card_watch(object_id: int, listing_id: int, watching: bool) -> InlineKeyboardButton:
+    if watching:
+        return _btn("✓ Слежу", data=f"u:{object_id}:r{listing_id}")
+    return _btn("👁 Следить", data=f"w:{listing_id}")
+
+
+def search_card_keyboard(item: SearchItem, *, watching: bool) -> InlineKeyboardMarkup:
+    """Под карточкой выдачи: «Подробно», «Следить» / «✓ Слежу», «Открыть на <площадка> ↗»."""
+    rows = [
+        [
+            _btn("Подробно", data=f"r:{item.object_id}"),
+            _card_watch(item.object_id, item.listing_id, watching),
+        ]
+    ]
+    if item.url:
+        name = SOURCE_NAMES.get(item.url_source, item.url_source)
+        rows.append([_btn(f"Открыть на {name} ↗", url=item.url)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def card_after_watch(
+    markup: InlineKeyboardMarkup | None, object_id: int, listing_id: int, *, watching: bool
+) -> InlineKeyboardMarkup | None:
+    """Клавиатура карточки выдачи после «Следить»/«Не следить»: меняется только эта кнопка,
+    «Ещё 5» остаётся. None — это не карточка (у отчёта нет кнопки «Подробно»)."""
+    rows = markup.inline_keyboard if markup is not None else []
+    if not any((b.callback_data or "").startswith("r:") for row in rows for b in row):
+        return None
+    old = {f"w:{listing_id}", f"u:{object_id}:r{listing_id}"}
+    new = _card_watch(object_id, listing_id, watching)
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[new if b.callback_data in old else b for b in row] for row in rows]
+    )
+
+
+def join(*markups: InlineKeyboardMarkup | None) -> InlineKeyboardMarkup | None:
+    """Склеить клавиатуры построчно (карточка + «Ещё 5»)."""
+    rows = [row for m in markups if m is not None for row in m.inline_keyboard]
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
 
 

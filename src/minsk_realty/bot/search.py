@@ -12,6 +12,8 @@ q:a:<0|30|40|50|60|80>  площадь от (0 — неважно)
 q:h:<new|old|any>       новостройка / вторичка / неважно
 q:f1 / q:fl             не первый / не последний этаж (переключатели)
 q:back  назад    q:go  «Показать квартиры»    q:rep  повторить последний    q:new  заново
+q:x:<0|1>               применить подсказку пустой выдачи
+s:<best|cheap|fresh>:<offset>  страница выдачи: сортировка и сдвиг («Ещё 5», «Сначала …»)
 """
 
 from __future__ import annotations
@@ -27,15 +29,16 @@ from aiogram import Bot, F, Router
 from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, LinkPreviewOptions, Message
 
 from minsk_realty.analytics.fmt import MINSK_DISTRICTS
-from minsk_realty.analytics.search import BUDGET_STEPS, SearchQuery
+from minsk_realty.analytics.search import BUDGET_STEPS, SearchQuery, Sort
+from minsk_realty.bot import keyboards
 from minsk_realty.bot.keyboards import _btn
 from minsk_realty.bot.texts import esc
 
 if TYPE_CHECKING:
-    from minsk_realty.bot.service import BotService, Reply
+    from minsk_realty.bot.service import BotService, Reply, SearchPage
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +84,13 @@ _VALUES = {
     "r": range(1, 5),
     "d": range(len(MINSK_DISTRICTS)),
     "a": (0, *AREAS),
+    "x": range(2),
+}
+PAGE_SIZE = 5
+SORT_LABELS: dict[Sort, str] = {
+    "best": "Сначала выгодные",
+    "cheap": "Сначала дешёвые",
+    "fresh": "Сначала свежие",
 }
 
 
@@ -93,12 +103,17 @@ class SearchDraft:
 
 @dataclass(frozen=True)
 class SearchCallback:
-    action: str  # код после «q:»: b, bc, r, d, da, a, h, f1, fl, ok, back, go, rep, new
-    value: int | str | None = None
+    action: str  # код после «q:» (b, bc, r, …, x) или «page» для «s:»
+    value: int | str | None = None  # для «page» — сдвиг
+    sort: Sort | None = None  # для «page»
 
 
 def parse_search_callback(data: str | None) -> SearchCallback | None:
     parts = (data or "").split(":")
+    if parts[0] == "s":
+        if len(parts) == 3 and parts[1] in SORT_LABELS and parts[2].isdecimal():
+            return SearchCallback("page", int(parts[2]), parts[1])
+        return None
     if parts[0] != "q":
         return None
     if len(parts) == 2 and parts[1] in _SIMPLE:
@@ -232,6 +247,28 @@ def new_search_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[_btn(NEW_SEARCH, data="q:new")]])
 
 
+def sort_keyboard(current: Sort) -> InlineKeyboardMarkup:
+    """Под первым сообщением выдачи: три порядка, текущий отмечен."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [_btn(_mark(label, sort == current), data=f"s:{sort}:0")]
+            for sort, label in SORT_LABELS.items()
+        ]
+    )
+
+
+def more_keyboard(sort: Sort, offset: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[_btn(f"Ещё {PAGE_SIZE}", data=f"s:{sort}:{offset}")]]
+    )
+
+
+def hints_keyboard(hints: list[str]) -> InlineKeyboardMarkup:
+    """Пустая выдача: каждая подсказка — кнопка, применяющая её (q:x:<номер>)."""
+    rows = [[_btn(text, data=f"q:x:{i}")] for i, text in enumerate(hints)]
+    return InlineKeyboardMarkup(inline_keyboard=[*rows, [_btn(NEW_SEARCH, data="q:new")]])
+
+
 # --- Роутер ---------------------------------------------------------------------------------
 
 
@@ -239,7 +276,7 @@ def build_router() -> Router:
     """/search и кнопки «q:»; подключается до общего роутера (у того кнопки без фильтра)."""
     router = Router(name="search")
     router.message.filter(F.chat.type == ChatType.PRIVATE)
-    router.callback_query.filter(F.data.startswith("q:"))
+    router.callback_query.filter(F.data.startswith(("q:", "s:")))
 
     @router.message(Command("search"))
     async def search_cmd(message: Message, service: BotService) -> None:
@@ -270,9 +307,14 @@ async def _handle_button(query: CallbackQuery, bot: Bot, service: BotService) ->
         reply = await asyncio.to_thread(service.search_start, user_id)
         await _send(send, user_id, reply, service)
         return
-    if action in ("go", "rep"):  # выдача — новыми сообщениями, анкета остаётся выше
-        page = await asyncio.to_thread(service.search_go, user_id, repeat=action == "rep")
-        await send(page.summary, reply_markup=page.more)
+    if action in ("go", "rep", "page", "x"):  # выдача — новыми сообщениями, анкета выше
+        if action == "page":
+            job = partial(service.search_page, user_id, cb.sort, cb.value)
+        elif action == "x":
+            job = partial(service.search_relax, user_id, cb.value)
+        else:
+            job = partial(service.search_go, user_id, repeat=action == "rep")
+        await send_page(send, await asyncio.to_thread(job))
         return
     reply = await asyncio.to_thread(service.search_button, user_id, cb)
     if message is None:
@@ -281,6 +323,22 @@ async def _handle_button(query: CallbackQuery, bot: Bot, service: BotService) ->
     with suppress(TelegramBadRequest):  # «message is not modified» — не ошибка
         await message.edit_text(reply.text, reply_markup=reply.keyboard)
     service.search_bind(user_id, message.message_id)
+
+
+async def send_page(send, page: SearchPage) -> None:
+    """Первое сообщение (с сортировками), затем карточки по одной; «Ещё 5» — под последней.
+    Шесть сообщений подряд укладываются в лимиты Telegram на чат."""
+    if page.summary is not None:
+        await send(page.summary, reply_markup=page.sorts if page.cards else page.more)
+    for n, card in enumerate(page.cards, 1):
+        markup = keyboards.join(card.keyboard, page.more) if n == len(page.cards) else card.keyboard
+        if card.preview_url:
+            preview = LinkPreviewOptions(
+                url=card.preview_url, prefer_large_media=True, show_above_text=True
+            )
+        else:
+            preview = LinkPreviewOptions(is_disabled=True)
+        await send(card.text, reply_markup=markup, link_preview_options=preview)
 
 
 async def show_step(bot: Bot, chat_id: int, reply: Reply, service: BotService) -> None:
