@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Хроника — B: Х из линеек</title>
+  <!-- Х at 30° from vertical: one arm solid, the other a double rule (20 | 16 | 20) -->
+  <path fill="#000" d="M54 48 H110 L202 208 H146 Z"/>
+  <path fill="#000" d="M146 48 H166 L74 208 H54 Z"/>
+  <path fill="#000" d="M182 48 H202 L110 208 H90 Z"/>
+</svg>

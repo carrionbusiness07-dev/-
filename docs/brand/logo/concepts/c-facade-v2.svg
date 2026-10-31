@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Хроника — C: Дом-календарь</title>
+  <!-- 5-storey panel block = tear-off calendar: binding tabs on the roof, windows = days; one day stays filled (marked) -->
+  <rect x="88" y="24" width="18" height="34" rx="4" fill="#000"/>
+  <rect x="150" y="24" width="18" height="34" rx="4" fill="#000"/>
+  <path fill="#000" fill-rule="evenodd" d="M68 44 H188 A8 8 0 0 1 196 52 V228 A8 8 0 0 1 188 236 H68 A8 8 0 0 1 60 228 V52 A8 8 0 0 1 68 44 Z
+    M74 76 h28 v18 h-28 Z M114 76 h28 v18 h-28 Z M154 76 h28 v18 h-28 Z
+    M74 108 h28 v18 h-28 Z M114 108 h28 v18 h-28 Z M154 108 h28 v18 h-28 Z
+    M74 140 h28 v18 h-28 Z M154 140 h28 v18 h-28 Z
+    M74 172 h28 v18 h-28 Z M114 172 h28 v18 h-28 Z M154 172 h28 v18 h-28 Z
+    M74 204 h28 v18 h-28 Z M114 204 h28 v18 h-28 Z M154 204 h28 v18 h-28 Z"/>
+</svg>
