@@ -14,6 +14,7 @@ from fontTools.ttLib import TTFont
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 FONT = ROOT / "src/minsk_realty/web/static/fonts/pt-sans-narrow-700.woff2"
+FONT_REGULAR = ROOT / "src/minsk_realty/web/static/fonts/pt-sans-narrow-400.woff2"
 OUT = HERE / "final"
 
 SPOT = "#1c3dbf"  # «печатный синий» из DESIGN.md
@@ -30,18 +31,20 @@ WORD = "Хроника"
 TRACKING = -8  # единиц шрифта на букву: узкому гротеску в крупном кегле нужно чуть плотнее
 
 
-def word_path(size: float, x: float, baseline: float) -> tuple[str, float]:
-    """Контур слова в кривых и его ширина в px."""
-    font = TTFont(FONT)
+def word_path(
+    size: float, x: float, baseline: float, text: str = WORD, font_file: Path = FONT, tracking: int = TRACKING
+) -> tuple[str, float]:
+    """Контур строки в кривых и её ширина в px."""
+    font = TTFont(font_file)
     glyphs = font.getGlyphSet()
     cmap = font.getBestCmap()
     scale = size / font["head"].unitsPerEm
     pen = SVGPathPen(glyphs, ntos=lambda v: f"{v:.2f}".rstrip("0").rstrip("."))
     advance = 0.0
-    for i, ch in enumerate(WORD):
+    for i, ch in enumerate(text):
         name = cmap[ord(ch)]
         glyphs[name].draw(TransformPen(pen, (scale, 0, 0, -scale, x + advance * scale, baseline)))
-        advance += glyphs[name].width + (TRACKING if i < len(WORD) - 1 else 0)
+        advance += glyphs[name].width + (tracking if i < len(text) - 1 else 0)
     return pen.getCommands(), advance * scale
 
 
@@ -103,6 +106,23 @@ def main() -> None:
             f'  <path fill="{color}" transform="translate({word_dx:.2f} {word_base:.2f})" d="{word_d_v}"/>\n'
         )
         write(name, svg(round(view_w), round(view_h), body, "Хроника — вертикальный логотип"))
+
+    # Картинка приветствия бота (BotFather → Welcome Picture), формат Telegram 640×360.
+    title_d, _ = word_path(96, 266, 170)
+    line1_d, _ = word_path(30, 268, 222, "Найду квартиру в Минске", FONT_REGULAR, 0)
+    line2_d, _ = word_path(30, 268, 256, "и покажу её историю", FONT_REGULAR, 0)
+    write(
+        "welcome.svg",
+        svg(
+            640,
+            360,
+            f'  <rect width="640" height="360" fill="{SPOT}"/>\n'
+            f'  <path fill="#fff" transform="translate(17 55)" d="{SYMBOL}"/>\n'
+            f'  <path fill="#fff" d="{title_d}"/>\n'
+            f'  <path fill="#c9d3fb" d="{line1_d} {line2_d}"/>\n',  # on-spot-2 из DESIGN.md
+            "Хроника — приветствие бота",
+        ),
+    )
 
     word_d_only, word_w_only = word_path(132, 24, 132)
     write(
