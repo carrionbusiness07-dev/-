@@ -38,7 +38,7 @@ def test_yo_and_case(text):
 def test_mortgage_vs_no_mortgage():
     assert extract_facts("возможна ипотека") == ["mortgage"]
     assert extract_facts("под ипотеку не подходит") == ["no_mortgage"]
-    assert extract_facts("без ипотеки") == ["no_mortgage"]
+    assert extract_facts("без ипотеки") == []  # «не в ипотеке у банка», не отказ от ипотеки
 
 
 @pytest.mark.parametrize(
@@ -136,3 +136,40 @@ def test_registered_needs_people(text):
 def test_registered_with_people():
     assert extract_facts("В квартире прописаны 2 человека") == ["registered"]
     assert extract_facts("Прописаны люди") == ["registered"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Квартира без залога и ареста",
+        "Без обременений, залога и ареста",
+        "Квартира без ипотеки и долгов",
+        "Прописан только собственник",
+        "Прописан один собственник, выпишется до сделки",
+        "Без мебели и техники",
+        "Окна не во двор",
+    ],
+)
+def test_no_false_warnings_for_enumerations_and_owner(text):
+    assert extract_facts(text) == []
+
+
+def test_enumeration_negation_stays_local():
+    assert extract_facts("Без мебели, торг уместен") == ["bargain"]
+    assert extract_facts("Залог") == ["encumbrance"]
+    assert extract_facts("Ипотека не подходит") == ["no_mortgage"]
+    assert extract_facts("Прописаны 2 человека") == ["registered"]
+
+
+@pytest.mark.parametrize("text", ["Требуется капремонт", "нужен капремонт"])
+def test_capremont_needed_is_not_major_repair(text):
+    assert extract_facts(text) == ["needs_repair"]
+
+
+def test_capremont_done_is_major_repair():
+    assert extract_facts("Сделан капремонт дома") == ["major_repair"]
+
+
+@pytest.mark.parametrize("value", [123, 1.5, ["a"], {"a": 1}])
+def test_non_string_text_is_ignored(value):
+    assert extract_facts(value) == []

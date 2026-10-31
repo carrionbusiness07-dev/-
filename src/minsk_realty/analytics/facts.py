@@ -64,8 +64,8 @@ _RULES: dict[str, tuple[tuple[str, ...], bool]] = {
         (
             (
                 r"\b(?:прописан|зарегистрирован)(?:а|ы|о)?\s+(?:\w+\s+){0,2}?"
-                r"(?:люди|человек\w*|чел|жильц\w+|жител\w+|ребен\w+|дет(?:и|ей)|собственник\w*"
-                r"|владел\w+|взросл\w+|пенсионер\w*)\b"
+                r"(?:люди|человек\w*|чел|жильц\w+|жител\w+|ребен\w+|дет(?:и|ей)"
+                r"|взросл\w+|пенсионер\w*)\b"
             ),
             (
                 r"\b(?:люди|человек\w*|чел|жильц\w+|ребен\w+|дет(?:и|ей))\s+(?:\w+\s+)?"
@@ -82,11 +82,10 @@ _RULES: dict[str, tuple[tuple[str, ...], bool]] = {
         ),
         True,
     ),
-    # «ипотека не подходит», «под ипотеку не подходит», «без ипотеки»: отрицание уже в паттерне;
+    # «ипотека не подходит», «под ипотеку не подходит»: отрицание уже в паттерне («без ипотеки» не в счёт);
     # только с глаголами отказа, иначе «не против ипотеки» и «без взноса, ипотека» дают ложную тревогу
     "no_mortgage": (
         (
-            r"\bбез\s+ипотек(?:и|а)\b",
             (
                 r"\bне\s+(?:подходит|рассматриваю|рассматриваем|рассматривается|принимается"
                 r"|принимаем|возможна|для|под)(?:\s+(?:под|для))?\s+ипотек(?:а|у|и|е)\b"
@@ -144,8 +143,8 @@ _RULES: dict[str, tuple[tuple[str, ...], bool]] = {
     ),
     "needs_repair": (
         (
-            r"\bтребу(?:ет|ется)\s+(?:(?:косметическ|капитальн)(?:ий|ый|ого)\s+)?ремонт(?:а)?\b",
-            r"\bнужен\s+ремонт\b",
+            r"\bтребу(?:ет|ется)\s+(?:(?:косметическ|капитальн)(?:ий|ый|ого)\s+)?(?:кап)?ремонт(?:а)?\b",
+            r"\bнужен\s+(?:кап)?ремонт\b",
             r"\bремонт\s+(?:нужен|требуется)\b",
             r"\bпод\s+ремонт\b",
             r"\bбез\s+ремонта\b",
@@ -159,7 +158,7 @@ _RULES: dict[str, tuple[tuple[str, ...], bool]] = {
     "storage": ((r"\bкладов(?:ка|ку|ки|ке|ая|ой)\b",), True),
     "courtyard_windows": (
         (
-            r"\b(?:окн(?:а|о|ами)|вид|выход\w*)\s+(?:\w+\s+){0,2}?(?:выходят?\s+)?(?:во|на)\s+двор(?:ик)?\b",
+            r"\b(?:окн(?:а|о|ами)|вид|выход\w*)\s+(?:(?!не\b)\w+\s+){0,2}?(?:выходят?\s+)?(?:во|на)\s+двор(?:ик)?\b",
         ),
         True,
     ),
@@ -181,7 +180,7 @@ _RULES: dict[str, tuple[tuple[str, ...], bool]] = {
     ),
     "major_repair": (
         (
-            r"\bкапремонт(?:а|у|ом|е)?\b",
+            r"(?<!требуется )(?<!требует )(?<!нужен )\bкапремонт(?:а|у|ом|е)?\b",
             r"(?<!требуется )(?<!требует )(?<!нужен )\bкапитальн(?:ый|ого|ым|ом)\s+ремонт(?:а|ом|е)?\b",
         ),
         True,
@@ -192,8 +191,9 @@ assert list(_RULES) == list(FACT_LABELS)  # порядок кодов = поря
 _COMPILED = {code: ([re.compile(p) for p in pats], neg) for code, (pats, neg) in _RULES.items()}
 _CLAUSE_SPLIT = re.compile(r"[.,;:!?()\n]+")
 _WORD = re.compile(r"\w+")
-# «без» управляет словом справа; остальные отрицания стоят по обе стороны («торг не уместен»)
-_NEG_BEFORE_ONLY = {"без"}
+_BEZ_LIST = re.compile(r"\bбез\s+\w+(?:\s*,\s*\w+)*\s+(?:и|или)\s+\w+")  # «без A, B и C»
+# «без» управляет словом справа и коротким перечислением («без A и B»); остальные отрицания
+# стоят по обе стороны («торг не уместен»)
 _NEG_EITHER = {"не", "нет", "нету", "нельзя", "отсутствует", "отсутствуют"}
 _KUFAR_CUT = 148  # Kufar режет описание ровно на 150 символах; нижняя граница — запас на пробелы
 
@@ -202,7 +202,8 @@ def _negated(clause: str, start: int, end: int) -> bool:
     before = _WORD.findall(clause[:start])
     after = _WORD.findall(clause[end:])
     return (
-        bool(_NEG_BEFORE_ONLY & set(before[-2:]))
+        "без" in before[-2:]
+        or ("без" in before[-4:] and before[-1] in {"и", "или"})
         or bool(_NEG_EITHER & set(before[-3:]))
         or bool(_NEG_EITHER & set(after[:3]))
     )
@@ -210,13 +211,16 @@ def _negated(clause: str, start: int, end: int) -> bool:
 
 def extract_facts(text: str | None) -> list[str]:
     """Коды фактов из описания в порядке FACT_LABELS, без повторов."""
-    if not text or not text.strip():
+    if not isinstance(text, str) or not text.strip():
         return []
     # shortcut: длинный текст, оборванный на букве, считаем обрезанным (Kufar) и режем последнее
     # слово; полный текст из 148-150 символов потеряет одно слово, пока не передаём признак источника
     if _KUFAR_CUT <= len(text) <= 150 and text[-1].isalnum():
         text = text.rsplit(None, 1)[0] if len(text.split()) > 1 else ""
-    clauses = [" ".join(c.split()) for c in _CLAUSE_SPLIT.split(text.lower().replace("ё", "е"))]
+    text = text.lower().replace("ё", "е")
+    # запятые внутри «без A, B и C» не разделяют предложения
+    text = _BEZ_LIST.sub(lambda m: re.sub(r"\s*,\s*", " ", m.group()), text)
+    clauses = [" ".join(c.split()) for c in _CLAUSE_SPLIT.split(text)]
     found: list[str] = []
     for code, (patterns, check_negation) in _COMPILED.items():
         if code == "mortgage" and "no_mortgage" in found:

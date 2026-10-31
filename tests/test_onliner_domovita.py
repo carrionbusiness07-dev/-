@@ -329,3 +329,8 @@ def test_domovita_compact_turns_ads_text_into_facts(domovita_items):
     assert (
         "facts" not in DomovitaAdapter(client=object()).parse(domovita_raw(domovita_items[0])).extra
     )
+
+
+def test_domovita_non_string_ads_text_does_not_break_to_raw(domovita_items):
+    item = dict(domovita_items[0], ads_text=123)
+    assert domovita_raw(item).payload["_facts"] == []

@@ -86,6 +86,8 @@ class RealtAdapter:
             else (None, None)
         )
         agency = obj.get("agencyName") or obj.get("companyName")
+        code = obj.get("balconyType")  # список или словарь не хешируется: ищем только int
+        balcony = REALT_BALCONY_LABELS.get(code) if isinstance(code, int) else None
         house = "/".join(str(p) for p in (obj.get("houseNumber"), obj.get("buildingNumber")) if p)
 
         return ListingSnapshot(
@@ -132,7 +134,7 @@ class RealtAdapter:
                     for key, value in (
                         ("kitchen_m2", positive_float(obj.get("areaKitchen"))),
                         ("living_m2", positive_float(obj.get("areaLiving"))),
-                        ("balcony", REALT_BALCONY_LABELS.get(obj.get("balconyType"))),
+                        ("balcony", balcony),
                         ("facts", obj.get("_facts") or None),
                     )
                     if value is not None
@@ -158,7 +160,7 @@ def extract_page_props(html: str) -> dict[str, Any]:
 def to_raw(obj: dict[str, Any]) -> RawListing:
     payload = {key: value for key, value in obj.items() if key not in TEXT_KEYS}
     codes = [code for code in ("furniture", "appliances") if obj.get(code)]
-    text = " ".join(str(obj[key]) for key in ("headline", "description") if obj.get(key))
+    text = ". ".join(str(obj[key]) for key in ("headline", "description") if obj.get(key))
     payload["_facts"] = description_facts(text, *codes)
     payload["_seller_key"] = seller_key("realt", obj.get("userUuid"))
     return RawListing(source="realt", external_id=str(obj["code"]), payload=scrub(payload))

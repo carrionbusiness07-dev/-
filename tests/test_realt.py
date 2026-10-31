@@ -2,6 +2,7 @@ import json
 from decimal import Decimal
 
 import httpx
+import pytest
 
 from minsk_realty.sources.base import PoliteClient
 from minsk_realty.sources.realt import RealtAdapter, extract_page_props, to_raw
@@ -96,3 +97,16 @@ def test_unknown_balcony_code_and_empty_numbers_add_no_keys(fixtures_dir):
     obj |= {"balconyType": 999, "areaKitchen": 0, "areaLiving": None}
     extra = RealtAdapter(client=object()).parse(to_raw(obj)).extra
     assert not {"balcony", "kitchen_m2", "living_m2", "facts"} & set(extra)
+
+
+def test_headline_and_description_do_not_merge_into_one_sentence(fixtures_dir):
+    obj = dict(extract_page_props(html(fixtures_dir))["objects"][0])
+    obj |= {"headline": "Квартира без ремонта", "description": "Торг"}
+    assert to_raw(obj).payload["_facts"] == ["bargain", "needs_repair"]
+
+
+@pytest.mark.parametrize("value", [[2], {"a": 2}])
+def test_balcony_of_unexpected_type_is_ignored(fixtures_dir, value):
+    obj = dict(extract_page_props(html(fixtures_dir))["objects"][0])
+    obj |= {"balconyType": value}
+    assert "balcony" not in RealtAdapter(client=object()).parse(to_raw(obj)).extra

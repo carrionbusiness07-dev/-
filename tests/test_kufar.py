@@ -131,3 +131,8 @@ def test_description_facts_replace_text_in_payload(fixtures_dir):
     assert "body" not in raw.payload and "body_short" not in raw.payload
     assert raw.payload["_facts"] == ["no_mortgage", "bargain"]
     assert KufarAdapter(client=object()).parse(raw).extra["facts"] == ["no_mortgage", "bargain"]
+
+
+def test_non_string_body_does_not_break_to_raw():
+    raw = to_raw({"ad_id": 1, "body": "", "body_short": 123})
+    assert raw.payload["_facts"] == []
