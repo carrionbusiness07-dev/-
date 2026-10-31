@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from minsk_realty.analytics.data import FlatDetails
+from minsk_realty.analytics.facts import facts_line
 from minsk_realty.analytics.fmt import (
     CONFIDENCE_NAMES,
     SELLER_NAMES,
@@ -99,6 +101,7 @@ def render_check_text(report: CheckReport, *, icons: bool = True, max_history: i
     top = [_header(report, icons), *housing, _now_line(report)]
     blocks = [
         _assessment_lines(report, icons),
+        _details_lines(report, icons),
         _place_lines(report, icons),
         [*_comparison_lines(report, icons), *_house_lines(report, icons)],
     ]
@@ -314,6 +317,46 @@ def _assessment_lines(report: CheckReport, icons: bool) -> list[str]:
     return [_icon(_VERDICT_ICON[a.kind], icons) + a.verdict] if a else []
 
 
+def _num(value: float) -> str:
+    return f"{value:g}".replace(".", ",")
+
+
+_BATHROOM = {"два": "два санузла"}
+_BALCONY = {"есть": "балкон", "нет": "без балкона", "два": "два балкона"}
+
+
+def details_line(d: FlatDetails | None) -> str | None:
+    """«Кухня 9 м² · санузел раздельный · лоджия · кирпичный дом · потолки от 2,7»."""
+    if d is None:
+        return None
+    parts = [
+        f"кухня {_num(d.kitchen_m2)} м²" if d.kitchen_m2 else None,
+        f"жилая {_num(d.living_m2)} м²" if d.living_m2 else None,
+        _BATHROOM.get(d.bathroom, f"санузел {d.bathroom}") if d.bathroom else None,
+        _BALCONY.get(d.balcony, d.balcony) if d.balcony else None,
+        f"{d.walls} дом" if d.walls else None,
+        # Kufar отдаёт только нижнюю границу высоты потолков («от 2.7 м»)
+        f"потолки от {_num(d.ceiling_m)}" if d.ceiling_m else None,
+        f"окна: {d.windows_side}" if d.windows_side else None,
+        "обмен возможен" if d.exchange and "exchange" not in d.facts else None,
+    ]
+    text = " · ".join(p for p in parts if p)
+    return text[:1].upper() + text[1:] if text else None
+
+
+def _facts_text(d: FlatDetails | None, icons: bool) -> str | None:
+    """Все факты из описания (без ограничения в 5); icons=False — без эмодзи."""
+    text = facts_line(d.facts, limit=None) if d else None
+    if text and not icons:
+        text = text.replace("⚠️ ", "").replace("📝 ", "")
+    return text
+
+
+def _details_lines(report: CheckReport, icons: bool) -> list[str]:
+    d = report.flat.details if report.flat else None
+    return [t for t in (details_line(d), _facts_text(d, icons)) if t]
+
+
 def _place_lines(report: CheckReport, icons: bool) -> list[str]:
     loc, f = report.location, report.flat
     if loc is None:  # координат нет: ни метро, ни «Дом …»
@@ -400,7 +443,11 @@ def web_blocks(report: CheckReport) -> dict:
     """Те же блоки оценки, что в тексте бота, но чистой строкой для страницы кабинета."""
     a = report.assessment
     place = _place_lines(report, False)
+    details = report.flat.details if report.flat else None
+    facts = _facts_text(details, True)
     return {
+        "details": details_line(details),
+        "facts": facts.splitlines() if facts else [],
         "verdict": a.verdict if a else None,
         "place": place[0] if place else None,
         "comparison": [line.strip() for line in _comparison_lines(report, False)],

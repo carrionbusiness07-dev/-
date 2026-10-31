@@ -28,7 +28,13 @@ from sqlalchemy.orm import Session
 from minsk_realty.analytics.assessment import Assessment, assess, same_house
 from minsk_realty.analytics.comparables import Comparison, epoch, find_comparison, house_key
 from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
-from minsk_realty.analytics.data import ListingRow, MarketData, load_market, source_starts
+from minsk_realty.analytics.data import (
+    FlatDetails,
+    ListingRow,
+    MarketData,
+    load_market,
+    source_starts,
+)
 from minsk_realty.analytics.districts import district_at
 from minsk_realty.analytics.exposure import Exposure, compute_exposure
 from minsk_realty.analytics.fmt import normalize_district, plural, street_label
@@ -98,6 +104,7 @@ class FlatInfo:
     house_key: str | None = None  # «улица|дом» как у ComparePoint.house_key; для "listing" None
     finish: str | None = None  # "none" / "done" / None (неизвестна); для "listing" None
     housing: str | None = None  # готовый текст «вторичка, дом 1978 г.»; для "listing" None
+    details: FlatDetails | None = None  # кухня, санузел, факты; для "listing" None
 
 
 @dataclass(frozen=True)
@@ -410,6 +417,7 @@ def _flat_info(data: MarketData, oid: int | None, target: ListingRow, now_year: 
         housing=housing_label(data.building_years.get(oid), data.new_buildings.get(oid), now_year)
         if oid
         else None,
+        details=data.details.get(oid) if oid else None,
     )
 
 

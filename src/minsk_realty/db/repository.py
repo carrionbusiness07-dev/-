@@ -6,10 +6,10 @@ import hashlib
 import json
 from decimal import Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from minsk_realty.db.models import Listing, Snapshot, SourceRun
+from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, SourceRun
 from minsk_realty.models import ListingSnapshot
 
 # Поля, изменение которых даёт новую строку в snapshots. Порядок важен для хеша.
@@ -187,3 +187,17 @@ def mark_unseen_inactive(session: Session, run: SourceRun) -> int:
         .values(status="inactive")
     )
     return result.rowcount or 0
+
+
+def data_version(session: Session) -> tuple:
+    """Дешёвый отпечаток состояния БД: меняется после каждого прохода и склейки."""
+    row = session.execute(
+        select(
+            select(func.max(SourceRun.id)).scalar_subquery(),
+            select(func.max(SourceRun.finished_at)).scalar_subquery(),
+            select(func.max(Event.id)).scalar_subquery(),
+            select(func.max(Event.retracted_at)).scalar_subquery(),
+            select(func.max(RealtyObject.id)).scalar_subquery(),
+        )
+    ).one()
+    return tuple(str(value) for value in row)

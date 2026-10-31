@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics.districts import district_at
+from minsk_realty.analytics.facts import FACT_LABELS
 from minsk_realty.analytics.fmt import normalize_district
 from minsk_realty.analytics.geo import valid_point
 from minsk_realty.db.models import Event, Listing, RealtyObject, Snapshot, SourceRun
@@ -149,6 +150,24 @@ class ObjectPrice:
         return float(self.usd) / self.area if self.area else None
 
 
+@dataclass(frozen=True)
+class FlatDetails:
+    """Детали квартиры из extra снимков (подписи площадок со строчной); неизвестное — None."""
+
+    kitchen_m2: float | None = None
+    living_m2: float | None = None
+    ceiling_m: float | None = None  # Kufar: нижняя граница («от 2.7 м»)
+    bathroom: str | None = None
+    balcony: str | None = None
+    walls: str | None = None
+    windows_side: str | None = None
+    exchange: bool | None = None
+    facts: tuple[str, ...] = ()  # коды из описания, порядок FACT_LABELS
+
+
+DETAIL_KEYS = tuple(f for f in FlatDetails.__dataclass_fields__ if f != "facts")
+
+
 @dataclass
 class MarketData:
     objects: dict[int, ObjectRow] = field(default_factory=dict)
@@ -169,6 +188,8 @@ class MarketData:
     finishings: dict[int, str] = field(default_factory=dict)
     # Флаг Kufar «в новостройке» по объекту; нет ключа — площадка флага не отдавала.
     new_buildings: dict[int, bool] = field(default_factory=dict)
+    # Детали квартиры по объекту (кухня, санузел, факты из описания); нет ключа — ничего не знаем.
+    details: dict[int, FlatDetails] = field(default_factory=dict)
     _by_object: dict[int, list[ListingRow]] = field(default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
@@ -464,6 +485,9 @@ def load_market(
         new_buildings=new_buildings(
             session, None if full else {r.object_id for r in listings.values() if r.object_id}
         ),
+        details=listing_details(
+            session, None if full else {r.object_id for r in listings.values() if r.object_id}
+        ),
     )
 
 
@@ -566,6 +590,35 @@ def new_buildings(session: Session, object_ids: Iterable[int] | None = None) -> 
         if value is not None:
             out[object_id] = value is True or str(value).strip().lower() in ("true", "1", "да")
     return out
+
+
+def listing_details(
+    session: Session, object_ids: Iterable[int] | None = None
+) -> dict[int, FlatDetails]:
+    """Детали по объектам: последний снимок каждого надёжного объявления; поле берётся из самого
+    свежего из них, где оно есть; факты — объединение по объявлениям."""
+    q = (
+        select(Snapshot.listing_id, Listing.object_id, Snapshot.extra)
+        .join(Listing, Listing.id == Snapshot.listing_id)
+        .where(Listing.object_id.is_not(None), Listing.match_confidence.in_(TRUSTED))
+        .order_by(Snapshot.seen_at, Snapshot.id)
+    )
+    if object_ids is not None:
+        q = q.where(Listing.object_id.in_(set(object_ids)))
+    latest: dict[int, tuple[int, dict[str, Any]]] = {}
+    for listing_id, object_id, extra in session.execute(q):
+        latest.pop(listing_id, None)  # заново в конец: порядок словаря — по последнему снимку
+        latest[listing_id] = (object_id, extra or {})
+    values: dict[int, dict[str, Any]] = defaultdict(dict)
+    facts: dict[int, set[str]] = defaultdict(set)
+    for object_id, extra in latest.values():  # от старых к свежим: свежий перезаписывает
+        values[object_id].update({k: extra[k] for k in DETAIL_KEYS if extra.get(k) is not None})
+        facts[object_id].update(extra.get("facts") or ())
+    return {
+        oid: FlatDetails(**values[oid], facts=tuple(c for c in FACT_LABELS if c in facts[oid]))
+        for oid in list(values)
+        if values[oid] or facts[oid]
+    }
 
 
 # Снижение по истории Domovita: история в долларах, а продавец мог ставить цену в рублях —

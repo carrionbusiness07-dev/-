@@ -86,6 +86,13 @@
   </section>
   {% endif %}
 
+  {% if blocks.details or blocks.facts %}
+  <section class="flat-details" aria-label="О квартире">
+    {% if blocks.details %}<p>{{ blocks.details | nb }}</p>{% endif %}
+    {% for line in blocks.facts %}<p>{{ line | nb }}</p>{% endfor %}
+  </section>
+  {% endif %}
+
   <p class="object-facts">
     {% if r.exposure %}
     <span>На рынке <b>{% if r.exposure.at_least %}≥ {% endif %}{{ r.exposure.days }}</b> {{ fmt.plural(r.exposure.days, "день", "дня", "дней") }}</span>

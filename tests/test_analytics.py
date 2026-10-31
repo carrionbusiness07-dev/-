@@ -25,6 +25,7 @@ from analytics_data import (
     realt,
     start_observation,
 )
+from sqlalchemy import select
 
 from minsk_realty.analytics import (
     DEFAULT_ANALYTICS,
@@ -56,7 +57,7 @@ from minsk_realty.analytics.fmt import (
     street_label,
 )
 from minsk_realty.analytics.medians import robust_summary
-from minsk_realty.db.models import Base, SourceRun
+from minsk_realty.db.models import Base, Snapshot, SourceRun
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.matching import process_after_run
 
@@ -348,6 +349,26 @@ def test_report_from_inactive_listing_points_to_live_ones(docs):
     text = render_check_text(r)
     assert "Последняя цена: $95 000" in text and "объявление снято" in text
     assert "Kufar — $92 500 (тот же продавец)  ← дешевле на $2 500" in text
+
+
+def test_report_shows_flat_details_and_all_facts(docs):
+    snap = docs.scalars(
+        select(Snapshot)
+        .where(Snapshot.listing_id == listing(docs, "kufar", "1000201").id)
+        .order_by(Snapshot.seen_at.desc())
+    ).first()
+    facts = ["share", "bargain", "furniture", "parking", "elevator", "storage", "urgent"]
+    snap.extra = {"kitchen_m2": 9.0, "bathroom": "раздельный", "ceiling_m": 2.7, "facts": facts}
+    docs.flush()
+    r = build_check_report(docs, KUFAR_URL, NOW)
+    assert r.flat.details.kitchen_m2 == 9.0
+    lines = render_check_text(r).splitlines()
+    assert "Кухня 9 м² · санузел раздельный · потолки от 2,7" in lines
+    assert "⚠️ продаётся доля" in lines
+    # В «Подробно» — все факты, без ограничения в 5.
+    assert "📝 Из описания: торг, срочно, с мебелью, кладовка, лифт, парковка" in lines
+    plain = render_check_text(r, icons=False)
+    assert "Из описания: торг" in plain and "⚠" not in plain and "📝" not in plain
 
 
 def test_object_level_helpers(docs):

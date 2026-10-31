@@ -40,8 +40,9 @@ from minsk_realty.analytics.fmt import (
 )
 from minsk_realty.analytics.fmt import pct as _pct
 from minsk_realty.collector.run import INTERRUPTED, STALE_RUN_AFTER
-from minsk_realty.db.models import Event, RealtyObject, SourceRun
 from minsk_realty.db.models import Snapshot as DbSnapshot
+from minsk_realty.db.models import SourceRun
+from minsk_realty.db.repository import data_version
 
 DEMO_MARKER = "demo"
 
@@ -112,20 +113,6 @@ _load_lock = threading.Lock()
 # Срез перечитывается, когда в БД что-то поменялось (закончился проход, склейка записала
 # события). Срок жизни — подстраховка на изменения, которых версия не видит.
 CACHE_SECONDS = 15 * 60
-
-
-def data_version(session: Session) -> tuple:
-    """Дешёвый отпечаток состояния БД: меняется после каждого прохода и склейки."""
-    row = session.execute(
-        select(
-            select(func.max(SourceRun.id)).scalar_subquery(),
-            select(func.max(SourceRun.finished_at)).scalar_subquery(),
-            select(func.max(Event.id)).scalar_subquery(),
-            select(func.max(Event.retracted_at)).scalar_subquery(),
-            select(func.max(RealtyObject.id)).scalar_subquery(),
-        )
-    ).one()
-    return tuple(str(value) for value in row)
 
 
 def market_snapshot(session: Session, key: str) -> Snapshot:
