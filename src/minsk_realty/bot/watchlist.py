@@ -6,19 +6,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy import delete, exists, func, select
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from minsk_realty.analytics import compute_exposure, load_market
 from minsk_realty.analytics.data import MarketData
 from minsk_realty.analytics.fmt import street_label
-from minsk_realty.db.models import Check, Listing, User, Watch
+from minsk_realty.db.models import (
+    Check,
+    Listing,
+    SavedSearch,
+    SearchShown,
+    User,
+    Watch,
+    utcnow,
+)
 from minsk_realty.matching.rules import TRUSTED
 
 WatchStatus = Literal["added", "already", "limit", "not_found", "not_matched", "denied"]
@@ -120,6 +130,45 @@ def add_watch(
     return WatchResult("added", object_id, count + 1, limit)
 
 
+# --- Поиск: последний запрос и показанные объекты -----------------------------------------
+
+
+def save_search(session: Session, telegram_id: int, params: dict) -> None:
+    """Запомнить последний поиск (одна строка на пользователя, новый заменяет старый)."""
+    now = utcnow()
+    user = get_or_create_user(session, telegram_id, now)
+    row = session.get(SavedSearch, user.id)
+    if row is None:
+        session.add(SavedSearch(user_id=user.id, params=params, updated_at=now))
+    else:
+        row.params, row.updated_at = params, now
+    session.flush()
+
+
+def last_search(session: Session, telegram_id: int) -> dict | None:
+    return session.scalar(
+        select(SavedSearch.params)
+        .join(User, User.id == SavedSearch.user_id)
+        .where(User.telegram_id == telegram_id)
+    )
+
+
+def mark_shown(session: Session, telegram_id: int, object_ids: Iterable[int]) -> None:
+    """Отметить объекты показанными в поиске. Идемпотентно, в том числе при гонке запросов."""
+    ids = set(object_ids)
+    if not ids:
+        return
+    now = utcnow()
+    user = get_or_create_user(session, telegram_id, now)
+    dialect = session.get_bind().dialect.name
+    insert = (postgresql if dialect == "postgresql" else sqlite).insert
+    session.execute(
+        insert(SearchShown)
+        .values([{"user_id": user.id, "object_id": i, "shown_at": now} for i in sorted(ids)])
+        .on_conflict_do_nothing()
+    )
+
+
 # --- Доступ к кнопкам ----------------------------------------------------------------------
 # callback_data можно подделать: «r:1», «r:2», … выгрузили бы отчёты по всей базе, а
 # «Продаём выводы, а не сырые данные». Поэтому кнопки отчёта и «Следить» работают только
@@ -140,6 +189,14 @@ def has_checked_listing(session: Session, telegram_id: int, listing_id: int) -> 
 
 def has_seen_object(session: Session, telegram_id: int, object_id: int) -> bool:
     if is_watching(session, telegram_id, object_id):
+        return True
+    if session.scalar(
+        select(
+            exists()
+            .where(SearchShown.user_id == User.id, SearchShown.object_id == object_id)
+            .where(User.telegram_id == telegram_id)
+        )
+    ):
         return True
     return bool(
         session.scalar(

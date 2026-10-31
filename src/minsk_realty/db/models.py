@@ -261,6 +261,32 @@ class Watch(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
 
+class SavedSearch(Base):
+    """Последний поиск квартир пользователя: только параметры фильтра, без текста запроса."""
+
+    __tablename__ = "saved_searches"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    params: Mapped[dict[str, Any]] = mapped_column(JSONType)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
+class SearchShown(Base):
+    """Объекты, показанные пользователю в поиске: по ним работает кнопка «Подробно»."""
+
+    __tablename__ = "search_shown"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    object_id: Mapped[int] = mapped_column(
+        ForeignKey("objects.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    shown_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+
+
 class Check(Base):
     """Запрос /check: нужен для метрик пилота и будущей оплаты."""
 

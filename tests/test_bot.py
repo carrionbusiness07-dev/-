@@ -47,6 +47,13 @@ from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
 from minsk_realty.bot.service import BotService, reply_venue
+from minsk_realty.bot.watchlist import (
+    forget_user,
+    has_seen_object,
+    last_search,
+    mark_shown,
+    save_search,
+)
 from minsk_realty.db.models import (
     Base,
     ChannelPost,
@@ -54,6 +61,8 @@ from minsk_realty.db.models import (
     Event,
     Listing,
     Notification,
+    SavedSearch,
+    SearchShown,
     User,
     Watch,
 )
@@ -421,6 +430,41 @@ def test_forget_deletes_everything(docs):
     assert "удалены" in service.forget(TG).text
     assert count(docs, User) == count(docs, Watch) == count(docs, Check) == 0
     assert "нет ваших данных" in service.forget(TG).text
+
+
+def test_save_search_upsert(factory):
+    with factory() as session:
+        assert last_search(session, TG) is None
+        save_search(session, TG, {"rooms": [2], "price_max": 90000})
+        save_search(session, TG, {"rooms": [3]})
+        session.commit()
+        assert last_search(session, TG) == {"rooms": [3]}
+        assert last_search(session, TG + 1) is None
+    assert count(factory, SavedSearch) == 1
+
+
+def test_seen_via_search(docs):
+    with docs() as session:
+        oid = session.scalar(select(Listing.object_id).where(Listing.external_id == "1000201"))
+        assert not has_seen_object(session, TG, oid)
+        mark_shown(session, TG, [oid])
+        mark_shown(session, TG, [oid, oid])  # повтор не падает на составном ключе
+        session.commit()
+        assert has_seen_object(session, TG, oid)
+        assert not has_seen_object(session, TG + 1, oid)
+        mark_shown(session, TG, [])
+    assert count(docs, SearchShown) == 1
+
+
+def test_forget_removes_search(docs):
+    with docs() as session:
+        oid = session.scalar(select(Listing.object_id).where(Listing.external_id == "1000201"))
+        save_search(session, TG, {"rooms": [2]})
+        mark_shown(session, TG, [oid])
+        session.commit()
+        assert forget_user(session, TG) is True
+        session.commit()
+    assert count(docs, SavedSearch) == count(docs, SearchShown) == count(docs, User) == 0
 
 
 # --- Уведомления --------------------------------------------------------------------------
