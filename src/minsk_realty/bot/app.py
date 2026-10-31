@@ -13,7 +13,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
-from minsk_realty.bot import texts
+from minsk_realty.bot import search, texts
 from minsk_realty.bot.config import BotConfig
 from minsk_realty.bot.handlers import build_router
 from minsk_realty.bot.publish import bot_sender, notify_once, scheduled_weekly
@@ -25,6 +25,7 @@ log = logging.getLogger("minsk_realty.bot")
 
 COMMANDS = [
     BotCommand(command="start", description="Что умеет бот"),
+    BotCommand(command="search", description="Найти квартиру"),
     BotCommand(command="check", description="Отчёт по ссылке на объявление"),
     BotCommand(command="list", description="Мои квартиры"),
     BotCommand(command="watch", description="Следить за квартирой по ссылке"),
@@ -47,6 +48,7 @@ def build_dispatcher(service: BotService, cfg: BotConfig) -> Dispatcher:
     limiter = RateLimitMiddleware(TokenBucket(cfg.rate_burst, cfg.rate_per_minute))
     dp.message.outer_middleware(limiter)
     dp.callback_query.outer_middleware(limiter)
+    dp.include_router(search.build_router())  # до общего: у того кнопки без фильтра
     dp.include_router(build_router(cfg))
     return dp
 

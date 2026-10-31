@@ -17,7 +17,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import CallbackQuery, Message, MessageEntity
 
-from minsk_realty.bot import keyboards, texts
+from minsk_realty.bot import keyboards, search, texts
 from minsk_realty.bot.config import BotConfig
 from minsk_realty.bot.publish import publish_weekly
 from minsk_realty.bot.service import BotService, Reply
@@ -76,11 +76,13 @@ def build_router(cfg: BotConfig) -> Router:
 
     @users.message(CommandStart())
     async def start(message: Message) -> None:
-        await message.answer(texts.start_text())
+        await message.answer(texts.start_text(), reply_markup=search.new_search_keyboard())
 
     @users.message(Command("help"))
     async def help_(message: Message) -> None:
-        await message.answer(texts.help_text(cfg.watch_limit))
+        await message.answer(
+            texts.help_text(cfg.watch_limit), reply_markup=search.new_search_keyboard()
+        )
 
     @users.message(Command("check"))
     async def check(
@@ -121,6 +123,10 @@ def build_router(cfg: BotConfig) -> Router:
         text = message_text(message)
         if text.startswith("/"):
             await message.answer(texts.help_text(cfg.watch_limit))
+            return
+        step = await asyncio.to_thread(service.search_text, message.chat.id, text)
+        if step is not None:  # сумма на шаге «своя сумма»; всё прочее — как без анкеты
+            await search.show_step(bot, message.chat.id, step, service)
             return
         await _typing(bot, message.chat.id)
         reply = await asyncio.to_thread(service.check_text, message.chat.id, text)

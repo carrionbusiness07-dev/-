@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from aiogram import Bot
 from aiogram.client.session.base import BaseSession
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.methods import AnswerCallbackQuery, SendMessage, SendVenue
+from aiogram.methods import AnswerCallbackQuery, EditMessageText, SendMessage, SendVenue
 from aiogram.types import CallbackQuery, Chat, Message, MessageEntity, Update
 from aiogram.types import User as TgUser
 from alembic import command
@@ -39,14 +39,17 @@ from analytics_data import (
 from sqlalchemy import func, select
 
 from minsk_realty.analytics import build_check_report, render_check_text
+from minsk_realty.analytics.fmt import MINSK_DISTRICTS
 from minsk_realty.bot import keyboards, links, texts, weekly
+from minsk_realty.bot import service as service_mod
 from minsk_realty.bot.app import build_dispatcher
 from minsk_realty.bot.config import BotConfig, ConfigError, chat_ref
 from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
-from minsk_realty.bot.service import BotService, reply_venue
+from minsk_realty.bot.search import parse_search_callback
+from minsk_realty.bot.service import BotService, IndexCache, reply_venue
 from minsk_realty.bot.watchlist import (
     forget_user,
     has_seen_object,
@@ -1108,3 +1111,244 @@ def test_weekly_stuck_pending(docs):
     assert asyncio.run(scheduled_weekly(send, service, CFG)).status == "skipped"
     assert len(posts) == 1
     assert "/weekly publish" in texts.weekly_interrupted_text("2026-W43")
+
+
+# --- Анкета поиска --------------------------------------------------------------------------
+
+
+def sync_service(factory):
+    """Сервис, у которого индекс поиска строится сразу, без фонового потока."""
+    service, _ = make_service(factory)
+    service.index = IndexCache(factory, run=lambda job: job())
+    return service
+
+
+def press(service, data: str, tg: int = TG):
+    return service.search_button(tg, parse_search_callback(data))
+
+
+def buttons(markup) -> dict[str, str]:
+    """callback_data → текст кнопки."""
+    return {b.callback_data: b.text for row in markup.inline_keyboard for b in row}
+
+
+def _press_query(data: str, message_id: int = 1) -> CallbackQuery:
+    msg = _message("анкета").model_copy(update={"message_id": message_id})
+    return CallbackQuery(
+        id="1",
+        from_user=TgUser(id=TG, is_bot=False, first_name="Имя"),
+        chat_instance="x",
+        data=data,
+        message=msg,
+    )
+
+
+def test_search_callback_parsing():
+    assert parse_search_callback("q:b:4").value == 4
+    assert parse_search_callback("q:h:new").value == "new"
+    assert parse_search_callback("q:go").action == "go"
+    for bad in ("q:b:5", "q:r:0", "q:d:9", "q:a:35", "q:h:x", "q:zz", "q:b:x", "w:1", None):
+        assert parse_search_callback(bad) is None
+    for data in (f"q:d:{len(MINSK_DISTRICTS) - 1}", "q:a:80", "q:back", "q:rep"):
+        assert len(data.encode()) <= 64 and parse_search_callback(data) is not None
+
+
+def test_start_has_search_button(docs):
+    service, _ = make_service(docs)
+    sent, _ = _feed(service, _message("/start"), _message("/help"))
+    assert len(sent) == 2
+    for msg in sent:
+        first = msg.reply_markup.inline_keyboard[0][0]
+        assert (first.text, first.callback_data) == ("🔍 Найти квартиру", "q:new")
+    assert "торг" not in texts.start_text() + texts.help_text(10)
+
+
+def test_wizard_steps_and_header(factory):
+    service, _ = make_service(factory)
+    start = service.search_start(TG)
+    assert "q:b:2" in buttons(start.keyboard) and "q:rep" not in buttons(start.keyboard)
+    fr, ce = MINSK_DISTRICTS.index("Фрунзенский"), MINSK_DISTRICTS.index("Центральный")
+    steps = ["q:b:2", "q:r:2", "q:ok", f"q:d:{fr}", f"q:d:{ce}", "q:ok", "q:a:50"]
+    replies = [press(service, data) for data in steps]
+    for reply in replies:
+        assert "q:back" in buttons(reply.keyboard)
+    assert "q:go" not in buttons(replies[0].keyboard)  # комнаты
+    assert "q:go" not in buttons(replies[2].keyboard)  # районы
+    assert "q:go" in buttons(replies[5].keyboard)  # площадь
+    assert "q:go" in buttons(replies[6].keyboard)  # ещё
+    assert buttons(replies[1].keyboard)["q:r:2"] == "✓ 2"  # переключатель отмечен
+    assert buttons(replies[4].keyboard)[f"q:d:{ce}"] == "✓ Центральный"
+    assert replies[-1].text.startswith(
+        "До $100 000 · 2-комн. · Фрунзенский, Центральный · от 50 м²"
+    )
+    more = press(service, "q:f1")
+    assert buttons(more.keyboard)["q:f1"].startswith("✓")
+    assert "не первый этаж" in more.text.split("\n")[0]
+    stray = press(service, "q:da")  # кнопка не того шага (из старого сообщения) — без изменений
+    assert stray.text == more.text and service.drafts[TG].step == "more"
+
+
+def test_back_keeps_answers(factory):
+    service, _ = make_service(factory)
+    service.search_start(TG)
+    for data in ("q:b:1", "q:r:3", "q:ok", "q:d:0"):
+        press(service, data)
+    rooms = press(service, "q:back")
+    assert buttons(rooms.keyboard)["q:r:3"] == "✓ 3" and "q:ok" in buttons(rooms.keyboard)
+    budget = press(service, "q:back")
+    assert buttons(budget.keyboard)["q:b:1"].startswith("✓")
+    assert budget.text.startswith("До $80 000 · 3-комн. · Заводской")
+    again = press(service, "q:b:1")
+    assert buttons(again.keyboard)["q:r:3"] == "✓ 3"
+    district = press(service, "q:ok")
+    assert buttons(district.keyboard)["q:d:0"] == "✓ Заводской"
+
+
+def test_custom_budget(factory):
+    service, _ = make_service(factory)
+    service.search_start(TG)
+    custom = press(service, "q:bc")
+    assert list(buttons(custom.keyboard)) == ["q:back"]
+    # Не сумма — обычный путь бота (подсказка или /check), анкета ждёт дальше.
+    for junk in ("abc", "0", "-5", "сто тысяч"):
+        assert service.search_text(TG, junk) is None
+        assert service.drafts[TG].step == "budget_custom"
+    rooms = service.search_text(TG, "70-90")
+    assert rooms.text.startswith("$70 000–90 000") and "q:r:1" in buttons(rooms.keyboard)
+    assert service.search_text(TG, "85") is None  # уже не шаг «своя сумма»
+    assert service.search_text(TG + 1, "85") is None  # анкеты нет
+
+    press(service, "q:back")
+    press(service, "q:bc")
+    assert service.search_text(TG, "$85 000").text.startswith("До $85 000")
+
+    press(service, "q:back")
+    press(service, "q:bc")
+    sent, _ = _feed(service, _message("hello"))  # не сумма → подсказка, как раньше
+    assert sent[0].text == texts.no_link_text()
+    assert service.drafts[TG].step == "budget_custom"
+
+
+def test_custom_budget_edits_wizard_message(factory):
+    service, _ = make_service(factory)
+    service.search_start(TG)
+    service.search_bind(TG, 5)
+    press(service, "q:bc")
+    sent, calls = _feed(service, _message("90"))
+    edit = next(c for c in calls if isinstance(c, EditMessageText))
+    assert edit.message_id == 5 and edit.text.startswith("До $90 000")
+    assert sent == []
+
+
+def test_stale_button(factory):
+    service, _ = make_service(factory)
+    stale = press(service, "q:r:2")
+    assert stale.text == texts.search_stale_text()
+    assert "Кнопка устарела, начните поиск заново" in stale.text
+    assert buttons(stale.keyboard) == {"q:new": "🔍 Найти квартиру"}
+    assert service.search_button(TG, None).text == stale.text
+    page = service.search_go(TG)
+    assert page.summary == stale.text and buttons(page.more) == {"q:new": "🔍 Найти квартиру"}
+    assert service.search_go(TG, repeat=True).summary == stale.text  # и повторять нечего
+
+    _, calls = _feed(service, _press_query("q:ok"), _press_query("q:zzz"))  # без исключений
+    assert sum(isinstance(c, AnswerCallbackQuery) for c in calls) == 2
+    edits = [c for c in calls if isinstance(c, EditMessageText)]
+    assert len(edits) == 2 and all(c.text == stale.text for c in edits)
+
+
+def test_wizard_through_handlers(factory):
+    service = sync_service(factory)
+    sent, calls = _feed(
+        service, _message("/search"), _press_query("q:b:0", message_id=1), _press_query("q:go")
+    )
+    assert "q:b:0" in buttons(sent[0].reply_markup)
+    assert service.drafts[TG].message_id == 1
+    edit = next(c for c in calls if isinstance(c, EditMessageText))
+    assert edit.text.startswith("До $60 000") and "q:r:1" in buttons(edit.reply_markup)
+    assert sent[-1].text == texts.esc("Ничего не нашёл.")  # пустая база
+
+    sent, _ = _feed(service, _press_query("q:new"))  # новое сообщение, а не правка старого
+    assert "q:rep" in buttons(sent[0].reply_markup)
+
+
+def test_link_during_wizard(docs):
+    service, _ = make_service(docs)
+    service.search_start(TG)
+    press(service, "q:b:2")
+    press(service, "q:back")
+    press(service, "q:bc")
+    assert service.search_text(TG, f"глянь {KUFAR_URL}") is None
+    sent, _ = _feed(service, _message(f"глянь {KUFAR_URL}"))
+    assert sent[0].text.startswith("<b>🏠")  # обычный отчёт /check
+    draft = service.drafts[TG]
+    assert draft.step == "budget_custom" and draft.query.price_max == 100_000
+
+
+def test_repeat_last_search(docs):
+    service = sync_service(docs)
+    service.search_start(TG)
+    for data in ("q:b:2", "q:r:2", "q:ok", "q:da"):
+        press(service, data)
+    page = service.search_go(TG)
+    assert page.summary and page.cards == [] and page.more is None
+    label = "До $100 000 · 2-комн."
+    with docs() as session:
+        assert last_search(session, TG)["price_max"] == 100_000
+
+    start = service.search_start(TG)
+    first = start.keyboard.inline_keyboard[0][0]
+    assert (first.callback_data, first.text) == ("q:rep", f"Повторить: {label}")
+    assert service.drafts[TG].query.label() == "Любые квартиры"  # новая анкета с нуля
+
+    restarted = sync_service(docs)  # бот перезапустился: черновиков нет, запрос в БД
+    again = restarted.search_go(TG, repeat=True)
+    assert again.summary == page.summary
+    assert restarted.drafts[TG].query.label() == label
+
+
+def test_search_waits_for_first_index(docs):
+    jobs = []
+    service, _ = make_service(docs)
+    service.index = IndexCache(docs, run=jobs.append)
+    service.search_start(TG)
+    page = service.search_go(TG)
+    assert page.summary == texts.search_preparing_text()
+    assert "Готовлю данные, попробуйте через минуту" in page.summary
+    assert len(jobs) == 1
+    jobs.pop()()
+    assert service.search_go(TG).summary.startswith("Нашёл")
+
+
+def test_index_cache_rebuilds_in_background(factory, monkeypatch, caplog):
+    version = ["v1"]
+    builds = iter([("a",), ("b",)])
+
+    def fake_build(data, baseline, at):
+        result = next(builds, None)
+        if result is None:
+            raise RuntimeError("boom")
+        return result
+
+    monkeypatch.setattr(service_mod, "data_version", lambda session: version[0])
+    monkeypatch.setattr(service_mod, "build_index", fake_build)
+    # alembic fileConfig в тесте миграции выключает уже созданные логгеры — включаем обратно.
+    monkeypatch.setattr(logging.getLogger("minsk_realty.bot.service"), "disabled", False)
+    jobs = []
+    cache = IndexCache(factory, run=jobs.append)
+    with factory() as session:
+        assert cache.get(session, NOW) is None and len(jobs) == 1
+        assert cache.get(session, NOW) is None and len(jobs) == 1  # одна сборка за раз
+        jobs.pop()()
+        assert cache.get(session, NOW) == ("a",) and jobs == []
+        version[0] = "v2"
+        assert cache.get(session, NOW) == ("a",) and len(jobs) == 1  # старый, пока строится
+        assert cache.get(session, NOW) == ("a",) and len(jobs) == 1
+        jobs.pop()()
+        assert cache.get(session, NOW) == ("b",) and jobs == []
+        version[0] = "v3"
+        cache.get(session, NOW)
+        with caplog.at_level(logging.ERROR):
+            jobs.pop()()  # сборка упала
+        assert "индекс поиска" in caplog.text
+        assert cache.get(session, NOW) == ("b",) and len(jobs) == 1  # старый + новая попытка
