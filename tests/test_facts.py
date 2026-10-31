@@ -173,3 +173,18 @@ def test_capremont_done_is_major_repair():
 @pytest.mark.parametrize("value", [123, 1.5, ["a"], {"a": 1}])
 def test_non_string_text_is_ignored(value):
     assert extract_facts(value) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "codes"),
+    [
+        ("Без мебели, торг и срочно", ["bargain", "urgent"]),
+        ("Без мебели, срочно и торг", ["bargain", "urgent"]),
+        ("Без мебели, торг и срочная продажа", ["bargain", "urgent"]),
+        ("Без мебели, торг и ипотека", ["bargain", "mortgage"]),
+        ("Без залога, торг и срочно", ["bargain", "urgent"]),
+        ("Без ремонта, торг и ипотека", ["bargain", "mortgage", "needs_repair"]),
+    ],
+)
+def test_bez_does_not_cross_into_positive_facts(text, codes):
+    assert sorted(extract_facts(text)) == sorted(codes)

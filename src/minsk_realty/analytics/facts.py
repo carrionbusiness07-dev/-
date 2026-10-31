@@ -191,9 +191,17 @@ assert list(_RULES) == list(FACT_LABELS)  # порядок кодов = поря
 _COMPILED = {code: ([re.compile(p) for p in pats], neg) for code, (pats, neg) in _RULES.items()}
 _CLAUSE_SPLIT = re.compile(r"[.,;:!?()\n]+")
 _WORD = re.compile(r"\w+")
-_BEZ_LIST = re.compile(r"\bбез\s+\w+(?:\s*,\s*\w+)*\s+(?:и|или)\s+\w+")  # «без A, B и C»
-# «без» управляет словом справа и коротким перечислением («без A и B»); остальные отрицания
-# стоят по обе стороны («торг не уместен»)
+# «без» управляет словом справа; остальные отрицания стоят по обе стороны («торг не уместен»).
+# Перечисление «без залога, ареста и долгов» продолжается только существительными, которые «без»
+# может отрицать; первое иное слово («торг», «срочно») обрывает его. Перед каждым звеном
+# вставляется своё «без», поэтому отрицание не переходит в другое предложение.
+_NEGATABLE = (
+    r"(?:залог|арест|обременени|долг|мебел|техник|ипотек|холодильник|прописан|лифт|парковк"
+    r"|кладов|перепланировк)\w*"
+)
+_SEP = r"(?:\s*,\s*|\s+и\s+|\s+или\s+)"
+_BEZ_LIST = re.compile(rf"\bбез\s+{_NEGATABLE}(?:{_SEP}{_NEGATABLE})+")
+_LIST_ITEM = re.compile(rf"({_SEP})({_NEGATABLE})")
 _NEG_EITHER = {"не", "нет", "нету", "нельзя", "отсутствует", "отсутствуют"}
 _KUFAR_CUT = 148  # Kufar режет описание ровно на 150 символах; нижняя граница — запас на пробелы
 
@@ -203,7 +211,6 @@ def _negated(clause: str, start: int, end: int) -> bool:
     after = _WORD.findall(clause[end:])
     return (
         "без" in before[-2:]
-        or ("без" in before[-4:] and before[-1] in {"и", "или"})
         or bool(_NEG_EITHER & set(before[-3:]))
         or bool(_NEG_EITHER & set(after[:3]))
     )
@@ -218,8 +225,7 @@ def extract_facts(text: str | None) -> list[str]:
     if _KUFAR_CUT <= len(text) <= 150 and text[-1].isalnum():
         text = text.rsplit(None, 1)[0] if len(text.split()) > 1 else ""
     text = text.lower().replace("ё", "е")
-    # запятые внутри «без A, B и C» не разделяют предложения
-    text = _BEZ_LIST.sub(lambda m: re.sub(r"\s*,\s*", " ", m.group()), text)
+    text = _BEZ_LIST.sub(lambda m: _LIST_ITEM.sub(r"\1без \2", m.group()), text)
     clauses = [" ".join(c.split()) for c in _CLAUSE_SPLIT.split(text)]
     found: list[str] = []
     for code, (patterns, check_negation) in _COMPILED.items():
