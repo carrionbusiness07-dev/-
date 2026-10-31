@@ -10,6 +10,7 @@ import pytest
 from analytics_data import DAY, HOUR, NOW, OBS_START
 
 from minsk_realty.analytics.data import (
+    EventRow,
     FlatDetails,
     ListingRow,
     MarketData,
@@ -104,6 +105,25 @@ def test_one_card_per_object():
     assert item.first_seen == OBS_START + DAY and item.days == (NOW - OBS_START - DAY).days
     assert item.new_building is None and item.housing is None
     assert item.group is None and item.details == FlatDetails(kitchen_m2=9.0)
+
+
+def test_drop_seen_on_two_platforms_counts_once():
+    data = MarketData(source_starts={"kufar": OBS_START, "realt": OBS_START})
+    data.objects[1] = ObjectRow(
+        1, "ул притыцкого", "1", 2, 54.0, 5, 9, "фрунзенский", None, OBS_START
+    )
+    data.listings[1] = _listing(1, 1, "realt")
+    data.listings[2] = _listing(2, 1, "kufar")
+    data.snapshots[1] = [_snap(1, 90000)]
+    data.snapshots[2] = [_snap(2, 90000)]
+    at = NOW - 2 * DAY
+    payload = {"old": "95000", "new": "90000", "currency": "USD"}
+    data.events[1] = [EventRow(i, 1, i, "price_drop", at, at, True, payload) for i in (1, 2)]
+    data.reindex()
+
+    [item] = build_index(data, compute_baseline(data, NOW), NOW)
+
+    assert item.drops == 1
 
 
 def _item(oid, **kw) -> SearchItem:

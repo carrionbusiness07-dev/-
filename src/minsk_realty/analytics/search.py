@@ -22,6 +22,7 @@ from minsk_realty.analytics.data import FlatDetails, MarketData
 from minsk_realty.analytics.exposure import compute_exposure
 from minsk_realty.analytics.fmt import money, offer_range, plural, rooms_label, street_label
 from minsk_realty.analytics.geo import locate
+from minsk_realty.analytics.history import price_moves
 from minsk_realty.analytics.medians import MarketBaseline
 from minsk_realty.analytics.report import housing_label, is_new_building
 
@@ -124,7 +125,7 @@ def build_index(
                 metro=station.name if station else None,
                 metro_min=location.walk_min if station else None,
                 days=exposure.days,
-                drops=sum(1 for e in events if e.type == "price_drop"),
+                drops=price_moves(events, {r.id for r in listings}, []).drops,
                 sources=tuple(sorted({r.source for r in listings if r.active_at(at)})),
                 owner={"owner": True, "agency": False}.get(row.seller_type),
                 url=row.url,

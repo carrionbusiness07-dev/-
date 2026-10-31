@@ -150,6 +150,11 @@ def offer_range(low: Decimal, high: Decimal, currency: str | None) -> str:
     return f"{lo.rsplit(' ', 1)[0]}–{hi}"
 
 
+def num(value: float) -> str:
+    """54.5 → «54,5», 54.0 → «54»."""
+    return f"{value:g}".replace(".", ",")
+
+
 def ppm(value: float | None) -> str:
     return f"${group_thousands(round(value))}/м²" if value is not None else "—"
 

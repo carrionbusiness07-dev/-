@@ -17,6 +17,7 @@ from minsk_realty.analytics.fmt import (
     days_text,
     district_label,
     money,
+    num,
     objects_text,
     pct,
     plural,
@@ -317,10 +318,6 @@ def _assessment_lines(report: CheckReport, icons: bool) -> list[str]:
     return [_icon(_VERDICT_ICON[a.kind], icons) + a.verdict] if a else []
 
 
-def _num(value: float) -> str:
-    return f"{value:g}".replace(".", ",")
-
-
 _BATHROOM = {"два": "два санузла"}
 _BALCONY = {"есть": "балкон", "нет": "без балкона", "два": "два балкона"}
 
@@ -330,13 +327,13 @@ def details_line(d: FlatDetails | None) -> str | None:
     if d is None:
         return None
     parts = [
-        f"кухня {_num(d.kitchen_m2)} м²" if d.kitchen_m2 else None,
-        f"жилая {_num(d.living_m2)} м²" if d.living_m2 else None,
+        f"кухня {num(d.kitchen_m2)} м²" if d.kitchen_m2 else None,
+        f"жилая {num(d.living_m2)} м²" if d.living_m2 else None,
         _BATHROOM.get(d.bathroom, f"санузел {d.bathroom}") if d.bathroom else None,
         _BALCONY.get(d.balcony, d.balcony) if d.balcony else None,
         f"{d.walls} дом" if d.walls else None,
         # Kufar отдаёт только нижнюю границу высоты потолков («от 2.7 м»)
-        f"потолки от {_num(d.ceiling_m)}" if d.ceiling_m else None,
+        f"потолки от {num(d.ceiling_m)}" if d.ceiling_m else None,
         f"окна: {d.windows_side}" if d.windows_side else None,
         "обмен возможен" if d.exchange and "exchange" not in d.facts else None,
     ]

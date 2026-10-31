@@ -33,6 +33,7 @@ COMMANDS = [
     BotCommand(command="help", description="Помощь"),
 ]
 WEEKLY_TICK = timedelta(minutes=10)
+INDEX_TICK = timedelta(minutes=15)
 
 
 def make_bot(cfg: BotConfig) -> Bot:
@@ -89,6 +90,9 @@ async def run(cfg: BotConfig) -> None:
         asyncio.create_task(asyncio.to_thread(service.warm_up)),
         asyncio.create_task(
             every(cfg.notify_every, lambda: notify_once(send, service), "уведомления")
+        ),
+        asyncio.create_task(
+            every(INDEX_TICK, lambda: asyncio.to_thread(service.refresh_index), "индекс поиска")
         ),
     ]
     if cfg.channel_id is not None:

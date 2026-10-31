@@ -250,6 +250,12 @@ class BotService:
             self.baseline.get(session, now)
             self.index.get(session, now)
 
+    def refresh_index(self) -> None:
+        """Обновить индекс поиска после прохода сборщика, даже если никто не ищет:
+        сборка стартует только при смене `data_version`."""
+        with self.factory() as session:
+            self.index.get(session, self.clock())
+
     def _report_reply(
         self, session: Session, telegram_id: int, report: CheckReport, note: str = ""
     ) -> Reply:
@@ -509,6 +515,8 @@ class BotService:
         with self.factory() as session:
             ok = forget_user(session, telegram_id)
             session.commit()
+            with self._draft_lock:
+                self.drafts.pop(telegram_id, None)  # иначе «Ещё 5» после /forget оживит запись
             return Reply(texts.forgotten_text(ok))
 
     def _listing(self, session: Session, link: links.Link) -> Listing | None:

@@ -1367,6 +1367,23 @@ def test_index_cache_rebuilds_in_background(factory, monkeypatch, caplog):
         assert cache.get(session, NOW + INDEX_RETRY) == ("b",) and len(jobs) == 1
 
 
+def test_refresh_index_builds_only_when_version_changed(factory, monkeypatch):
+    version = ["v1"]
+    monkeypatch.setattr(service_mod, "data_version", lambda session: version[0])
+    monkeypatch.setattr(service_mod, "build_index", lambda data, baseline, at: ("a",))
+    service = sync_service(factory)
+    jobs = []
+    service.index = IndexCache(factory, run=jobs.append)
+    service.refresh_index()
+    assert len(jobs) == 1  # версия нового индекса — строим, никто не искал
+    jobs.pop()()
+    service.refresh_index()
+    assert jobs == []  # версия та же — ничего не делаем
+    version[0] = "v2"
+    service.refresh_index()
+    assert len(jobs) == 1
+
+
 def test_wizard_steps_not_rate_limited(factory):
     """Кнопки шагов анкеты не тратят лимит; «Показать квартиры» и прочее — тратят."""
     service = sync_service(factory)
@@ -1462,6 +1479,12 @@ def test_card_suspicious_and_above():
     assert "🔴 Подозрительно дёшево: на 31% ниже похожих — узнайте причину" in suspicious
     assert "🟠 Дороже похожих на 18%" in _lines(_card_item(group="above", diff_pct=18.0))
     assert "⚪ Цена в рынке" in _lines(_card_item(group="market", diff_pct=3.0))
+
+
+def test_card_area_comma_and_verdict_percent_like_report():
+    lines = _lines(_card_item(area=54.5, group="below", diff_pct=-7.34))
+    assert "54,5 м²" in lines[0]
+    assert "🟢 Стоит смотреть: на 7.3% дешевле похожих" in lines  # как fmt.pct в /check
 
 
 def test_card_without_metro_for_approx_sources():
@@ -1565,6 +1588,18 @@ def test_last_page_no_more(market):
     stranger = restarted.search_page(TG + 1, "best", 5)
     assert stranger.summary == texts.search_stale_text()
     assert buttons(stranger.more) == {"q:new": NEW_SEARCH}
+
+
+def test_forget_drops_draft_so_stale_more_does_not_recreate_rows(market):
+    service = sync_service(market)
+    service.search_start(TG)
+    assert service.search_go(TG).more is not None
+    assert count(market, SearchShown) > 0
+    service.forget(TG)
+    assert TG not in service.drafts
+    stale = service.search_page(TG, "best", 5)
+    assert stale.cards == [] and stale.summary == texts.search_stale_text()
+    assert count(market, User) == count(market, SearchShown) == count(market, SavedSearch) == 0
 
 
 def test_index_shrank_between_pages(market):

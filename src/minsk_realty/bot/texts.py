@@ -21,6 +21,7 @@ from minsk_realty.analytics.fmt import (
     date_short,
     days_text,
     money,
+    num,
     pct,
     ppm,
     times_text,
@@ -276,10 +277,10 @@ def search_empty_text(hints: Sequence[str]) -> str:
 # --- Карточка квартиры в выдаче ------------------------------------------------------------
 
 VERDICTS = {
-    "below": "🟢 Стоит смотреть: на {}% дешевле похожих",
+    "below": "🟢 Стоит смотреть: на {} дешевле похожих",
     "market": "⚪ Цена в рынке",
-    "above": "🟠 Дороже похожих на {}%",
-    "suspicious": "🔴 Подозрительно дёшево: на {}% ниже похожих — узнайте причину",
+    "above": "🟠 Дороже похожих на {}",
+    "suspicious": "🔴 Подозрительно дёшево: на {} ниже похожих — узнайте причину",
 }
 
 
@@ -299,7 +300,7 @@ def search_card_text(item: SearchItem, now: datetime) -> str:
         p
         for p in (
             f"{item.rooms}-комн." if item.rooms else None,
-            f"{item.area:g} м²" if item.area else None,
+            f"{num(item.area)} м²" if item.area else None,
             f"{item.floor}/{item.floors_total} эт."
             if item.floor is not None and item.floors_total
             else None,
@@ -315,7 +316,7 @@ def search_card_text(item: SearchItem, now: datetime) -> str:
         price += f" · {ppm(item.usd_per_m2)}"
     verdict = None
     if item.group in VERDICTS:
-        verdict = VERDICTS[item.group].format(f"{abs(item.diff_pct or 0):.0f}")
+        verdict = VERDICTS[item.group].format(pct(item.diff_pct or 0, signed=False))
     metro = None
     if item.metro and item.metro_min is not None:
         metro = f"🚇 «{item.metro}» {item.metro_min} мин пешком"
