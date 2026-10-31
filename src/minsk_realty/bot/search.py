@@ -73,6 +73,8 @@ STEP_ACTIONS: dict[Step, frozenset[str]] = {
     "area": frozenset({"a"}),
     "more": frozenset({"h", "f1", "fl"}),
 }
+# Кнопки шагов анкеты: только правят черновик в памяти, ограничитель частоты их не считает.
+STEP_BUTTONS = frozenset({"b", "bc", "r", "d", "da", "a", "h", "f1", "fl", "ok", "back"})
 _SIMPLE = frozenset({"bc", "da", "f1", "fl", "ok", "back", "go", "rep", "new"})
 _VALUES = {
     "b": range(len(BUDGET_STEPS) + 1),
@@ -206,9 +208,10 @@ def _step_rows(draft: SearchDraft) -> list[list]:
 
 
 def render(
-    draft: SearchDraft, repeat: SearchQuery | None = None
+    draft: SearchDraft, repeat: SearchQuery | None = None, note: str | None = None
 ) -> tuple[str, InlineKeyboardMarkup]:
-    """Текст и клавиатура текущего шага; `repeat` — последний запрос для кнопки «Повторить»."""
+    """Текст и клавиатура текущего шага; `repeat` — последний запрос для кнопки «Повторить»,
+    `note` — строка вместо подсказки шага (просьба повторить сумму)."""
     q = draft.query
     header = q.label() if q != SearchQuery() else "🔍 Поиск квартиры"
     rows = _step_rows(draft)
@@ -221,7 +224,7 @@ def render(
         elif draft.step in ("area", "more"):
             nav.append(_btn("Показать квартиры", data="q:go", style="primary"))
         rows.append(nav)
-    text = f"{esc(header)}\n\n{esc(PROMPTS[draft.step])}"
+    text = f"{esc(header)}\n\n{esc(note or PROMPTS[draft.step])}"
     return text, InlineKeyboardMarkup(inline_keyboard=rows)
 
 

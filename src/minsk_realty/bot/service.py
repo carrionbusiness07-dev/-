@@ -11,7 +11,7 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from aiogram.types import InlineKeyboardMarkup
 from sqlalchemy.orm import Session, sessionmaker
@@ -114,11 +114,16 @@ def _in_thread(job: Callable[[], None]) -> None:
     threading.Thread(target=job, name="search-index", daemon=True).start()
 
 
+# После сбоя сборки следующую не запускаем раньше: сборка на живом рынке — около минуты.
+INDEX_RETRY = timedelta(minutes=10)
+
+
 class IndexCache:
     """Индекс поиска. На живом рынке он строится около минуты, поэтому при смене
     `data_version` (закончился проход сборщика) пересобирается в фоне, по одной сборке за раз,
     а запросы до готовности получают прежний индекс. `None` — первого индекса ещё нет.
 
+    После сбоя сборки остаётся прежний индекс, новая попытка — не раньше `INDEX_RETRY`.
     `run` запускает сборку: по умолчанию в фоновом потоке, в тестах — сразу или по команде."""
 
     def __init__(
@@ -128,12 +133,14 @@ class IndexCache:
         self._index: tuple[SearchItem, ...] | None = None
         self._version: tuple | None = None
         self._building = False
+        self._failed_at: datetime | None = None
         self._lock = threading.Lock()
 
     def get(self, session: Session, now: datetime) -> tuple[SearchItem, ...] | None:
         version = data_version(session)
         with self._lock:
-            start = version != self._version and not self._building
+            cooling = self._failed_at is not None and now - self._failed_at < INDEX_RETRY
+            start = version != self._version and not self._building and not cooling
             self._building = self._building or start
         if start:
             self._run(lambda: self._rebuild(version, now))
@@ -145,9 +152,11 @@ class IndexCache:
                 data = load_market(session)
                 index = build_index(data, compute_baseline(data, now), now)
             with self._lock:
-                self._index, self._version = index, version
-        except Exception as exc:  # noqa: BLE001 — остаётся прежний индекс, следующий запрос повторит
+                self._index, self._version, self._failed_at = index, version, None
+        except Exception as exc:  # noqa: BLE001 — остаётся прежний индекс, повтор через INDEX_RETRY
             log.error("индекс поиска: сбой сборки, остаётся прежний: %s", type(exc).__name__)
+            with self._lock:
+                self._failed_at = now
         finally:
             with self._lock:
                 self._building = False
@@ -181,6 +190,8 @@ class BotService:
         self.index = IndexCache(factory)
         # Черновики анкеты поиска; после перезапуска их нет — кнопки отвечают «устарела».
         self.drafts: dict[int, search.SearchDraft] = {}
+        # Кнопки шагов не ограничены по частоте: правка черновика — под замком.
+        self._draft_lock = threading.Lock()
 
     # --- /check -----------------------------------------------------------------------------
 
@@ -285,23 +296,28 @@ class BotService:
 
     def search_button(self, telegram_id: int, cb: search.SearchCallback | None) -> Reply:
         """Кнопка шага анкеты (не «go»/«rep»/«new»): следующий вид того же сообщения."""
-        draft = self.drafts.get(telegram_id)
-        if cb is None or draft is None:
-            return Reply(texts.search_stale_text(), search.new_search_keyboard())
-        search.apply(draft, cb)
-        return Reply(*search.render(draft))
+        with self._draft_lock:
+            draft = self.drafts.get(telegram_id)
+            if cb is None or draft is None:
+                return Reply(texts.search_stale_text(), search.new_search_keyboard())
+            search.apply(draft, cb)
+            return Reply(*search.render(draft))
 
     def search_text(self, telegram_id: int, text: str | None) -> Reply | None:
-        """Сумма на шаге «своя сумма». None — текст не для анкеты: его обрабатывает обычный путь
-        (ссылка → отчёт, иначе подсказка), черновик остаётся как был."""
-        draft = self.drafts.get(telegram_id)
-        if draft is None or draft.step != "budget_custom":
+        """Текст на шаге «своя сумма»: сумма → следующий шаг, иное → тот же шаг с просьбой
+        повторить. None — текст не для анкеты (нет анкеты, другой шаг или ссылка): его
+        обрабатывает обычный путь, черновик остаётся как был."""
+        if links.find_links(text):
             return None
-        budget = parse_budget(text or "")
-        if budget is None:
-            return None
-        search.set_budget(draft, *budget)
-        return Reply(*search.render(draft))
+        with self._draft_lock:
+            draft = self.drafts.get(telegram_id)
+            if draft is None or draft.step != "budget_custom":
+                return None
+            budget = parse_budget(text or "")
+            if budget is None:
+                return Reply(*search.render(draft, note=texts.BUDGET_RETRY))
+            search.set_budget(draft, *budget)
+            return Reply(*search.render(draft))
 
     def search_bind(self, telegram_id: int, message_id: int) -> None:
         """Запомнить сообщение анкеты, чтобы править его после текста."""

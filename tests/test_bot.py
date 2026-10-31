@@ -48,8 +48,8 @@ from minsk_realty.bot.handlers import message_text
 from minsk_realty.bot.logsafe import RedactTokenFilter, redact
 from minsk_realty.bot.publish import notify_once, publish_weekly, scheduled_weekly
 from minsk_realty.bot.ratelimit import TokenBucket
-from minsk_realty.bot.search import parse_search_callback
-from minsk_realty.bot.service import BotService, IndexCache, reply_venue
+from minsk_realty.bot.search import PROMPTS, parse_search_callback
+from minsk_realty.bot.service import INDEX_RETRY, BotService, IndexCache, reply_venue
 from minsk_realty.bot.watchlist import (
     forget_user,
     has_seen_object,
@@ -1209,9 +1209,11 @@ def test_custom_budget(factory):
     service.search_start(TG)
     custom = press(service, "q:bc")
     assert list(buttons(custom.keyboard)) == ["q:back"]
-    # Не сумма — обычный путь бота (подсказка или /check), анкета ждёт дальше.
+    # Не сумма — тот же шаг с просьбой повторить (Review Focus 1).
     for junk in ("abc", "0", "-5", "сто тысяч"):
-        assert service.search_text(TG, junk) is None
+        again = service.search_text(TG, junk)
+        assert texts.BUDGET_RETRY in again.text and list(buttons(again.keyboard)) == ["q:back"]
+        assert texts.esc(PROMPTS["budget_custom"]) not in again.text
         assert service.drafts[TG].step == "budget_custom"
     rooms = service.search_text(TG, "70-90")
     assert rooms.text.startswith("$70 000–90 000") and "q:r:1" in buttons(rooms.keyboard)
@@ -1224,8 +1226,9 @@ def test_custom_budget(factory):
 
     press(service, "q:back")
     press(service, "q:bc")
-    sent, _ = _feed(service, _message("hello"))  # не сумма → подсказка, как раньше
-    assert sent[0].text == texts.no_link_text()
+    _, calls = _feed(service, _message("hello"))  # не сумма → шаг с просьбой повторить
+    retry = [c for c in calls if isinstance(c, SendMessage | EditMessageText)]
+    assert retry and texts.BUDGET_RETRY in retry[0].text
     assert service.drafts[TG].step == "budget_custom"
 
 
@@ -1351,4 +1354,21 @@ def test_index_cache_rebuilds_in_background(factory, monkeypatch, caplog):
         with caplog.at_level(logging.ERROR):
             jobs.pop()()  # сборка упала
         assert "индекс поиска" in caplog.text
-        assert cache.get(session, NOW) == ("b",) and len(jobs) == 1  # старый + новая попытка
+        assert cache.get(session, NOW) == ("b",) and jobs == []  # старый, повтор не сразу
+        assert cache.get(session, NOW + INDEX_RETRY - HOUR / 60) == ("b",) and jobs == []
+        assert cache.get(session, NOW + INDEX_RETRY) == ("b",) and len(jobs) == 1
+
+
+def test_wizard_steps_not_rate_limited(factory):
+    """Кнопки шагов анкеты не тратят лимит; «Показать квартиры» и прочее — тратят."""
+    service = sync_service(factory)
+    service.search_start(TG)
+    press(service, "q:b:0")
+    cfg = replace(CFG, rate_burst=2, rate_per_minute=0.01)
+    taps = [_press_query(f"q:r:{1 + i % 4}") for i in range(6)]
+    gos = [_press_query("q:go") for _ in range(3)]
+    sent, calls = _feed(service, *taps, *gos, cfg=cfg)
+    assert sum(isinstance(c, EditMessageText) for c in calls) == 6  # все нажатия шагов
+    assert len(sent) == 2  # две выдачи, третья — «слишком часто»
+    answers = [c.text for c in calls if isinstance(c, AnswerCallbackQuery)]
+    assert answers.count(texts.TOO_OFTEN) == 1

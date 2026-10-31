@@ -16,6 +16,7 @@ from typing import Any
 from aiogram import BaseMiddleware
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
+from minsk_realty.bot.search import STEP_BUTTONS, parse_search_callback
 from minsk_realty.bot.texts import TOO_OFTEN, esc
 
 MAX_USERS = 10_000  # сколько корзин держать в памяти, прежде чем выбросить полные
@@ -61,7 +62,7 @@ class RateLimitMiddleware(BaseMiddleware):
         data: dict[str, Any],
     ) -> Any:
         user = data.get("event_from_user")
-        if user is None:
+        if user is None or _is_step_button(event):
             return await handler(event, data)
         if self.bucket.hit(user.id):
             self._warned.discard(user.id)
@@ -74,3 +75,11 @@ class RateLimitMiddleware(BaseMiddleware):
             with suppress(Exception):
                 await event.answer(esc(TOO_OFTEN))
         return None
+
+
+def _is_step_button(event: TelegramObject) -> bool:
+    """Кнопка шага анкеты: дёшево (только память) и жмётся часто — без ограничения."""
+    if not isinstance(event, CallbackQuery):
+        return False
+    cb = parse_search_callback(event.data)
+    return cb is not None and cb.action in STEP_BUTTONS

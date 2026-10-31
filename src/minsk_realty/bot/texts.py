@@ -250,6 +250,9 @@ def search_stale_text() -> str:
     return esc("Кнопка устарела, начните поиск заново.")
 
 
+BUDGET_RETRY = "Не понял сумму. Напишите, например: 85000, 85 или 70-90"
+
+
 def search_preparing_text() -> str:
     return esc("Готовлю данные, попробуйте через минуту.")
 
