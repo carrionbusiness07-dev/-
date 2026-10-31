@@ -97,7 +97,7 @@
   - Kufar: на `tests/fixtures/kufar/search_sell_minsk.2026-10-23.json` для объявления с `size_kitchen` → `extra["kitchen_m2"]` — число из фикстуры; `bathroom` → подпись из `vl`. Синтетическое объявление с `body = "Торг. Под ипотеку не подходит"` → `extra["facts"] == ["no_mortgage", "bargain"]` (порядок `FACT_LABELS`) и в `to_raw(...).payload` нет `body`/`body_short`.
   - Realt: `areaKitchen` → `kitchen_m2`; `wallMaterial` с кодом из таблицы Task 0 → `walls`; неизвестный код → ключа нет; `furniture: true` → `"furniture" in facts`; `description` удалён из payload.
   - Domovita: `compact({... "ads_text": "Срочно, торг"})` → в результате нет `ads_text`, есть `_facts == ["bargain", "urgent"]`; `parse` кладёт `facts`.
-  - `tests/test_privacy.py::test_free_text_never_reaches_snapshot`: для каждого из трёх адаптеров текст с `+375291234567` и «звоните, Анна» не встречается ни в `payload`, ни в `snapshot.model_dump_json()`.
+  - `tests/test_privacy.py::test_free_text_never_reaches_snapshot`: для каждого из трёх адаптеров текст с `+375000000000` и «звоните, Анна» не встречается ни в `payload`, ни в `snapshot.model_dump_json()`.
 - [ ] **Step 2: Запуск** этих тестов → FAIL.
 - [ ] **Step 3: Реализация.** Текст: Kufar — поле из Task 0 (`body`, иначе `body_short`), Realt — `headline` + `description`, Domovita — `ads_text`. Факты считаются в `to_raw` (Domovita — в `compact`), затем текстовые ключи удаляются из payload. `parse` переносит `payload["_facts"]` в `extra["facts"]` (если не пусто). Механизм «`extra` изменился — обновить на месте» уже есть, его не трогать.
 - [ ] **Step 4: Запуск** всех тестов адаптеров и `tests/test_live_fixtures.py` → PASS; `ruff check .`.

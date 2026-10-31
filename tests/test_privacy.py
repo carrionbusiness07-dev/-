@@ -49,7 +49,7 @@ def test_free_text_never_reaches_snapshot(fixtures_dir):
     from minsk_realty.sources.realt import RealtAdapter, extract_page_props
     from minsk_realty.sources.realt import to_raw as realt_raw
 
-    text = "Торг, звоните, Анна +375291234567"
+    text = "Торг, звоните, Анна +375000000000"
     kufar_ad = json.loads(
         (fixtures_dir / "kufar" / "search_sell_minsk.synthetic.json").read_text(encoding="utf-8")
     )["ads"][0]
