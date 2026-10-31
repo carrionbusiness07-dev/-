@@ -224,7 +224,7 @@ def remove_watch(session: Session, telegram_id: int, object_id: int) -> bool:
 
 
 def forget_user(session: Session, telegram_id: int) -> bool:
-    """Удалить пользователя: список, журнал проверок и уведомлений уходят каскадом."""
+    """Удалить пользователя: список, журнал проверок и уведомлений, сохранённый поиск и показанные объекты уходят каскадом."""
     user = find_user(session, telegram_id)
     if user is None:
         return False
