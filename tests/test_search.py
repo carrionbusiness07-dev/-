@@ -101,7 +101,7 @@ def test_one_card_per_object():
     assert (item.rooms, item.area, item.floor, item.floors_total) == (2, 54.0, 5, 9)
     assert item.district == "Фрунзенский" and item.street == "ул. Притыцкого"
     assert (item.metro, item.metro_min) == ("Спортивная", 5)
-    assert item.owner is True and item.checked_at == NOW - HOUR
+    assert item.seller_type == "owner" and item.checked_at == NOW - HOUR
     assert item.first_seen == OBS_START + DAY and item.days == (NOW - OBS_START - DAY).days
     assert item.new_building is None and item.housing is None
     assert item.group is None and item.details == FlatDetails(kitchen_m2=9.0)
@@ -146,7 +146,7 @@ def _item(oid, **kw) -> SearchItem:
         "days": 10,
         "drops": 0,
         "sources": ("kufar",),
-        "owner": None,
+        "seller_type": "unknown",
         "url": f"https://example.invalid/{oid}",
         "url_source": "kufar",
         "listing_id": oid,

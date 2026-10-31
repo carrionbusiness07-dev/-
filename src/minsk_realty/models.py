@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 Source = Literal["kufar", "realt", "onliner", "domovita"]
-SellerType = Literal["owner", "agency", "unknown"]
+SellerType = Literal["owner", "agency", "developer", "unknown"]
 Currency = Literal["USD", "BYN", "EUR", "RUB"]
 
 

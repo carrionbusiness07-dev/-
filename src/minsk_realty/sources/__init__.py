@@ -4,8 +4,10 @@
 """
 
 from datetime import timedelta
+from functools import partial
 
 from minsk_realty.sources.domovita import DomovitaAdapter
+from minsk_realty.sources.domovita_rent import DomovitaRentAdapter
 from minsk_realty.sources.kufar import KufarAdapter
 from minsk_realty.sources.onliner import OnlinerAdapter
 from minsk_realty.sources.realt import RealtAdapter
@@ -15,6 +17,14 @@ ADAPTERS = {
     "realt": RealtAdapter,
     "onliner": OnlinerAdapter,
     "domovita": DomovitaAdapter,
+}
+# Долгосрочная аренда: те же площадки, своя база (RENT_DATABASE_URL), чтобы цены аренды не
+# попали в медианы, склейку и уведомления продажи. Сборщик обходит её после продажи.
+RENT_ADAPTERS = {
+    "kufar": partial(KufarAdapter, deal="rent"),
+    "realt": partial(RealtAdapter, deal="rent"),
+    "onliner": partial(OnlinerAdapter, deal="rent"),
+    "domovita": DomovitaRentAdapter,
 }
 NAMES = {"kufar": "Kufar", "realt": "Realt", "onliner": "Onliner", "domovita": "Domovita"}
 DOMAINS = {

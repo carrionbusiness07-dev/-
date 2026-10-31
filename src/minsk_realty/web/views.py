@@ -431,7 +431,7 @@ def seller_label(listing) -> str:
     if listing.agency_name:
         return f"агентство «{listing.agency_name}»"
     # Kufar отдаёт только признак «агентство», без названия.
-    return {"owner": "собственник", "agency": "агентство"}.get(
+    return {"owner": "собственник", "agency": "агентство", "developer": "застройщик"}.get(
         listing.seller_type, "продавец не указан"
     )
 
@@ -930,7 +930,7 @@ def history_rows(report) -> list[HistoryRow]:
     """История цены без дублей: одна строка на дату и цену, площадки — через запятую."""
     rows: list[HistoryRow] = []
     for point in report.history:
-        seller = point.agency_name or {"owner": "собственник", "agency": "агентство"}.get(
+        seller = point.agency_name or {"owner": "собственник", "agency": "агентство", "developer": "застройщик"}.get(
             point.seller_type, "—"
         )
         source = SOURCE_NAMES.get(point.source, point.source)

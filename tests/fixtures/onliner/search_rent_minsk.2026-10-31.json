@@ -1,0 +1,107 @@
+{
+ "apartments": [
+  {
+   "id": 977381,
+   "price": {
+    "amount": "1000.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "2946.20",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "1000.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "rent_type": "4_rooms",
+   "location": {
+    "address": "Минск, 1-й Путепроводный переулок",
+    "user_address": "Минск, 1-й Путепроводный переулок",
+    "latitude": 53.9233321,
+    "longitude": 27.5002356
+   },
+   "photo": "https://imgproxy.onliner.by/BiAvvt-HLk9gLe7yp7WUx5cK8JFT5SE5b7ZoLjyBhpI/w:600/h:400/dpr:2/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yNjEw/NzYxL29yaWdpbmFs/LzRhMDcwYWY5NGU2/YTk5MWI4Nzg1NmZk/YTgzZmIzODY5Lmpw/Zw",
+   "contact": {
+    "owner": true
+   },
+   "created_at": "2026-10-22T06:08:21+03:00",
+   "last_time_up": "2026-10-31T19:52:57+03:00",
+   "up_available_in": 86127,
+   "url": "https://r.onliner.by/ak/apartments/977381"
+  },
+  {
+   "id": 968252,
+   "price": {
+    "amount": "1500.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "4419.30",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "1500.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "rent_type": "2_rooms",
+   "location": {
+    "address": "Минск, улица Скрыганова, 4",
+    "user_address": "Минск, улица Скрыганова, 4",
+    "latitude": 53.90988015,
+    "longitude": 27.516763249480363
+   },
+   "photo": "https://imgproxy.onliner.by/PuTudrjA4gSGDyfOL2lHSvyVtTunRF8dZSCnih7W4JQ/w:600/h:400/dpr:2/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8yOTE5/OTUwL29yaWdpbmFs/LzM2NDIwOTczM2Nh/YWI3MzE1YWJkYWUx/NTAxYjFmODUyLmpw/Zw",
+   "contact": {
+    "owner": true
+   },
+   "created_at": "2026-05-13T12:55:36+03:00",
+   "last_time_up": "2026-10-31T19:33:51+03:00",
+   "up_available_in": 84981,
+   "url": "https://r.onliner.by/ak/apartments/968252"
+  },
+  {
+   "id": 977803,
+   "price": {
+    "amount": "160.00",
+    "currency": "USD",
+    "converted": {
+     "BYN": {
+      "amount": "471.39",
+      "currency": "BYN"
+     },
+     "USD": {
+      "amount": "160.00",
+      "currency": "USD"
+     }
+    }
+   },
+   "rent_type": "room",
+   "location": {
+    "address": "Минск, улица Веры Хоружей, 36",
+    "user_address": "Минск, улица Веры Хоружей, 36",
+    "latitude": 53.9232478,
+    "longitude": 27.5593822
+   },
+   "photo": "https://imgproxy.onliner.by/qlvCSv6QjFPgxcxobEI52DRenZlHq0mzeEBKfDX41cw/w:600/h:400/dpr:2/aHR0cHM6Ly9jb250/ZW50Lm9ubGluZXIu/YnkvYXBhcnRtZW50/c19waG90by8xOTI2/OTIzL29yaWdpbmFs/LzNiNjQ0NDA5ZTdl/Y2JhMWQxYzM5ZTc1/OTIzN2IxMTI5Lmpw/Zw",
+   "contact": {
+    "owner": true
+   },
+   "created_at": "2026-10-30T16:14:21+03:00",
+   "last_time_up": "2026-10-31T19:00:39+03:00",
+   "up_available_in": 82989,
+   "url": "https://r.onliner.by/ak/apartments/977803"
+  }
+ ],
+ "total": 3,
+ "page": {
+  "limit": 36,
+  "items": 3,
+  "current": 1,
+  "last": 1
+ }
+}

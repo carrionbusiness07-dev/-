@@ -54,7 +54,7 @@ class SearchItem:
     days: int | None
     drops: int
     sources: tuple[str, ...]  # площадки, где объект сейчас продаётся
-    owner: bool | None  # продавец объявления с ценой: собственник / агентство / неизвестно
+    seller_type: str  # продавец объявления с ценой: owner / agency / developer / unknown
     url: str  # объявление с ценой объекта (самое дешёвое)
     url_source: str
     listing_id: int
@@ -127,7 +127,7 @@ def build_index(
                 days=exposure.days,
                 drops=price_moves(events, {r.id for r in listings}, []).drops,
                 sources=tuple(sorted({r.source for r in listings if r.active_at(at)})),
-                owner={"owner": True, "agency": False}.get(row.seller_type),
+                seller_type=row.seller_type,
                 url=row.url,
                 url_source=row.source,
                 listing_id=row.id,

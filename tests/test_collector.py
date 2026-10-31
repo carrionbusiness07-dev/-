@@ -171,6 +171,17 @@ def test_run_cycle_skips_blocked_source_and_survives_errors(factory, monkeypatch
     assert created == ["realt"]  # kufar пропущен: последний проход заблокирован
 
 
+def test_rent_cycle_marks_alerts_and_skips_watchdog(factory, monkeypatch):
+    collect(FakeKufar([], fail_with=SourceBlocked("403")), factory, now=clock(T0))
+    sent, pings = [], []
+    monkeypatch.setattr("minsk_realty.collector.__main__.notify", sent.append)
+    monkeypatch.setattr("minsk_realty.collector.__main__.ping_watchdog", pings.append)
+    rent = {"kufar": lambda: FakeKufar([])}
+    run_cycle(factory, ["kufar"], set(), AlertThrottle(), adapters=rent, deal="аренда")
+    assert sent and all(text.startswith("аренда · ") for text in sent)
+    assert pings == []
+
+
 def test_run_cycle_runs_matching_after_collect(factory, ads, monkeypatch):
     shown = [ads[:1]]
     monkeypatch.setattr(

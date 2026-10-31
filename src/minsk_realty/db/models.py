@@ -27,7 +27,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
 SOURCES = ("kufar", "realt", "onliner", "domovita")
-SELLER_TYPES = ("owner", "agency", "unknown")
+SELLER_TYPES = ("owner", "agency", "developer", "unknown")
 CURRENCIES = ("USD", "BYN", "EUR", "RUB")
 CONFIDENCE = ("high", "medium", "low")
 LISTING_STATUSES = ("active", "inactive")
