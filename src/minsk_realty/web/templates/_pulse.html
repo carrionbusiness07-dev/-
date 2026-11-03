@@ -3,13 +3,14 @@
   {% set city = overview.city %}
   <p class="pulse-label">Медиана цены по Минску</p>
   <p class="pulse-figure">{% if city and city.enough %}${{ city.median | thousands }}<span class="unit">/м²</span>{% else %}мало данных{% endif %}</p>
-  {% set first = (series | selectattr("value") | list | first) %}
-  {% set last = (series | selectattr("value") | list | last) %}
-  {% if first and last and first.value %}
-  <p class="pulse-change"><span class="compact-only">медиана по Минску · </span>{{ ((last.value / first.value - 1) * 100) | pct }} за {{ series | length }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
-  {% endif %}
-  {% set values = series | selectattr("value") | map(attribute="value") | list %}
-  {% if values %}
+  {% set valued = series | selectattr("value") | list %}
+  {% if valued | length < pulse_min_points %}
+  <p class="pulse-change">Мало данных для графика: наблюдаем с {{ snap.data.observation_start | dshort if snap.data.observation_start else "—" }}, нужна история хотя бы за {{ pulse_min_points }} недели.</p>
+  {% else %}
+  {% set first = valued | first %}
+  {% set last = valued | last %}
+  <p class="pulse-change"><span class="compact-only">медиана по Минску · </span>{{ ((last.value / first.value - 1) * 100) | pct }} за {{ valued | length - 1 }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
+  {% set values = valued | map(attribute="value") | list %}
   {% set lo = values | min %}{% set hi = values | max %}
   <ol class="bars" aria-label="Медиана по неделям">
     {% for p in series %}

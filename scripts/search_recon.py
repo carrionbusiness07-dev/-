@@ -27,7 +27,7 @@ def kufar_text() -> None:
     rows = []
     for ad in kufar_page():
         body, short = ad.get("body") or "", ad.get("body_short") or ""
-        cut = lambda s: s.rstrip().endswith(("…", "..."))  # noqa: E731
+        cut = lambda s: s.rstrip().endswith(("…", "..."))
         rows.append((len(body), len(short), cut(body), cut(short)))
         print(f"body={len(body)} body_short={len(short)} body_cut={cut(body)} short_cut={cut(short)}")
     if rows:

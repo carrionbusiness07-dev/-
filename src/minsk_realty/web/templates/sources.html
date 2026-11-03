@@ -12,7 +12,7 @@
     {% for h in health %}
     <li class="source source-{{ h.state }}">
       <h2><span class="dot dot-{{ h.state }}" aria-hidden="true"></span>{{ sources.get(h.source, h.source) }}</h2>
-      <p class="source-state">{{ {"ok": "Работает", "warning": "Нужно внимание", "failing": "Сбой", "blocked": "Остановлен после 403/429", "never_run": "Ещё не запускался"}[h.state] }}</p>
+      <p class="source-state">{{ {"ok": "Работает", "running": "Идёт проход", "recovering": "Восстанавливается: сборщик снова работает, площадка в очереди", "warning": "Нужно внимание", "failing": "Сбой", "blocked": "Остановлен после 403/429", "never_run": "Ещё не запускался"}[h.state] }}</p>
       {% if h.last_run_at %}
       <dl class="facts">
         <div><dt>Последний проход</dt><dd>{{ h.last_run_at | dshort }} {{ fmt.local(h.last_run_at).strftime("%H:%M") }}</dd></div>
@@ -21,7 +21,11 @@
         <div><dt>Проходов за сутки</dt><dd>{{ h.runs_24h }}{% if h.failed_24h %} <small class="warn">неудачных {{ h.failed_24h }}</small>{% endif %}</dd></div>
       </dl>
       {% endif %}
+      {% if h.state == "recovering" %}
+      <p class="alert">Сборщик стоял (компьютер спал или Docker был выключен) и снова обходит площадки. Свежий проход появится, когда очередь дойдёт до этой площадки.</p>
+      {% else %}
       {% for a in h.alerts %}<p class="alert">{{ a }}</p>{% endfor %}
+      {% endif %}
       {% if h.state == "warning" and not h.alerts %}
       <p class="alert">{% if not h.last_ok_at %}Ещё ни одного успешного прохода. Пока его нет, снятые объявления не отмечаются, а новые не считаются новыми. Причина неудачных проходов — в таблице ниже.{% else %}Успешного прохода не было больше трёх часов: проверьте, включён ли компьютер и запущен ли Docker.{% endif %}</p>
       {% endif %}

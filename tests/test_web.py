@@ -637,3 +637,32 @@ def test_chart_css_uses_tokens_only():
     css = (ROOT / "src/minsk_realty/web/static/khronika.css").read_text(encoding="utf-8")
     block = css[css.index(".pt-platform"):css.index(".feed-platform .delta")]
     assert "#" not in block and "rgb" not in block and "var(--ink-3)" in block
+
+
+def test_pulse_series_starts_at_observation(monkeypatch):
+    from datetime import UTC, datetime
+    from types import SimpleNamespace
+
+    from minsk_realty.web import views
+
+    cell = SimpleNamespace(median=1809.0, enough=True)
+    monkeypatch.setattr(
+        views, "compute_baseline", lambda data, at: SimpleNamespace(city=lambda: cell)
+    )
+    now = datetime(2026, 11, 3, 10, tzinfo=UTC)
+    start = datetime(2026, 10, 23, 0, tzinfo=UTC)
+    snap = SimpleNamespace(data=SimpleNamespace(observation_start=start), now=now)
+    points = views._city_series(snap, views.PULSE_WEEKS)
+    assert len(points) == 2  # 27.10 и 03.11, ничего раньше 23.10
+    assert points[0].label == "27.10" and points[-1].label == "03.11"
+
+
+def test_pulse_same_on_summary_and_market(client):
+    summary = client.get("/").text
+    market = client.get("/market").text
+
+    def pulse(html):
+        i = html.index('<h2 class="pulse-title">Пульс рынка')
+        return html[i : html.index("За неделю", i)]
+
+    assert pulse(summary) == pulse(market)

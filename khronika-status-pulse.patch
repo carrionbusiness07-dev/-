@@ -1,0 +1,337 @@
+diff --git a/src/minsk_realty/analytics/overview.py b/src/minsk_realty/analytics/overview.py
+index a4ce1e9..0a5e50d 100644
+--- a/src/minsk_realty/analytics/overview.py
++++ b/src/minsk_realty/analytics/overview.py
+@@ -19,6 +19,7 @@ from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
+ from minsk_realty.analytics.data import MarketData, as_utc, load_market
+ from minsk_realty.analytics.medians import MarketBaseline, MedianCell, compute_baseline
+ from minsk_realty.analytics.weekly import WEEK, PeriodCounts, TopDrop, period_counts, top_drops
++from minsk_realty.collector.run import STALE_RUN_AFTER
+ from minsk_realty.db.models import SOURCES, Listing, SourceRun
+ from minsk_realty.health.check import check_sources
+ from minsk_realty.sources import min_interval
+@@ -76,7 +77,12 @@ def market_overview(
+ 
+ # --- Источники ---------------------------------------------------------------------------
+ 
+-HealthState = Literal["ok", "warning", "failing", "blocked", "never_run"]
++# running — проход идёт прямо сейчас; recovering — сборщик снова обходит площадки после
++# перерыва (компьютер спал, Docker падал), а до этой площадки очередь ещё не дошла.
++HealthState = Literal[
++    "ok", "running", "recovering", "warning", "failing", "blocked", "never_run"
++]
++DAY_ = timedelta(days=1)
+ STALE_AFTER = timedelta(hours=3)  # опрос раз в 30–60 мин: 3 часа без успешного прохода — повод
+ 
+ 
+@@ -97,6 +103,34 @@ class SourceHealth:
+     alerts: tuple[str, ...]
+ 
+ 
++def collector_resumed_at(
++    session: Session, now: datetime, sources: tuple[str, ...] = SOURCES
++) -> datetime | None:
++    """Когда сборщик снова начал обходить площадки после перерыва длиннее `STALE_AFTER`.
++
++    None — сборщик сейчас стоит или работает без перерыва дольше `STALE_AFTER`
++    (тогда отставшая площадка — уже не «очередь после сна», а повод разобраться).
++    """
++    starts = [
++        as_utc(t)
++        for t in session.execute(
++            select(SourceRun.started_at)
++            .where(SourceRun.source.in_(sources), SourceRun.started_at >= now - 7 * DAY_)
++            .order_by(SourceRun.started_at.desc())
++        ).scalars()
++    ]
++    if not starts or now - starts[0] > STALE_AFTER:
++        return None
++    resumed = starts[0]
++    for earlier in starts[1:]:
++        if resumed - earlier > STALE_AFTER:
++            break
++        resumed = earlier
++    else:
++        return None  # перерыва за неделю не было
++    return resumed if now - resumed <= STALE_AFTER else None
++
++
+ def source_health_summary(
+     session: Session, now: datetime | None = None, *, sources: tuple[str, ...] = SOURCES
+ ) -> tuple[SourceHealth, ...]:
+@@ -111,6 +145,7 @@ def source_health_summary(
+             .group_by(Listing.source)
+         ).all()
+     )
++    resumed_at = collector_resumed_at(session, now, sources)
+     out = []
+     for source in sources:
+         last = session.scalar(
+@@ -139,6 +174,17 @@ def source_health_summary(
+             state: HealthState = "never_run"
+         elif last.status == "blocked":
+             state = "blocked"
++        elif last.status == "running" and now - as_utc(last.started_at) <= STALE_RUN_AFTER:
++            state = "running"
++        elif (
++            resumed_at is not None
++            and last.status == "ok"
++            and as_utc(last.started_at) < resumed_at
++            and not any("подряд" in a for a in source_alerts)
++        ):
++            # Последний проход был успешным, сборщик снова работает — ждём очереди,
++            # а «0 записанных за сутки» здесь след перерыва, а не сломанный парсер.
++            state = "recovering"
+         elif source_alerts and any("подряд" in a or "0 записанных" in a for a in source_alerts):
+             state = "failing"
+         elif (
+diff --git a/src/minsk_realty/web/app.py b/src/minsk_realty/web/app.py
+index a3eca0d..d368d2d 100644
+--- a/src/minsk_realty/web/app.py
++++ b/src/minsk_realty/web/app.py
+@@ -35,7 +35,9 @@ from minsk_realty.web import views
+ 
+ HERE = Path(__file__).parent
+ templates = Jinja2Templates(directory=HERE / "templates")
+-templates.env.globals.update(fmt=fmt, sources=views.SOURCE_NAMES)
++templates.env.globals.update(
++    fmt=fmt, sources=views.SOURCE_NAMES, pulse_min_points=views.PULSE_MIN_POINTS
++)
+ NB_THOUSANDS = re.compile(r"(?<=\d) (?=\d{3}\b)")
+ RANGE = re.compile(r"\$[\d\u00a0]+–[\d\u00a0]+")
+ 
+@@ -241,7 +243,7 @@ def market(request: Request, session: SessionDep):
+     snap = _snapshot(session)
+     overview = views.overview(snap, 10)
+     return _page(
+-        request, "market.html", snap, session, overview=overview, series=views.city_series(snap, 12)
++        request, "market.html", snap, session, overview=overview, series=views.city_series(snap)
+     )
+ 
+ 
+diff --git a/src/minsk_realty/web/static/khronika.css b/src/minsk_realty/web/static/khronika.css
+index cac468c..2cf97b6 100644
+--- a/src/minsk_realty/web/static/khronika.css
++++ b/src/minsk_realty/web/static/khronika.css
+@@ -140,10 +140,12 @@ html { scrollbar-color: var(--paper-3) transparent; }
+ .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+ .dot-ok { background: #3ccf7d; }
+ .dot-warning { background: #f2b33d; }
++.dot-running, .dot-recovering { background: #7fb2ff; }
+ .dot-failing, .dot-blocked { background: #ff6b5e; }
+ .page .dot { margin-right: 6px; vertical-align: 1px; }
+ .page .dot-ok { background: var(--green); }
+ .page .dot-warning { background: #d38b12; }
++.page .dot-running, .page .dot-recovering { background: var(--spot); }
+ .page .dot-failing, .page .dot-blocked { background: var(--red); }
+ 
+ .page { min-width: 0; }
+@@ -548,6 +550,7 @@ table { width: 100%; border-collapse: collapse; }
+ .source { padding-top: var(--s3); border-top: 3px solid var(--ink); }
+ .source h2 { font: 700 26px/1.1 var(--head); display: flex; align-items: center; }
+ .source-state { margin: 2px 0 var(--s2); color: var(--ink-2); }
++.source-running .source-state, .source-recovering .source-state { color: var(--spot); font-weight: 600; }
+ .source-warning .source-state { color: var(--amber); font-weight: 600; }
+ .source-failing .source-state, .source-blocked .source-state { color: var(--red); font-weight: 600; }
+ .warn { color: var(--amber); font-weight: 600; }
+diff --git a/src/minsk_realty/web/templates/_pulse.html b/src/minsk_realty/web/templates/_pulse.html
+index e5409ba..b96e23b 100644
+--- a/src/minsk_realty/web/templates/_pulse.html
++++ b/src/minsk_realty/web/templates/_pulse.html
+@@ -3,13 +3,14 @@
+   {% set city = overview.city %}
+   <p class="pulse-label">Медиана цены по Минску</p>
+   <p class="pulse-figure">{% if city and city.enough %}${{ city.median | thousands }}<span class="unit">/м²</span>{% else %}мало данных{% endif %}</p>
+-  {% set first = (series | selectattr("value") | list | first) %}
+-  {% set last = (series | selectattr("value") | list | last) %}
+-  {% if first and last and first.value %}
+-  <p class="pulse-change"><span class="compact-only">медиана по Минску · </span>{{ ((last.value / first.value - 1) * 100) | pct }} за {{ series | length }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
+-  {% endif %}
+-  {% set values = series | selectattr("value") | map(attribute="value") | list %}
+-  {% if values %}
++  {% set valued = series | selectattr("value") | list %}
++  {% if valued | length < pulse_min_points %}
++  <p class="pulse-change">Мало данных для графика: наблюдаем с {{ snap.data.observation_start | dshort if snap.data.observation_start else "—" }}, нужна история хотя бы за {{ pulse_min_points }} недели.</p>
++  {% else %}
++  {% set first = valued | first %}
++  {% set last = valued | last %}
++  <p class="pulse-change"><span class="compact-only">медиана по Минску · </span>{{ ((last.value / first.value - 1) * 100) | pct }} за {{ valued | length - 1 }} нед.: ${{ first.value | thousands }} → ${{ last.value | thousands }}</p>
++  {% set values = valued | map(attribute="value") | list %}
+   {% set lo = values | min %}{% set hi = values | max %}
+   <ol class="bars" aria-label="Медиана по неделям">
+     {% for p in series %}
+diff --git a/src/minsk_realty/web/templates/base.html b/src/minsk_realty/web/templates/base.html
+index e0f9b68..0e4df7a 100644
+--- a/src/minsk_realty/web/templates/base.html
++++ b/src/minsk_realty/web/templates/base.html
+@@ -37,7 +37,7 @@
+       <a class="status-line" href="/sources">
+         <span class="dot dot-{{ h.state }}" aria-hidden="true"></span>
+         <span>{{ sources.get(h.source, h.source) }}</span>
+-        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "warning" %}{{ "нет прохода" if not h.last_ok_at else "давно" }}{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
++        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "running" %}идёт{% elif h.state == "recovering" %}в очереди{% elif h.state == "warning" %}{{ "нет прохода" if not h.last_ok_at else "давно" }}{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
+       </a>
+       {% endfor %}
+       <p class="rail-since">Наблюдаем с {{ snap.data.observation_start | dshort if snap.data.observation_start else "—" }}</p>
+diff --git a/src/minsk_realty/web/templates/sources.html b/src/minsk_realty/web/templates/sources.html
+index 2531e47..17d51a7 100644
+--- a/src/minsk_realty/web/templates/sources.html
++++ b/src/minsk_realty/web/templates/sources.html
+@@ -12,7 +12,7 @@
+     {% for h in health %}
+     <li class="source source-{{ h.state }}">
+       <h2><span class="dot dot-{{ h.state }}" aria-hidden="true"></span>{{ sources.get(h.source, h.source) }}</h2>
+-      <p class="source-state">{{ {"ok": "Работает", "warning": "Нужно внимание", "failing": "Сбой", "blocked": "Остановлен после 403/429", "never_run": "Ещё не запускался"}[h.state] }}</p>
++      <p class="source-state">{{ {"ok": "Работает", "running": "Идёт проход", "recovering": "Восстанавливается: сборщик снова работает, площадка в очереди", "warning": "Нужно внимание", "failing": "Сбой", "blocked": "Остановлен после 403/429", "never_run": "Ещё не запускался"}[h.state] }}</p>
+       {% if h.last_run_at %}
+       <dl class="facts">
+         <div><dt>Последний проход</dt><dd>{{ h.last_run_at | dshort }} {{ fmt.local(h.last_run_at).strftime("%H:%M") }}</dd></div>
+@@ -21,7 +21,11 @@
+         <div><dt>Проходов за сутки</dt><dd>{{ h.runs_24h }}{% if h.failed_24h %} <small class="warn">неудачных {{ h.failed_24h }}</small>{% endif %}</dd></div>
+       </dl>
+       {% endif %}
++      {% if h.state == "recovering" %}
++      <p class="alert">Сборщик стоял (компьютер спал или Docker был выключен) и снова обходит площадки. Свежий проход появится, когда очередь дойдёт до этой площадки.</p>
++      {% else %}
+       {% for a in h.alerts %}<p class="alert">{{ a }}</p>{% endfor %}
++      {% endif %}
+       {% if h.state == "warning" and not h.alerts %}
+       <p class="alert">{% if not h.last_ok_at %}Ещё ни одного успешного прохода. Пока его нет, снятые объявления не отмечаются, а новые не считаются новыми. Причина неудачных проходов — в таблице ниже.{% else %}Успешного прохода не было больше трёх часов: проверьте, включён ли компьютер и запущен ли Docker.{% endif %}</p>
+       {% endif %}
+diff --git a/src/minsk_realty/web/views.py b/src/minsk_realty/web/views.py
+index 5ad0406..98df8f6 100644
+--- a/src/minsk_realty/web/views.py
++++ b/src/minsk_realty/web/views.py
+@@ -153,7 +153,6 @@ def warm(snap: Snapshot) -> None:
+     city_series(snap)
+     all_object_rows(snap)
+     overview(snap, 10)  # «Рынок»
+-    city_series(snap, 12)
+ 
+ 
+ def overview(snap: Snapshot, top: int):
+@@ -473,15 +472,26 @@ class WeekPoint:
+     value: float | None
+ 
+ 
+-def city_series(snap: Snapshot, weeks: int = 8) -> list[WeekPoint]:
+-    """Медиана $/м² по Минску на конец каждой из последних недель (из истории)."""
++PULSE_WEEKS = 12  # один период для «Сводки» и «Рынка»
++PULSE_MIN_POINTS = 4  # меньше точек — график ничего не говорит
++
++
++def city_series(snap: Snapshot, weeks: int = PULSE_WEEKS) -> list[WeekPoint]:
++    """Медиана $/м² по Минску на конец каждой из последних недель (из истории).
++
++    Точки раньше начала наблюдения не строятся: до него в базе нет истории,
++    и медиана «на 18.08» была бы посчитана по объявлениям, увиденным позже.
++    """
+     return snap.cached(("series", weeks), lambda: _city_series(snap, weeks))
+ 
+ 
+ def _city_series(snap: Snapshot, weeks: int) -> list[WeekPoint]:
++    start = snap.data.observation_start
+     points = []
+     for k in range(weeks - 1, -1, -1):
+         at = snap.now - timedelta(weeks=k)
++        if start is not None and at < start:
++            continue
+         cell = compute_baseline(snap.data, at).city()
+         value = cell.median if cell and cell.enough else None
+         points.append(WeekPoint(f"{local(at):%d.%m}", value))
+@@ -971,7 +981,7 @@ class RunRow:
+ 
+ RUN_LABELS = {
+     "ok": ("успешно", "ok"),
+-    "running": ("идёт", "warning"),
++    "running": ("идёт", "running"),
+     "failed": ("ошибка", "failing"),
+     "blocked": ("отказ площадки", "blocked"),
+ }
+diff --git a/tests/test_analytics.py b/tests/test_analytics.py
+index b953dee..49bc85c 100644
+--- a/tests/test_analytics.py
++++ b/tests/test_analytics.py
+@@ -58,6 +58,8 @@ from minsk_realty.analytics.fmt import (
+ )
+ from minsk_realty.analytics.medians import robust_summary
+ from minsk_realty.db.models import Base, Snapshot, SourceRun
++
++MINUTE_ = timedelta(minutes=1)
+ from minsk_realty.db.session import make_engine, make_session_factory
+ from minsk_realty.matching import process_after_run
+ 
+@@ -659,6 +661,36 @@ def test_source_health_summary(docs):
+     assert health["domovita"].state == "never_run"
+ 
+ 
++def test_source_health_running_pass_is_not_failure(docs):
++    docs.add(SourceRun(source="kufar", started_at=NOW - 10 * MINUTE_, status="running"))
++    docs.flush()
++    health = {h.source: h for h in source_health_summary(docs, NOW)}
++    assert health["kufar"].state == "running"
++
++
++def test_source_health_recovering_after_pause(docs):
++    # Ноутбук спал 2,5 суток: последний проход Realt был успешным, сейчас идёт Kufar.
++    old = NOW - 60 * HOUR
++    docs.add(SourceRun(source="realt", started_at=old, finished_at=old, status="ok"))
++    docs.add(SourceRun(source="kufar", started_at=NOW - 10 * MINUTE_, status="running"))
++    docs.flush()
++    health = {h.source: h for h in source_health_summary(docs, NOW)}
++    assert health["kufar"].state == "running"
++    assert health["realt"].state == "recovering"
++
++
++def test_source_health_lagging_source_is_not_recovering(docs):
++    # Kufar обходится каждый час уже 10 часов, а Realt так и не запускался — не «очередь».
++    old = NOW - 60 * HOUR
++    docs.add(SourceRun(source="realt", started_at=old, finished_at=old, status="ok"))
++    for h in range(2, 11):
++        at = NOW - h * HOUR
++        docs.add(SourceRun(source="kufar", started_at=at, finished_at=at, status="ok"))
++    docs.flush()
++    health = {h.source: h for h in source_health_summary(docs, NOW)}
++    assert health["realt"].state not in ("running", "recovering")
++
++
+ # --- Командная строка -------------------------------------------------------------------------
+ 
+ 
+diff --git a/tests/test_web.py b/tests/test_web.py
+index a89bd66..72cd96d 100644
+--- a/tests/test_web.py
++++ b/tests/test_web.py
+@@ -637,3 +637,32 @@ def test_chart_css_uses_tokens_only():
+     css = (ROOT / "src/minsk_realty/web/static/khronika.css").read_text(encoding="utf-8")
+     block = css[css.index(".pt-platform"):css.index(".feed-platform .delta")]
+     assert "#" not in block and "rgb" not in block and "var(--ink-3)" in block
++
++
++def test_pulse_series_starts_at_observation(monkeypatch):
++    from datetime import UTC, datetime
++    from types import SimpleNamespace
++
++    from minsk_realty.web import views
++
++    cell = SimpleNamespace(median=1809.0, enough=True)
++    monkeypatch.setattr(
++        views, "compute_baseline", lambda data, at: SimpleNamespace(city=lambda: cell)
++    )
++    now = datetime(2026, 11, 3, 10, tzinfo=UTC)
++    start = datetime(2026, 10, 23, 0, tzinfo=UTC)
++    snap = SimpleNamespace(data=SimpleNamespace(observation_start=start), now=now)
++    points = views._city_series(snap, views.PULSE_WEEKS)
++    assert len(points) == 2  # 27.10 и 03.11, ничего раньше 23.10
++    assert points[0].label == "27.10" and points[-1].label == "03.11"
++
++
++def test_pulse_same_on_summary_and_market(client):
++    summary = client.get("/").text
++    market = client.get("/market").text
++
++    def pulse(html):
++        i = html.index("Пульс рынка")
++        return html[i : html.index("За неделю", i)]
++
++    assert pulse(summary) == pulse(market)

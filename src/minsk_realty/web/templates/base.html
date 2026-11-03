@@ -37,7 +37,7 @@
       <a class="status-line" href="/sources">
         <span class="dot dot-{{ h.state }}" aria-hidden="true"></span>
         <span>{{ sources.get(h.source, h.source) }}</span>
-        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "warning" %}{{ "нет прохода" if not h.last_ok_at else "давно" }}{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
+        <span class="status-when">{% if h.state == "ok" %}{{ fmt.local(h.last_run_at).strftime("%H:%M") }}{% elif h.state == "running" %}идёт{% elif h.state == "recovering" %}в очереди{% elif h.state == "warning" %}{{ "нет прохода" if not h.last_ok_at else "давно" }}{% elif h.state == "blocked" %}остановлен{% else %}сбой{% endif %}</span>
       </a>
       {% endfor %}
       <p class="rail-since">Наблюдаем с {{ snap.data.observation_start | dshort if snap.data.observation_start else "—" }}</p>

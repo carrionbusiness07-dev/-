@@ -140,10 +140,12 @@ html { scrollbar-color: var(--paper-3) transparent; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .dot-ok { background: #3ccf7d; }
 .dot-warning { background: #f2b33d; }
+.dot-running, .dot-recovering { background: #7fb2ff; }
 .dot-failing, .dot-blocked { background: #ff6b5e; }
 .page .dot { margin-right: 6px; vertical-align: 1px; }
 .page .dot-ok { background: var(--green); }
 .page .dot-warning { background: #d38b12; }
+.page .dot-running, .page .dot-recovering { background: var(--spot); }
 .page .dot-failing, .page .dot-blocked { background: var(--red); }
 
 .page { min-width: 0; }
@@ -548,6 +550,7 @@ table { width: 100%; border-collapse: collapse; }
 .source { padding-top: var(--s3); border-top: 3px solid var(--ink); }
 .source h2 { font: 700 26px/1.1 var(--head); display: flex; align-items: center; }
 .source-state { margin: 2px 0 var(--s2); color: var(--ink-2); }
+.source-running .source-state, .source-recovering .source-state { color: var(--spot); font-weight: 600; }
 .source-warning .source-state { color: var(--amber); font-weight: 600; }
 .source-failing .source-state, .source-blocked .source-state { color: var(--red); font-weight: 600; }
 .warn { color: var(--amber); font-weight: 600; }

@@ -153,7 +153,6 @@ def warm(snap: Snapshot) -> None:
     city_series(snap)
     all_object_rows(snap)
     overview(snap, 10)  # «Рынок»
-    city_series(snap, 12)
 
 
 def overview(snap: Snapshot, top: int):
@@ -473,15 +472,26 @@ class WeekPoint:
     value: float | None
 
 
-def city_series(snap: Snapshot, weeks: int = 8) -> list[WeekPoint]:
-    """Медиана $/м² по Минску на конец каждой из последних недель (из истории)."""
+PULSE_WEEKS = 12  # один период для «Сводки» и «Рынка»
+PULSE_MIN_POINTS = 4  # меньше точек — график ничего не говорит
+
+
+def city_series(snap: Snapshot, weeks: int = PULSE_WEEKS) -> list[WeekPoint]:
+    """Медиана $/м² по Минску на конец каждой из последних недель (из истории).
+
+    Точки раньше начала наблюдения не строятся: до него в базе нет истории,
+    и медиана «на 18.08» была бы посчитана по объявлениям, увиденным позже.
+    """
     return snap.cached(("series", weeks), lambda: _city_series(snap, weeks))
 
 
 def _city_series(snap: Snapshot, weeks: int) -> list[WeekPoint]:
+    start = snap.data.observation_start
     points = []
     for k in range(weeks - 1, -1, -1):
         at = snap.now - timedelta(weeks=k)
+        if start is not None and at < start:
+            continue
         cell = compute_baseline(snap.data, at).city()
         value = cell.median if cell and cell.enough else None
         points.append(WeekPoint(f"{local(at):%d.%m}", value))
@@ -971,7 +981,7 @@ class RunRow:
 
 RUN_LABELS = {
     "ok": ("успешно", "ok"),
-    "running": ("идёт", "warning"),
+    "running": ("идёт", "running"),
     "failed": ("ошибка", "failing"),
     "blocked": ("отказ площадки", "blocked"),
 }
