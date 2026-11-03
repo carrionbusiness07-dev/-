@@ -26,6 +26,12 @@ def test_parse_object(fixtures_dir):
     assert snap.posted_at.isoformat() == "2026-07-20T12:00:00+03:00"
 
 
+def test_developer_listing(fixtures_dir):
+    obj = extract_page_props(html(fixtures_dir))["objects"][0]
+    obj = {**obj, "agencyName": None, "agencyUuid": None, "realEstateDevUuid": "dev-1"}
+    assert RealtAdapter(client=object()).parse(to_raw(obj)).seller_type == "developer"
+
+
 def test_raw_payload_has_no_personal_data(fixtures_dir):
     obj = extract_page_props(html(fixtures_dir))["objects"][0]
     payload = to_raw(obj).payload

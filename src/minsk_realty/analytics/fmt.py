@@ -9,7 +9,12 @@ from zoneinfo import ZoneInfo
 MINSK_TZ = ZoneInfo("Europe/Minsk")
 
 SOURCE_NAMES = {"kufar": "Kufar", "realt": "Realt", "onliner": "Onliner", "domovita": "Domovita"}
-SELLER_NAMES = {"owner": "собственник", "agency": "агентство", "unknown": "продавец не указан"}
+SELLER_NAMES = {
+    "owner": "собственник",
+    "agency": "агентство",
+    "developer": "застройщик",
+    "unknown": "продавец не указан",
+}
 CONFIDENCE_NAMES = {"high": "высокая", "medium": "средняя", "low": "низкая"}
 LEVEL_NAMES = {"high": "высокий", "medium": "средний", "low": "низкий", "unknown": "мало данных"}
 MONTHS_GEN = (

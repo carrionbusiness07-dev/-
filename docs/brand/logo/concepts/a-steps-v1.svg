@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Хроника — A: Ступени цены</title>
+  <!-- left roof slope straight at 45°, right slope = price stepping down 3 × 30; door as a notch -->
+  <path fill="#000" d="M38 128 L128 38 V68 H158 V98 H188 V128 H218 H200 V218 H144 V162 H112 V218 H56 V128 Z"/>
+</svg>

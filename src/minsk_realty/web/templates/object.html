@@ -224,9 +224,9 @@
       {% for row in other_rows %}{% set o = row.o %}
         <tr>
           <td class="thumb-cell">{% if row.thumb %}<img class="thumb" src="{{ row.thumb }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">{% endif %}</td>
-          <td>{{ sources.get(o.source, o.source) }}<span class="sub fold">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% endif %}</span><span class="sub fold">{{ row.address or "" }}</span></td>
+          <td>{{ sources.get(o.source, o.source) }}<span class="sub fold">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% elif o.seller_type == "developer" %}застройщик{% endif %}</span><span class="sub fold">{{ row.address or "" }}</span></td>
           <td class="folded">{{ row.address or "—" }}</td>
-          <td class="folded">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% else %}—{% endif %}</td>
+          <td class="folded">{% if o.agency_name %}{{ o.agency_name }}{% elif o.seller_type == "owner" %}собственник{% elif o.seller_type == "developer" %}застройщик{% else %}—{% endif %}</td>
           <td class="folded">{% if row.floor and row.floors_total %}{{ row.floor }}/{{ row.floors_total }}{% elif row.floor %}{{ row.floor }}{% else %}—{% endif %}</td>
           <td class="num folded">{% if row.area %}{{ ("%.1f" % row.area).replace(".0", "").replace(".", ",") }} м²{% else %}—{% endif %}</td>
           <td class="num strong">{{ o.amount | money(o.currency) if o.amount else "—" }}{% if o.cheaper_by and o.cheaper_by > 0 %} <span class="delta delta-down">дешевле на {{ o.cheaper_by | money(o.cheaper_currency) }}</span>{% endif %}</td>

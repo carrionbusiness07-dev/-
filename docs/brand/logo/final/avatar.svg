@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Хроника — аватар Telegram</title>
+  <circle cx="256" cy="256" r="256" fill="#1c3dbf"/>
+  <path fill="#fff" transform="translate(256 256) scale(1.75) translate(-128 -125)" d="M47 125 L137 35 V65 H161 V95 H185 V125 H209 V215 H153 V159 H121 V215 H65 V125 Z"/>
+</svg>

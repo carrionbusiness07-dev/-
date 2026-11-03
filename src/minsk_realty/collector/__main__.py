@@ -27,7 +27,7 @@ from minsk_realty.collector.run import close_stale_runs, collect, is_blocked, la
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.health.check import Alert, AlertThrottle, check_sources, notify, ping_watchdog
 from minsk_realty.matching import process_after_run
-from minsk_realty.sources import ADAPTERS
+from minsk_realty.sources import ADAPTERS, RENT_ADAPTERS
 
 log = logging.getLogger("minsk_realty.collector")
 
@@ -69,15 +69,31 @@ def main(argv: list[str] | None = None) -> int:
 
     factory = make_session_factory(make_engine())
     throttle = AlertThrottle()
+    # Аренда — в своей базе, тем же циклом после продажи: к площадке по-прежнему один запрос.
+    rent_url = os.environ.get("RENT_DATABASE_URL")
+    rent_factory = make_session_factory(make_engine(rent_url)) if rent_url else None
+    rent_throttle = AlertThrottle()
     unblocked = set(args.unblock)
     if not args.once:
         # Постоянный сборщик один: «идущие» проходы от прошлого запуска — прерванные.
         # Разовый --once может работать рядом с ним и чужие проходы не трогает.
-        with factory() as session:
-            close_stale_runs(session, older_than=None)
-            session.commit()
+        for f in (factory, rent_factory):
+            if f is not None:
+                with f() as session:
+                    close_stale_runs(session, older_than=None)
+                    session.commit()
     while True:
         run_cycle(factory, sources, unblocked, throttle, forced=set(args.force))
+        if rent_factory is not None:
+            run_cycle(
+                rent_factory,
+                sources,
+                unblocked,
+                rent_throttle,
+                forced=set(args.force),
+                adapters=RENT_ADAPTERS,
+                deal="аренда",
+            )
         args.force = []  # как и --unblock: только на первый цикл
         unblocked.clear()  # --unblock действует на один проход: дальше снова решает журнал
         if args.once:
@@ -85,12 +101,20 @@ def main(argv: list[str] | None = None) -> int:
         time.sleep(random.uniform(*INTERVAL_MINUTES) * 60)
 
 
-def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> None:
+def run_cycle(
+    factory, sources, unblocked, throttle, *, forced=frozenset(), adapters=None, deal=None
+) -> None:
     """Один цикл: все площадки по очереди и проверка здоровья.
+
+    `deal="аренда"` — проход по аренде: без хешей фото и внешнего сторожа (его сигнал — от
+    продажи), алерты с пометкой «аренда».
 
     Любая ошибка логируется и не прерывает цикл: иначе контейнер с restart: unless-stopped
     перезапускался бы сразу и обходил площадки без паузы 30–60 минут.
     """
+    adapters = adapters or ADAPTERS
+    if deal:
+        log.info("%s: проход по площадкам", deal)
     try:
         with factory() as session:
             close_stale_runs(session)
@@ -98,8 +122,8 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
     except Exception:
         log.exception("сбой при закрытии прерванных проходов")
     attempted = succeeded = 0
-    photos_on = photo_hashing_enabled()
-    if not photos_on:
+    photos_on = photo_hashing_enabled() and deal is None
+    if not photos_on and deal is None:
         log.info("хеши фото выключены (PHOTO_HASHING)")
     for source in sources:
         run = None
@@ -109,7 +133,7 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
                     log.warning("%s: остановлена после 403/429, пропускаю", source)
                     continue
                 # Площадкам, которые сами отдают историю цены, частый опрос не нужен.
-                interval = getattr(ADAPTERS[source], "min_interval", None)
+                interval = getattr(adapters[source], "min_interval", None)
                 last = (
                     last_pass_started(session, source)
                     if interval and source not in forced
@@ -126,7 +150,7 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
                     )
                     continue
             attempted += 1
-            adapter = ADAPTERS[source]()
+            adapter = adapters[source]()
             try:
                 run = collect(adapter, factory)
                 succeeded += run.status == "ok"
@@ -162,10 +186,14 @@ def run_cycle(factory, sources, unblocked, throttle, *, forced=frozenset()) -> N
     try:
         with factory() as session:
             for alert in check_sources(session, sources):
+                if deal:
+                    alert = Alert(f"{deal}:{alert.key}", f"{deal} · {alert.text}")
                 if throttle.should_send(alert):
                     notify(alert.text)
     except Exception:
         log.exception("сбой проверки здоровья источников")
+    if deal:
+        return
     # Внешний сторож: «жив» после каждого цикла; «сбой», если не удалась ни одна площадка.
     ping_watchdog(failed=attempted > 0 and not succeeded)
 

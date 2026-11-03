@@ -16,6 +16,7 @@ from typing import Any
 from minsk_realty.analytics import CheckReport, WeeklySummary, render_check_text
 from minsk_realty.analytics.facts import facts_line
 from minsk_realty.analytics.fmt import (
+    SELLER_NAMES,
     SOURCE_NAMES,
     date_full,
     date_short,
@@ -324,7 +325,7 @@ def search_card_text(item: SearchItem, now: datetime) -> str:
     if item.days is not None:
         drops = f", дешевела {times_text(item.drops)}" if item.drops else ""
         market = f"⏳ На рынке {days_text(item.days)}{drops}"
-    seller = {True: "собственник", False: "агентство"}.get(item.owner)
+    seller = SELLER_NAMES.get(item.seller_type) if item.seller_type != "unknown" else None
     tail = " · ".join(
         p
         for p in (

@@ -35,7 +35,9 @@ from minsk_realty.web import views
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=HERE / "templates")
-templates.env.globals.update(fmt=fmt, sources=views.SOURCE_NAMES)
+templates.env.globals.update(
+    fmt=fmt, sources=views.SOURCE_NAMES, pulse_min_points=views.PULSE_MIN_POINTS
+)
 NB_THOUSANDS = re.compile(r"(?<=\d) (?=\d{3}\b)")
 RANGE = re.compile(r"\$[\d\u00a0]+–[\d\u00a0]+")
 
@@ -241,7 +243,7 @@ def market(request: Request, session: SessionDep):
     snap = _snapshot(session)
     overview = views.overview(snap, 10)
     return _page(
-        request, "market.html", snap, session, overview=overview, series=views.city_series(snap, 12)
+        request, "market.html", snap, session, overview=overview, series=views.city_series(snap)
     )
 
 

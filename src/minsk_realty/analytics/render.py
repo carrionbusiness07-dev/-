@@ -248,7 +248,7 @@ def _history_lines(report: CheckReport, icons: bool, limit: int) -> list[str]:
         source = _source(p.source)
         if (
             multi
-            and p.seller_type in ("owner", "agency")
+            and p.seller_type in ("owner", "agency", "developer")
             and p.kind in ("first", "new_listing", "parallel")
         ):
             source += f", {_seller(p.seller_type)}"

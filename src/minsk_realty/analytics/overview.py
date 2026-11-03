@@ -19,6 +19,7 @@ from minsk_realty.analytics.config import DEFAULT_ANALYTICS, AnalyticsConfig
 from minsk_realty.analytics.data import MarketData, as_utc, load_market
 from minsk_realty.analytics.medians import MarketBaseline, MedianCell, compute_baseline
 from minsk_realty.analytics.weekly import WEEK, PeriodCounts, TopDrop, period_counts, top_drops
+from minsk_realty.collector.run import STALE_RUN_AFTER
 from minsk_realty.db.models import SOURCES, Listing, SourceRun
 from minsk_realty.health.check import check_sources
 from minsk_realty.sources import min_interval
@@ -76,7 +77,12 @@ def market_overview(
 
 # --- Источники ---------------------------------------------------------------------------
 
-HealthState = Literal["ok", "warning", "failing", "blocked", "never_run"]
+# running — проход идёт прямо сейчас; recovering — сборщик снова обходит площадки после
+# перерыва (компьютер спал, Docker падал), а до этой площадки очередь ещё не дошла.
+HealthState = Literal[
+    "ok", "running", "recovering", "warning", "failing", "blocked", "never_run"
+]
+DAY_ = timedelta(days=1)
 STALE_AFTER = timedelta(hours=3)  # опрос раз в 30–60 мин: 3 часа без успешного прохода — повод
 
 
@@ -97,6 +103,34 @@ class SourceHealth:
     alerts: tuple[str, ...]
 
 
+def collector_resumed_at(
+    session: Session, now: datetime, sources: tuple[str, ...] = SOURCES
+) -> datetime | None:
+    """Когда сборщик снова начал обходить площадки после перерыва длиннее `STALE_AFTER`.
+
+    None — сборщик сейчас стоит или работает без перерыва дольше `STALE_AFTER`
+    (тогда отставшая площадка — уже не «очередь после сна», а повод разобраться).
+    """
+    starts = [
+        as_utc(t)
+        for t in session.execute(
+            select(SourceRun.started_at)
+            .where(SourceRun.source.in_(sources), SourceRun.started_at >= now - 7 * DAY_)
+            .order_by(SourceRun.started_at.desc())
+        ).scalars()
+    ]
+    if not starts or now - starts[0] > STALE_AFTER:
+        return None
+    resumed = starts[0]
+    for earlier in starts[1:]:
+        if resumed - earlier > STALE_AFTER:
+            break
+        resumed = earlier
+    else:
+        return None  # перерыва за неделю не было
+    return resumed if now - resumed <= STALE_AFTER else None
+
+
 def source_health_summary(
     session: Session, now: datetime | None = None, *, sources: tuple[str, ...] = SOURCES
 ) -> tuple[SourceHealth, ...]:
@@ -111,6 +145,7 @@ def source_health_summary(
             .group_by(Listing.source)
         ).all()
     )
+    resumed_at = collector_resumed_at(session, now, sources)
     out = []
     for source in sources:
         last = session.scalar(
@@ -139,6 +174,17 @@ def source_health_summary(
             state: HealthState = "never_run"
         elif last.status == "blocked":
             state = "blocked"
+        elif last.status == "running" and now - as_utc(last.started_at) <= STALE_RUN_AFTER:
+            state = "running"
+        elif (
+            resumed_at is not None
+            and last.status == "ok"
+            and as_utc(last.started_at) < resumed_at
+            and not any("подряд" in a for a in source_alerts)
+        ):
+            # Последний проход был успешным, сборщик снова работает — ждём очереди,
+            # а «0 записанных за сутки» здесь след перерыва, а не сломанный парсер.
+            state = "recovering"
         elif source_alerts and any("подряд" in a or "0 записанных" in a for a in source_alerts):
             state = "failing"
         elif (

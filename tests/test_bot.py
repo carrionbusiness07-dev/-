@@ -1422,7 +1422,7 @@ def _card_item(**kw) -> SearchItem:
         "days": 74,
         "drops": 2,
         "sources": ("kufar", "realt"),
-        "owner": True,
+        "seller_type": "owner",
         "url": "https://re.kufar.by/vi/1000201",
         "url_source": "kufar",
         "listing_id": 11,
@@ -1460,7 +1460,7 @@ def test_card_text():
         diff_pct=None,
         details=None,
         drops=0,
-        owner=None,
+        seller_type="unknown",
         street=None,
         checked_at=NOW - 5 * HOUR,
     )

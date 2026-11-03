@@ -23,6 +23,10 @@ from minsk_realty.sources.base import TEXT_KEYS, PoliteClient, description_facts
 LIST_URL = "https://realt.by/sale/flats/"
 OBJECT_URL = "https://realt.by/sale-flats/object/{code}/"
 URL_RE = re.compile(r"realt\.by/(?:[a-z-]+-region/)?sale-flats/object/(\d+)")
+# Долгосрочная аренда: та же структура __NEXT_DATA__, разведка 31.10.2026.
+RENT_LIST_URL = "https://realt.by/rent/flat-for-long/"
+RENT_OBJECT_URL = "https://realt.by/rent-flat-for-long/object/{code}/"
+RENT_URL_RE = re.compile(r"realt\.by/(?:[a-z-]+-region/)?rent-flat-for-long/object/(\d+)")
 
 # Коды валют ISO 4217, как их отдаёт realt.by.
 CURRENCY_BY_CODE = {933: "BYN", 840: "USD", 978: "EUR", 643: "RUB"}
@@ -51,9 +55,15 @@ REALT_BALCONY_LABELS: dict[int, str] = {0: "нет", 2: "лоджия", 27: "е�
 class RealtAdapter:
     source = "realt"
 
-    def __init__(self, client: PoliteClient | None = None, *, town: str = "Минск") -> None:
+    def __init__(
+        self, client: PoliteClient | None = None, *, town: str = "Минск", deal: str = "sale"
+    ) -> None:
         self._client = client or PoliteClient()
         self._town = town
+        rent = deal == "rent"
+        self._list_url = RENT_LIST_URL if rent else LIST_URL
+        self._object_url = RENT_OBJECT_URL if rent else OBJECT_URL
+        self._url_re = RENT_URL_RE if rent else URL_RE
         # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
         self.last_search_complete = False
 
@@ -63,7 +73,7 @@ class RealtAdapter:
         for page in range(1, max_pages + 1):
             if page > 1:
                 self._client.pause()
-            html = self._client.get(LIST_URL, params={"page": page}).text
+            html = self._client.get(self._list_url, params={"page": page}).text
             page_props = extract_page_props(html)
             objects = page_props.get("objects") or []
             for obj in objects:
@@ -93,12 +103,15 @@ class RealtAdapter:
         return ListingSnapshot(
             source="realt",
             external_id=raw.external_id,
-            url=OBJECT_URL.format(code=raw.external_id),
+            url=self._object_url.format(code=raw.external_id),
             seen_at=seen_at or datetime.now(UTC),
             price_amount=_decimal(obj.get("price")),
             price_currency=currency,
             price_usd=_decimal(rates.get(USD_CODE)),
-            seller_type="agency" if agency or obj.get("agencyUuid") else "owner",
+            # Объявления застройщика Realt помечает ссылкой на его карточку, агентства у них нет.
+            seller_type="developer"
+            if obj.get("realEstateDevUuid")
+            else ("agency" if agency or obj.get("agencyUuid") else "owner"),
             agency_name=agency,
             seller_key=obj.get("_seller_key"),
             rooms=obj.get("rooms"),
@@ -146,7 +159,7 @@ class RealtAdapter:
         self._client.close()
 
     def resolve_url(self, url: str) -> str | None:
-        match = URL_RE.search(url)
+        match = self._url_re.search(url)
         return match.group(1) if match else None
 
 

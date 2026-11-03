@@ -36,6 +36,12 @@ SEARCH_PARAMS = {
 }
 ITEM_URL = "https://r.onliner.by/pk/apartments/{id}"
 URL_RE = re.compile(r"r\.onliner\.by/pk/apartments/(\d+)")
+# Аренда (r.onliner.by/ak), разведка 31.10.2026: те же страницы, но вместо комнат, площади и
+# этажа — `rent_type` («1_room», «2_rooms», «room» — комната), продавец — `contact.owner`.
+RENT_SEARCH_URL = "https://ak.api.onliner.by/search/apartments"
+RENT_ITEM_URL = "https://r.onliner.by/ak/apartments/{id}"
+RENT_URL_RE = re.compile(r"r\.onliner\.by/ak/apartments/(\d+)")
+RENT_ROOMS_RE = re.compile(r"^(\d+)_rooms?$")
 
 CURRENCIES = {"USD": "USD", "BYN": "BYN", "EUR": "EUR", "RUB": "RUB"}
 MINSK = frozenset({"минск", "minsk"})
@@ -46,8 +52,9 @@ MIRROR_HOSTS = {"realt.by": "realt"}
 class OnlinerAdapter:
     source = "onliner"
 
-    def __init__(self, client: PoliteClient | None = None) -> None:
+    def __init__(self, client: PoliteClient | None = None, *, deal: str = "sale") -> None:
         self._client = client or PoliteClient()
+        self._rent = deal == "rent"
         # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
         self.last_search_complete = False
         self.mirrors_skipped = 0
@@ -56,13 +63,14 @@ class OnlinerAdapter:
         self.last_search_complete = False
         self.mirrors_skipped = 0
         native = 0
+        url = RENT_SEARCH_URL if self._rent else SEARCH_URL
         for page in range(1, max_pages + 1):
             if page > 1:
                 self._client.pause()
-            data = self._client.get(SEARCH_URL, params={**SEARCH_PARAMS, "page": page}).json()
+            data = self._client.get(url, params={**SEARCH_PARAMS, "page": page}).json()
             items = data.get("apartments") or []
             for item in items:
-                if not is_minsk(item):
+                if not is_minsk(item) or item.get("rent_type") == "room":  # комната — не квартира
                     continue
                 if mirror_of(item):
                     self.mirrors_skipped += 1
@@ -84,7 +92,12 @@ class OnlinerAdapter:
             share * 100,
             self.last_search_complete,
         )
-        if self.last_search_complete and native > 500 and not self.mirrors_skipped:
+        if (
+            self.last_search_complete
+            and native > 500
+            and not self.mirrors_skipped
+            and not self._rent
+        ):
             # Обычно копий около половины. Ноль — скорее всего, изменился формат ссылок на фото,
             # и копии Realt пошли в базу как объявления Onliner (ложные «дубли»).
             log.warning("onliner: ни одной копии Realt — проверьте разбор фото (mirror_of)")
@@ -96,18 +109,23 @@ class OnlinerAdapter:
         usd = ((price.get("converted") or {}).get("USD") or {}).get("amount")
         area = item.get("area") or {}
         seller = (item.get("seller") or {}).get("type")
+        owner = (item.get("contact") or {}).get("owner")
+        if isinstance(owner, bool):
+            seller = "owner" if owner else "agent"
+        rooms = RENT_ROOMS_RE.match(str(item.get("rent_type") or ""))
         photo = original_photo_url(item.get("photo"))
+        item_url = RENT_ITEM_URL if self._rent else ITEM_URL
         return ListingSnapshot(
             source="onliner",
             external_id=raw.external_id,
-            url=item.get("url") or ITEM_URL.format(id=raw.external_id),
+            url=item.get("url") or item_url.format(id=raw.external_id),
             seen_at=seen_at or datetime.now(UTC),
             price_amount=_decimal(price.get("amount")),
             price_currency=CURRENCIES.get(str(price.get("currency") or "").upper()),
             price_usd=_decimal(usd),
             seller_type={"agent": "agency", "owner": "owner"}.get(seller, "unknown"),
             seller_key=item.get("_seller_key"),
-            rooms=item.get("number_of_rooms"),
+            rooms=item.get("number_of_rooms") or (int(rooms.group(1)) if rooms else None),
             area_total=area.get("total"),
             floor=item.get("floor"),
             floors_total=item.get("number_of_floors"),
@@ -129,7 +147,7 @@ class OnlinerAdapter:
         self._client.close()
 
     def resolve_url(self, url: str) -> str | None:
-        match = URL_RE.search(url)
+        match = (RENT_URL_RE if self._rent else URL_RE).search(url)
         return match.group(1) if match else None
 
 

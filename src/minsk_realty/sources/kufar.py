@@ -27,6 +27,8 @@ SEARCH_PARAMS = {
     "sort": "lst.d",
 }
 ITEM_URL = "https://re.kufar.by/vi/{ad_id}"
+# Аренда — тот же поиск с typ=let (долгосрочная), разведка 31.10.2026: те же поля, что у продажи.
+DEAL_TYP = {"sale": "sell", "rent": "let"}
 
 # Ссылки вида re.kufar.by/vi/123456789, kufar.by/item/123456789 (+ возможный путь перед id).
 URL_RE = re.compile(r"kufar\.by/(?:vi|item)/(?:[^?#\s]*/)?(\d{6,})")
@@ -61,14 +63,15 @@ CALCULATOR_CURRENCY = {"USD": "USD", "BYN": "BYN", "EUR": "EUR"}
 class KufarAdapter:
     source = "kufar"
 
-    def __init__(self, client: PoliteClient | None = None) -> None:
+    def __init__(self, client: PoliteClient | None = None, *, deal: str = "sale") -> None:
         self._client = client or PoliteClient()
+        self._params = {**SEARCH_PARAMS, "typ": DEAL_TYP[deal]}
         # True, если последний search() дошёл до конца выдачи, а не упёрся в max_pages.
         self.last_search_complete = False
 
     def search(self, *, max_pages: int = 500) -> Iterator[RawListing]:
         self.last_search_complete = False
-        params = dict(SEARCH_PARAMS)
+        params = dict(self._params)
         for page in range(max_pages):
             if page:
                 self._client.pause()

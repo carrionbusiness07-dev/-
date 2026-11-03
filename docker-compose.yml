@@ -34,9 +34,19 @@ services:
       retries: 5
     logging: *logging
 
+  # Основная база, затем база аренды (realty_rent): создаётся, если её нет, и та же схема.
   migrate:
     <<: *app
-    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://realty:${POSTGRES_PASSWORD}@db:5432/realty
+      RENT_DATABASE_URL: postgresql+psycopg://realty:${POSTGRES_PASSWORD}@db:5432/realty_rent
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        python scripts/create_rent_db.py &&
+        DATABASE_URL="$$RENT_DATABASE_URL" alembic upgrade head
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +54,10 @@ services:
   collector:
     <<: *app
     restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://realty:${POSTGRES_PASSWORD}@db:5432/realty
+      # Долгосрочная аренда: своя база, тот же цикл после продажи.
+      RENT_DATABASE_URL: postgresql+psycopg://realty:${POSTGRES_PASSWORD}@db:5432/realty_rent
     # Дать проходу закрыть запись в журнале, а не обрываться на середине.
     stop_grace_period: 30s
     depends_on:
@@ -74,7 +88,8 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # Резервная копия базы раз в сутки: папка backups/ рядом с проектом, последние 14 дней.
+  # Резервная копия баз раз в сутки: папка backups/ рядом с проектом, последние 14 дней.
+  # realty-ДАТА.dump — продажа, realty_rent-ДАТА.dump — аренда.
   # Раз в час проверяет, есть ли копия за сегодня, — выключенный ночью компьютер не мешает.
   backup:
     image: postgres:16
@@ -93,16 +108,18 @@ services:
       - |
         trap 'exit 0' TERM INT
         while true; do
-          f=/backups/realty-$$(date +%Y-%m-%d).dump
-          if [ ! -f "$$f" ]; then
-            rm -f /backups/realty-*.dump.tmp
-            if pg_dump -Fc -f "$$f.tmp"; then
-              mv "$$f.tmp" "$$f" && echo "бэкап готов: $$f"
-              find /backups -name 'realty-*.dump' -mtime +14 -delete
-            else
-              rm -f "$$f.tmp"; echo "бэкап не удался, повтор через час"
+          for db in realty realty_rent; do
+            f=/backups/$$db-$$(date +%Y-%m-%d).dump
+            if [ ! -f "$$f" ]; then
+              rm -f /backups/$$db-*.dump.tmp
+              if pg_dump -Fc -d "$$db" -f "$$f.tmp"; then
+                mv "$$f.tmp" "$$f" && echo "бэкап готов: $$f"
+                find /backups -name "$$db-*.dump" -mtime +14 -delete
+              else
+                rm -f "$$f.tmp"; echo "бэкап $$db не удался, повтор через час"
+              fi
             fi
-          fi
+          done
           sleep 3600 & wait $$!
         done
     depends_on:

@@ -58,6 +58,8 @@ from minsk_realty.analytics.fmt import (
 )
 from minsk_realty.analytics.medians import robust_summary
 from minsk_realty.db.models import Base, Snapshot, SourceRun
+
+MINUTE_ = timedelta(minutes=1)
 from minsk_realty.db.session import make_engine, make_session_factory
 from minsk_realty.matching import process_after_run
 
@@ -657,6 +659,36 @@ def test_source_health_summary(docs):
     realt_ = health["realt"]
     assert realt_.state == "failing" and realt_.failed_24h == 3 and realt_.alerts
     assert health["domovita"].state == "never_run"
+
+
+def test_source_health_running_pass_is_not_failure(docs):
+    docs.add(SourceRun(source="kufar", started_at=NOW - 10 * MINUTE_, status="running"))
+    docs.flush()
+    health = {h.source: h for h in source_health_summary(docs, NOW)}
+    assert health["kufar"].state == "running"
+
+
+def test_source_health_recovering_after_pause(docs):
+    # Ноутбук спал 2,5 суток: последний проход Realt был успешным, сейчас идёт Kufar.
+    old = NOW - 60 * HOUR
+    docs.add(SourceRun(source="realt", started_at=old, finished_at=old, status="ok"))
+    docs.add(SourceRun(source="kufar", started_at=NOW - 10 * MINUTE_, status="running"))
+    docs.flush()
+    health = {h.source: h for h in source_health_summary(docs, NOW)}
+    assert health["kufar"].state == "running"
+    assert health["realt"].state == "recovering"
+
+
+def test_source_health_lagging_source_is_not_recovering(docs):
+    # Kufar обходится каждый час уже 10 часов, а Realt так и не запускался — не «очередь».
+    old = NOW - 60 * HOUR
+    docs.add(SourceRun(source="realt", started_at=old, finished_at=old, status="ok"))
+    for h in range(2, 11):
+        at = NOW - h * HOUR
+        docs.add(SourceRun(source="kufar", started_at=at, finished_at=at, status="ok"))
+    docs.flush()
+    health = {h.source: h for h in source_health_summary(docs, NOW)}
+    assert health["realt"].state not in ("running", "recovering")
 
 
 # --- Командная строка -------------------------------------------------------------------------
